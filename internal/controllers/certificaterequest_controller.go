@@ -48,7 +48,7 @@ var (
 type CertificateRequestReconciler struct {
 	client.Client
 	Scheme                   *runtime.Scheme
-	SignerBuilder            signer.commandSignerBuilder
+	SignerBuilder            signer.CommandSignerBuilder
 	ClusterResourceNamespace string
 
 	Clock                  clock.Clock
@@ -206,7 +206,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	secretName := types.NamespacedName{
-		Name:      issuerSpec.commandSecretName,
+		Name:      issuerSpec.SecretName,
 		Namespace: secretNamespace,
 	}
 
