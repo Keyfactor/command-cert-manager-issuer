@@ -6,52 +6,42 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - command-issuer.keyfactor.com
+  - ""
   resources:
-  - clusterissuers
+  - secrets
   verbs:
-  - create
-  - delete
   - get
   - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests/status
+  verbs:
+  - get
   - patch
   - update
-  - watch
 - apiGroups:
   - command-issuer.keyfactor.com
   resources:
-  - clusterissuers/finalizers
+  - clusterissuers
+  - issuers
   verbs:
-  - update
+  - get
+  - list
+  - watch
 - apiGroups:
   - command-issuer.keyfactor.com
   resources:
   - clusterissuers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - command-issuer.keyfactor.com
-  resources:
-  - issuers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - command-issuer.keyfactor.com
-  resources:
-  - issuers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - command-issuer.keyfactor.com
-  resources:
   - issuers/status
   verbs:
   - get
