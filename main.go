@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/Keyfactor/command-issuer/internal/controllers"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -32,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	commandissuerv1alpha1 "github.com/Keyfactor/command-issuer/api/v1alpha1"
-	"github.com/Keyfactor/command-issuer/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -94,13 +94,6 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
-		os.Exit(1)
-	}
-	if err = (&controllers.ClusterIssuerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
