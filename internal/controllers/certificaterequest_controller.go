@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	issuerutil "github.com/Keyfactor/command-issuer/internal/issuer/util"
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
@@ -33,8 +34,7 @@ import (
 	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
 var (
@@ -61,6 +61,8 @@ type CertificateRequestReconciler struct {
 
 func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	log := ctrl.LoggerFrom(ctx)
+
+	meta := signer.K8sMetadata{}
 
 	// Get the CertificateRequest
 	var certificateRequest cmapi.CertificateRequest
@@ -179,6 +181,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		issuerName.Namespace = certificateRequest.Namespace
 		secretNamespace = certificateRequest.Namespace
 		log = log.WithValues("issuer", issuerName)
+		meta.ControllerKind = "issuer"
 	case *commandissuer.ClusterIssuer:
 		secretNamespace = r.ClusterResourceNamespace
 		log = log.WithValues("clusterissuer", issuerName)
@@ -220,7 +223,16 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerBuilder, err)
 	}
 
-	signed, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request)
+	// Assign metadata
+	meta.ControllerNamespace = r.ClusterResourceNamespace
+	// meta.ControllerKind found above
+	meta.ControllerResourceGroupName = commandissuer.GroupVersion.Group
+	meta.IssuerName = certificateRequest.Spec.IssuerRef.Name
+	meta.IssuerNamespace = certificateRequest.Namespace
+	meta.ControllerReconcileId = fmt.Sprintf("%s", controller.ReconcileIDFromContext(ctx))
+	meta.CertificateSigningRequestNamespace = certificateRequest.Namespace
+
+	signed, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerSign, err)
 	}

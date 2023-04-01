@@ -17,13 +17,17 @@ limitations under the License.
 package util
 
 import (
+	"errors"
 	"fmt"
+	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 )
+
+const inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 func GetSpecAndStatus(issuer client.Object) (*commandissuer.IssuerSpec, *commandissuer.IssuerStatus, error) {
 	switch t := issuer.(type) {
@@ -74,4 +78,25 @@ func IsReady(status *commandissuer.IssuerStatus) bool {
 		return c.Status == commandissuer.ConditionTrue
 	}
 	return false
+}
+
+var ErrNotInCluster = errors.New("not running in-cluster")
+
+// Copied from controller-runtime/pkg/leaderelection
+func GetInClusterNamespace() (string, error) {
+	// Check whether the namespace file exists.
+	// If not, we are not running in cluster so can't guess the namespace.
+	_, err := os.Stat(inClusterNamespacePath)
+	if os.IsNotExist(err) {
+		return "", ErrNotInCluster
+	} else if err != nil {
+		return "", fmt.Errorf("error checking namespace file: %w", err)
+	}
+
+	// Load the namespace file and return its content
+	namespace, err := os.ReadFile(inClusterNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading namespace file: %w", err)
+	}
+	return string(namespace), nil
 }

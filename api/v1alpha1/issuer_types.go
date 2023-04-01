@@ -26,8 +26,12 @@ type IssuerSpec struct {
 	Hostname string `json:"hostname,omitempty"`
 	// CertificateTemplate is the name of the certificate template to use
 	CertificateTemplate string `json:"certificateTemplate,omitempty"`
-	// CertificateAuthority is the name of the certificate authority to use
-	CertificateAuthority string `json:"certificateAuthority,omitempty"`
+	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
+	// E.g. "Keyfactor Root CA" or "Intermediate CA"
+	CertificateAuthorityLogicalName string `json:"certificateAuthorityLogicalName,omitempty"`
+	// CertificateAuthorityHostname is the hostname associated with the Certificate Authority specified by
+	// CertificateAuthorityLogicalName E.g. "ca.example.com"
+	CertificateAuthorityHostname string `json:"certificateAuthorityHostname,omitempty"`
 
 	// A reference to a Secret in the same namespace as the referent. If the
 	// referent is a ClusterIssuer, the reference instead refers to the resource

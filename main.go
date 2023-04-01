@@ -17,8 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
 	"github.com/Keyfactor/command-issuer/internal/controllers"
+	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
+	"github.com/Keyfactor/command-issuer/internal/issuer/util"
+	"k8s.io/utils/clock"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -52,11 +56,20 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var clusterResourceNamespace string
+	var printVersion bool
+	var disableApprovedCheck bool
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&clusterResourceNamespace, "cluster-resource-namespace", "", "The namespace for secrets in which cluster-scoped resources are found.")
+	flag.BoolVar(&printVersion, "version", false, "Print version to stdout and exit")
+	flag.BoolVar(&disableApprovedCheck, "disable-approved-check", false,
+		"Disables waiting for CertificateRequests to have an approved condition before signing.")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -64,6 +77,19 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if clusterResourceNamespace == "" {
+		var err error
+		clusterResourceNamespace, err = util.GetInClusterNamespace()
+		if err != nil {
+			if errors.Is(err, util.ErrNotInCluster) {
+				setupLog.Error(err, "please supply --cluster-resource-namespace")
+			} else {
+				setupLog.Error(err, "unexpected error while getting in-cluster Namespace")
+			}
+			os.Exit(1)
+		}
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -90,10 +116,34 @@ func main() {
 	}
 
 	if err = (&controllers.IssuerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Kind:                     "Issuer",
+		Client:                   mgr.GetClient(),
+		Scheme:                   mgr.GetScheme(),
+		ClusterResourceNamespace: clusterResourceNamespace,
+		HealthCheckerBuilder:     signer.CommandHealthCheckerFromIssuerAndSecretData,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
+		os.Exit(1)
+	}
+	if err = (&controllers.IssuerReconciler{
+		Kind:                     "ClusterIssuer",
+		Client:                   mgr.GetClient(),
+		Scheme:                   mgr.GetScheme(),
+		ClusterResourceNamespace: clusterResourceNamespace,
+		HealthCheckerBuilder:     signer.CommandHealthCheckerFromIssuerAndSecretData,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
+		os.Exit(1)
+	}
+	if err = (&controllers.CertificateRequestReconciler{
+		Client:                   mgr.GetClient(),
+		Scheme:                   mgr.GetScheme(),
+		ClusterResourceNamespace: clusterResourceNamespace,
+		SignerBuilder:            signer.CommandSignerFromIssuerAndSecretData,
+		CheckApprovedCondition:   !disableApprovedCheck,
+		Clock:                    clock.RealClock{},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CertificateRequest")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
