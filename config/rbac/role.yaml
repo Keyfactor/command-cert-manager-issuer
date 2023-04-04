@@ -47,3 +47,9 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - command-issuer.keyfactor.com
+  resources:
+  - issuers/finalizers
+  verbs:
+  - update
