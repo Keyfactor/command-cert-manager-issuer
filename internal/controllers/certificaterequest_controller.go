@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	issuerutil "github.com/Keyfactor/command-issuer/internal/issuer/util"
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
@@ -35,6 +34,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+
+	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 )
 
 var (

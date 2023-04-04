@@ -22,6 +22,7 @@ import (
 	"github.com/Keyfactor/command-issuer/internal/controllers"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	"github.com/Keyfactor/command-issuer/internal/issuer/util"
+	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"k8s.io/utils/clock"
 	"os"
 
@@ -50,6 +51,8 @@ func init() {
 
 	utilruntime.Must(commandissuerv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+
+	_ = cmapi.AddToScheme(scheme)
 }
 
 func main() {

@@ -196,6 +196,8 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 		return nil, err
 	}
 
+	k8sLog.Info(fmt.Sprintf("Successfully enrolled certificate with Command with subject \"%s\". Certificate has %d SANs", certAndChain[0].Subject, len(certAndChain[0].DNSNames)+len(certAndChain[0].IPAddresses)+len(certAndChain[0].URIs)))
+
 	// Return the certificate and chain in PEM format
 	return compileCertificatesToPemBytes(certAndChain)
 }
