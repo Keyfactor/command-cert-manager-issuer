@@ -53,9 +53,9 @@ type IssuerReconciler struct {
 	HealthCheckerBuilder     signer.HealthCheckerBuilder
 }
 
-// +kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers;clusterissuers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/status;clusterissuers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers;clusterissuers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/status;clusterissuers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/finalizers,verbs=update
 
 func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 	issuerGVK := commandissuer.GroupVersion.WithKind(r.Kind)
