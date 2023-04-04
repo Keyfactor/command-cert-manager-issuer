@@ -35,9 +35,15 @@ spec:
           spec:
             description: IssuerSpec defines the desired state of Issuer
             properties:
-              certificateAuthority:
-                description: CertificateAuthority is the name of the certificate authority
-                  to use
+              certificateAuthorityHostname:
+                description: CertificateAuthorityHostname is the hostname associated
+                  with the Certificate Authority specified by CertificateAuthorityLogicalName
+                  E.g. "ca.example.com"
+                type: string
+              certificateAuthorityLogicalName:
+                description: CertificateAuthorityLogicalName is the logical name of
+                  the certificate authority to use E.g. "Keyfactor Root CA" or "Intermediate
+                  CA"
                 type: string
               certificateTemplate:
                 description: CertificateTemplate is the name of the certificate template
