@@ -101,15 +101,12 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 	}
 	signer.certificateAuthorityLogicalName = spec.CertificateAuthorityLogicalName
 
-	if spec.CertificateAuthorityHostname == "" {
-		k8sLog.Error(errors.New("missing certificate authority hostname"), "missing certificate authority hostname")
-		return nil, errors.New("missing certificate authority hostname")
-	}
+	// CA Hostname is optional
 	signer.certificateAuthorityHostname = spec.CertificateAuthorityHostname
 
 	k8sLog.Info(fmt.Sprintf("Using certificate template \"%s\" and certificate authority \"%s\" (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
 
-	// Configure metadata in Command
+	// Configure metadata in Command.
 	err = signer.setupCommandK8sMetadata(ctx)
 	if err != nil {
 		return nil, err
@@ -119,9 +116,9 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 }
 
 func (s *commandSigner) Check() error {
-	endpoints, h, err := s.client.StatusApi.StatusGetEndpoints(context.Background()).Execute()
+	endpoints, _, err := s.client.StatusApi.StatusGetEndpoints(context.Background()).Execute()
 	if err != nil {
-		detail := fmt.Sprintf("ejbca returned status code %d", h.StatusCode)
+		detail := fmt.Sprintf("failed to get endpoints from Keyfactor Command")
 
 		bodyError, ok := err.(*keyfactor.GenericOpenAPIError)
 		if ok {
@@ -135,10 +132,11 @@ func (s *commandSigner) Check() error {
 
 	for _, endpoint := range endpoints {
 		if strings.Contains(endpoint, "POST /Enrollment/CSR") {
-			fmt.Println(endpoint)
+			return nil
 		}
 	}
-	return nil
+
+	return errors.New("missing \"POST /Enrollment/CSR\" endpoint")
 }
 
 func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMetadata) ([]byte, error) {
@@ -154,7 +152,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	k8sLog.Info(fmt.Sprintf("Found CSR wtih Common Name \"%s\" and %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
 
 	modelRequest := keyfactor.ModelsEnrollmentCSREnrollmentRequest{
-		CSR:          "",
+		CSR:          string(csrBytes),
 		IncludeChain: ptr(true),
 		Metadata: map[string]interface{}{
 			CommandMetaControllerNamespace:                k8sMeta.ControllerNamespace,
@@ -168,7 +166,15 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 		Template: &s.certificateTemplate,
 		SANs:     nil, // TODO figure out if the SANs from csr need to be copied here
 	}
-	modelRequest.SetCertificateAuthority(fmt.Sprintf("%s\\\\%s", s.certificateAuthorityLogicalName, s.certificateAuthorityHostname))
+
+	var caBuilder strings.Builder
+	if s.certificateAuthorityHostname != "" {
+		caBuilder.WriteString(s.certificateAuthorityHostname)
+		caBuilder.WriteString("\\")
+	}
+	caBuilder.WriteString(s.certificateAuthorityLogicalName)
+
+	modelRequest.SetCertificateAuthority(caBuilder.String())
 	modelRequest.SetTimestamp(time.Now())
 
 	commandCsrResponseObject, _, err := s.client.EnrollmentApi.EnrollmentPostCSREnroll(context.Background()).Request(modelRequest).XCertificateformat(enrollmentPEMFormat).Execute()
@@ -258,24 +264,23 @@ var (
 // setupCommandMetadataFromK8sContext creates Command metadata fields from the key-values injected by Kubernetes.
 func (s *commandSigner) setupCommandK8sMetadata(ctx context.Context) error {
 	k8sLog := log.FromContext(ctx)
+	existingMetaMap := make(map[string]bool)
 
 	metadataFields, _, err := s.client.MetadataFieldApi.MetadataFieldGetAllMetadataFields(ctx).Execute()
 	if err != nil {
 		return err
 	}
 
+	// Create a map of the existing metadata fields so that searching for them is O(1) time
+	// (instead of O(n) time on the inside of the for loop)
+	// (the total algorithm is still O(2n) time at worst, but this is better than O(n^2) time)
+	for _, field := range metadataFields {
+		existingMetaMap[*field.Name] = true
+	}
+
 	for metaName, description := range commandMetadataMap {
 		// Check if the metadata field already exists
-		metaFieldExists := false
-		for _, field := range metadataFields {
-			if *field.Name == metaName {
-				metaFieldExists = true
-				break
-			}
-		}
-
-		// If the metadata field already exists, keep searching
-		if metaFieldExists {
+		if _, ok := existingMetaMap[metaName]; ok {
 			continue
 		}
 
@@ -296,6 +301,8 @@ func (s *commandSigner) setupCommandK8sMetadata(ctx context.Context) error {
 
 		k8sLog.Info(fmt.Sprintf("Created metadata field \"%s\" in Command", execute.GetName()))
 	}
+
+	k8sLog.Info("Finished validating metadata fields in Command")
 
 	return nil
 }
@@ -326,6 +333,9 @@ func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.
 	// Set username and password for the Keyfactor client
 	config.BasicAuth.UserName = username
 	config.BasicAuth.Password = password
+
+	// Set the user agent for the Keyfactor client
+	config.UserAgent = "command-issuer"
 
 	client := keyfactor.NewAPIClient(config)
 	if client == nil {

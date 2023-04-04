@@ -11,9 +11,11 @@ import (
 	"encoding/pem"
 	"fmt"
 	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
+	"github.com/Keyfactor/keyfactor-go-client-sdk/api/keyfactor"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 type testSigner struct {
@@ -26,41 +28,7 @@ func TestCommandHealthCheckerFromIssuerAndSecretData(t *testing.T) {
 		HealthCheckerBuilder: CommandHealthCheckerFromIssuerAndSecretData,
 	}
 
-	// Get the username and password from the environment
-	secretData := make(map[string][]byte)
-	username := os.Getenv("COMMAND_USERNAME")
-	if username == "" {
-		t.Fatal("COMMAND_USERNAME must be set to run this test")
-	}
-	secretData["username"] = []byte(username)
-
-	password := os.Getenv("COMMAND_PASSWORD")
-	if password == "" {
-		t.Fatal("COMMAND_PASSWORD must be set to run this test")
-	}
-	secretData["password"] = []byte(password)
-
-	// Get the hostname, certificate template, and certificate authority from the environment
-	spec := commandissuer.IssuerSpec{}
-	hostname := os.Getenv("COMMAND_HOSTNAME")
-	if hostname == "" {
-		t.Fatal("COMMAND_HOSTNAME must be set to run this test")
-	}
-	spec.Hostname = hostname
-
-	certificateTemplate := os.Getenv("COMMAND_CERTIFICATE_TEMPLATE")
-	if certificateTemplate == "" {
-		t.Fatal("COMMAND_CERTIFICATE_TEMPLATE must be set to run this test")
-	}
-	spec.CertificateTemplate = certificateTemplate
-
-	certificateAuthority := os.Getenv("COMMAND_CERTIFICATE_AUTHORITY")
-	if certificateAuthority == "" {
-		t.Fatal("COMMAND_CERTIFICATE_AUTHORITY must be set to run this test")
-	}
-	spec.CertificateAuthority = certificateAuthority
-
-	builder, err := obj.HealthCheckerBuilder(context.Background(), &spec, secretData)
+	builder, err := obj.HealthCheckerBuilder(getTestSignerConfigItems(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +44,97 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 		SignerBuilder: CommandSignerFromIssuerAndSecretData,
 	}
 
+	signer, err := obj.SignerBuilder(getTestSignerConfigItems(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate a test CSR to sign
+	csr, err := generateCSR("C=US,ST=California,L=San Francisco,O=Keyfactor,OU=Engineering,CN=example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := K8sMetadata{
+		ControllerNamespace:                "test-namespace",
+		ControllerKind:                     "Issuer",
+		ControllerResourceGroupName:        "test-issuer.example.com",
+		IssuerName:                         "test-issuer",
+		IssuerNamespace:                    "test-namespace",
+		ControllerReconcileId:              "GUID",
+		CertificateSigningRequestNamespace: "test-namespace",
+	}
+
+	signed, err := signer.Sign(context.Background(), csr, meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Signed certificate: %s", string(signed))
+}
+
+func TestCommandSigner_setupCommandK8sMetadata(t *testing.T) {
+	deleteBeforeCheck := false
+	client, err := createCommandClientFromSecretData(getTestSignerConfigItems(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signer := commandSigner{
+		client: client,
+	}
+
+	if deleteBeforeCheck {
+		err = deleteCommandK8sMetadataItems(t, client)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Log the time required to setup the metadata
+		start := time.Now()
+		err = signer.setupCommandK8sMetadata(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("setupCommandK8sMetadata took %s (created %d metadata fields in Command)", time.Since(start), len(commandMetadataMap))
+	}
+
+	for i := 0; i < 10; i++ {
+		// Now log the time required to check that the metadata is correctly configured
+		start := time.Now()
+		err = signer.setupCommandK8sMetadata(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("setupCommandK8sMetadata took %s (verified %d metadata fields in Command)", time.Since(start), len(commandMetadataMap))
+	}
+}
+
+func deleteCommandK8sMetadataItems(t *testing.T, client *keyfactor.APIClient) error {
+	metadataFields, _, err := client.MetadataFieldApi.MetadataFieldGetAllMetadataFields(context.Background()).Execute()
+	if err != nil {
+		return err
+	}
+
+	existingMetaMap := make(map[string]int32)
+	for _, field := range metadataFields {
+		existingMetaMap[*field.Name] = *field.Id
+	}
+
+	for metaName, description := range commandMetadataMap {
+		if id, ok := existingMetaMap[metaName]; ok {
+			t.Logf("Deleting metadata field %s \"%s\" (%d)", metaName, description, id)
+			_, err = client.MetadataFieldApi.MetadataFieldDeleteMetadataField(context.Background(), id).Execute()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte) {
 	// Get the username and password from the environment
 	secretData := make(map[string][]byte)
 	username := os.Getenv("COMMAND_USERNAME")
@@ -104,29 +163,19 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 	}
 	spec.CertificateTemplate = certificateTemplate
 
-	certificateAuthority := os.Getenv("COMMAND_CERTIFICATE_AUTHORITY")
-	if certificateAuthority == "" {
-		t.Fatal("COMMAND_CERTIFICATE_AUTHORITY must be set to run this test")
+	certificateAuthorityLogicalName := os.Getenv("COMMAND_CERTIFICATE_AUTHORITY_LOGICAL_NAME")
+	if certificateAuthorityLogicalName == "" {
+		t.Fatal("COMMAND_CERTIFICATE_AUTHORITY_LOGICAL_NAME must be set to run this test")
 	}
-	spec.CertificateAuthority = certificateAuthority
+	spec.CertificateAuthorityLogicalName = certificateAuthorityLogicalName
 
-	builder, err := obj.SignerBuilder(context.Background(), &spec, secretData)
-	if err != nil {
-		t.Fatal(err)
+	certificateAuthorityHostname := os.Getenv("COMMAND_CERTIFICATE_AUTHORITY_HOSTNAME")
+	if certificateAuthorityHostname == "" {
+		t.Fatal("COMMAND_CERTIFICATE_AUTHORITY_HOSTNAME must be set to run this test")
 	}
+	spec.CertificateAuthorityHostname = certificateAuthorityHostname
 
-	// Generate a test CSR to sign
-	csr, err := generateCSR("C=US,ST=California,L=San Francisco,O=Keyfactor,OU=Engineering,CN=example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	signed, err := builder.Sign(context.Background(), csr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("Signed certificate: %s", string(signed))
+	return context.Background(), &spec, secretData
 }
 
 func generateCSR(subject string) ([]byte, error) {
