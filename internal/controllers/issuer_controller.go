@@ -138,7 +138,11 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	issuerType, err := r.newIssuer()
+	if err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&commandissuer.Issuer{}).
+		For(issuerType).
 		Complete(r)
 }

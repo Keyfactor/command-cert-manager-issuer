@@ -1,0 +1,10 @@
+apiVersion: cert-manager.io/v1
+kind: CertificateRequest
+metadata:
+  name: issuer-sample
+spec:
+  request: LS0tLS1CRU... # base64 encoded CSR
+  issuerRef:
+    name: issuer-sample
+    group: command-issuer.keyfactor.com
+    kind: Issuer

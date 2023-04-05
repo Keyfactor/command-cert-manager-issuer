@@ -4,7 +4,7 @@
 
 # Keyfactor Command Issuer for cert-manager
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Keyfactor/ejbca-k8s-csr-signer)](https://goreportcard.com/report/github.com/Keyfactor/ejbca-k8s-csr-signer)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Keyfactor/command-k8s-csr-signer)](https://goreportcard.com/report/github.com/Keyfactor/command-k8s-csr-signer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
 The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager. This allows security administrators to manage the lifecycle of certificates for Kubernetes applications.
@@ -14,9 +14,9 @@ Cert-manager is a native Kubernetes certificate management controller which allo
 ## Community supported
 We welcome contributions.
 
-The cert-manager external issuer for Keyfactor EJBCA is open source and community supported, meaning that there is **no SLA** applicable for these tools.
+The cert-manager external issuer for Keyfactor command is open source and community supported, meaning that there is **no SLA** applicable for these tools.
 
-###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, see the [contribution guidelines](https://github.com/Keyfactor/ejbca-k8s-csr-signer/blob/main/CONTRIBUTING.md) and use the **[Pull requests](../../pulls)** tab.
+###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, see the [contribution guidelines](https://github.com/Keyfactor/command-k8s-csr-signer/blob/main/CONTRIBUTING.md) and use the **[Pull requests](../../pulls)** tab.
 
 ## Requirements
 ### To build
@@ -81,19 +81,11 @@ metadata:
     app.kubernetes.io/name: issuer
     app.kubernetes.io/instance: issuer-sample
     app.kubernetes.io/part-of: command-issuer
-    app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: command-issuer
 name: issuer-sample
 spec:
   # Hostname is the hostname of the Keyfactor server
   hostname: ""
-  # A reference to a Secret in the same namespace as the referent. If the
-  # referent is a ClusterIssuer, the reference instead refers to the resource
-  # with the given name in the configured 'cluster resource namespace', which
-  # is set as a flag on the controller component (and defaults to the
-  # namespace that the controller runs in). The secret must be a K8s basic-auth
-  # secret of type kubernetes.io/basic-auth with the username and password
-  # fields set.
   commandSecretName: ""
   # The Command template to use for the certificate request
   certificateTemplate: ""
@@ -101,7 +93,7 @@ spec:
   certificateAuthorityLogicalName: ""
   # The CAs hostname to use to sign the certificate request
   certificateAuthorityHostname: ""
-kubectl -n ejbca-issuer-system apply -f issuer.yaml
+kubectl -n command-issuer-system apply -f issuer.yaml
 cat <<EOF >> clusterissuer.yaml
 apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: ClusterIssuer
@@ -110,19 +102,11 @@ metadata:
     app.kubernetes.io/name: clusterissuer
     app.kubernetes.io/instance: clusterissuer-sample
     app.kubernetes.io/part-of: command-issuer
-    app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: command-issuer
   name: clusterissuer-sample
 spec:
   # Hostname is the hostname of the Keyfactor server
   hostname: ""
-  # A reference to a Secret in the same namespace as the referent. If the
-  # referent is a ClusterIssuer, the reference instead refers to the resource
-  # with the given name in the configured 'cluster resource namespace', which
-  # is set as a flag on the controller component (and defaults to the
-  # namespace that the controller runs in). The secret must be a K8s basic-auth
-  # secret of type kubernetes.io/basic-auth with the username and password
-  # fields set.
   commandSecretName: ""
   # The Command template to use for the certificate request
   certificateTemplate: ""
@@ -131,7 +115,7 @@ spec:
   # The CAs hostname to use to sign the certificate request
   certificateAuthorityHostname: ""
 EOF
-kubectl -n ejbca-issuer-system apply -f clusterissuer.yaml
+kubectl -n command-issuer-system apply -f clusterissuer.yaml
 ```
 
 To create a certificate, create a CertificateRequest resource:
@@ -162,7 +146,7 @@ To remove the controller from the cluster, run:
 make undeploy
 ```
 
-To remove the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor EJBCA, run:
+To remove the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor command, run:
 ```shell
 make uninstall
 ```

@@ -211,7 +211,7 @@ func getCertificatesFromCertificateInformation(commandResp *keyfactor.ModelsPkcs
 			return nil, errors.New("failed to parse certificate PEM")
 		}
 
-		certBytes = block.Bytes
+		certBytes = append(certBytes, block.Bytes...)
 	}
 
 	certs, err := x509.ParseCertificates(certBytes)

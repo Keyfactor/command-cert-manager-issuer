@@ -44,11 +44,6 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 		SignerBuilder: CommandSignerFromIssuerAndSecretData,
 	}
 
-	signer, err := obj.SignerBuilder(getTestSignerConfigItems(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// Generate a test CSR to sign
 	csr, err := generateCSR("C=US,ST=California,L=San Francisco,O=Keyfactor,OU=Engineering,CN=example.com")
 	if err != nil {
@@ -65,10 +60,17 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 		CertificateSigningRequestNamespace: "test-namespace",
 	}
 
+	start := time.Now()
+	signer, err := obj.SignerBuilder(getTestSignerConfigItems(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	signed, err := signer.Sign(context.Background(), csr, meta)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("Signing took %s", time.Since(start))
 
 	t.Logf("Signed certificate: %s", string(signed))
 }
