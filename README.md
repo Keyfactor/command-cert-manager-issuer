@@ -4,7 +4,7 @@
 
 # Keyfactor Command Issuer for cert-manager
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Keyfactor/command-k8s-csr-signer)](https://goreportcard.com/report/github.com/Keyfactor/command-k8s-csr-signer)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Keyfactor/ejbca-k8s-csr-signer)](https://goreportcard.com/report/github.com/Keyfactor/ejbca-k8s-csr-signer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
 The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager. This allows security administrators to manage the lifecycle of certificates for Kubernetes applications.
@@ -141,16 +141,36 @@ To deploy the controller to the cluster, run:
 make deploy
 ```
 
+Ensure that the CRDs are installed:
+```shell
+kubectl api-resources -n command-issuer-system --api-group command-issuer.keyfactor.com
+```
+
+Verify that the controller is running:
+```shell
+kubectl get ns
+kubectl get pods -n command-issuer-system
+```
+
 ## Usage
 Create a `kubernetes.io/basic-auth` secret with the Keyfactor Command username and password:
 ```shell
-kubectl -n command-issuer-system create secret tls command-secret --username=USERNAME --password=PASSWORD
+cat <<EOF | kubectl -n command-issuer-system apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: command-secret
+type: kubernetes.io/basic-auth
+data:
+  username: <base64 encoded (domain\\)username>
+  password: <base64 encoded password>
+EOF
 ```
 
-Create a Command Issuer and ClusterIssuer:
+Create a Command Issuer resource:
 ```shell
 cat <<EOF >> command-issuer.yaml
-apiVersion: command-issuer.keyfactor.io/v1alpha1
+apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: Issuer
 metadata:
   labels:
@@ -169,7 +189,14 @@ spec:
   certificateAuthorityLogicalName: ""
   # The CAs hostname to use to sign the certificate request
   certificateAuthorityHostname: ""
+EOF
 kubectl -n command-issuer-system apply -f command-issuer.yaml
+```
+
+:pushpin: **Note:** Issuers can only issue certificates in the same namespace as the issuer resource. To issue certificates in multiple namespaces, use a ClusterIssuer.
+
+Create a Command ClusterIssuer resource:
+```shell
 cat <<EOF >> command-clusterissuer.yaml
 apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: ClusterIssuer
@@ -194,6 +221,8 @@ EOF
 kubectl -n command-issuer-system apply -f command-clusterissuer.yaml
 ```
 
+:pushpin: **Note:** ClusterIssuers can issue certificates in any namespace. To issue certificates in a single namespace, use an Issuer.
+
 To create a certificate, create a CertificateRequest resource:
 ```shell
 cat <<EOF >> certificate.yaml
@@ -211,12 +240,163 @@ EOF
 kubectl -n command-issuer-system apply -f certificate.yaml
 ```
 
+:pushpin: **Note:** Since this certificate request called `command-certificate` is configured to use `issuer-sample`, it must be deployed in the same namespace as `issuer-sample`.
+
 The certificate must then be approved by an authorized service account. This can be done manually by running the following command:
 ```shell
-cmctl approve certificate command-certificate
+cmctl -n command-issuer-system approve command-certificate
+```
+
+Review the status of the certificate request:
+```shell
+kubectl -n command-issuer-system get certificaterequest
+```
+
+:pushpin: **Note:** If the certificate was issued successfully, the Approved and Ready field will both be set to `True`.
+
+### Demo ClusterIssuer Usage with K8s Ingress
+This demo will show how to use the ClusterIssuer to issue a certificate for an Ingress resource. The application deployed is incredibly simple, and is only meant to demonstrate the use of the ClusterIssuer.
+
+Apply the `ingress-nginx` Ingress Controller:
+```shell
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.7.0/deploy/static/provider/cloud/deploy.yaml
+```
+
+Create a namespace for the demo:
+```shell
+kubectl create ns command-clusterissuer-demo
+```
+
+Create two K8s Pods running the `hashicorp/http-echo` image:
+```shell
+cat <<EOF | kubectl -n command-clusterissuer-demo apply -f -
+kind: Pod
+apiVersion: v1
+metadata:
+  name: apple-app
+  labels:
+    app: apple
+spec:
+  containers:
+    - name: apple-app
+      image: hashicorp/http-echo
+      args:
+        - "-text=apple"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: apple-service
+spec:
+  selector:
+    app: apple
+  ports:
+    - port: 5678 # Default port for image
+---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: banana-app
+  labels:
+    app: banana
+spec:
+  containers:
+    - name: banana-app
+      image: hashicorp/http-echo
+      args:
+        - "-text=banana"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: banana-service
+spec:
+  selector:
+    app: banana
+  ports:
+    - port: 5678 # Default port for image
+EOF
+```
+
+:pushpin: **Note:** The above command creates two Pods and two Services. The Pods are running the `hashicorp/http-echo` image, which simply returns the text specified in the `-text` argument when the Pod is queried. The Services are used to expose the Pods to the cluster.
+
+Create an Ingress resource to route traffic to the Pods:
+```shell
+cat <<EOF | kubectl -n command-clusterissuer-demo apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: command-ingress-demo
+  annotations:
+    ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/issuer: clusterissuer-sample
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-group: command-issuer.keyfactor.com
+    cert-manager.io/common-name: command-issuer-demo
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: localhost
+    http:
+      paths:
+        - path: /apple
+          pathType: Prefix
+          backend:
+            service: 
+              name: apple-service
+              port: 
+                number: 5678
+        - path: /banana
+          pathType: Prefix
+          backend:
+            service: 
+              name: banana-service
+              port: 
+                number: 5678
+  tls: # < placing a host in the TLS config will determine what ends up in the cert's subjectAltNames
+  - hosts:
+    - localhost
+    secretName: command-ingress-cert # < cert-manager will store the created certificate in this secret.
+EOF
+```
+
+Retrieve the name of the CertificateRequest resource created by cert-manager:
+```shell
+kubectl -n command-clusterissuer-demo get certificaterequest
+```
+
+Approve the CertificateRequest resource:
+```shell
+cmctl -n command-clusterissuer-demo approve <name>
+```
+
+Validate that the certificate was created:
+```shell
+kubectl -n command-clusterissuer-demo describe ingress command-ingress-demo
+```
+
+Test it out
+```shell
+curl -k https://localhost/apple
+curl -k https://localhost/banana
+```
+
+Clean up
+```shell
+kubectl -n command-clusterissuer-demo delete ingress command-ingress-demo
+kubectl -n command-clusterissuer-demo delete service apple-service banana-service
+kubectl -n command-clusterissuer-demo delete pod apple-app banana-app
+kubectl delete ns command-clusterissuer-demo
+kubectl delete -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.7.0/deploy/static/provider/cloud/deploy.yaml
 ```
 
 ## Cleanup
+To remove the issuers from the cluster, run:
+```shell
+kubectl delete -f command-clusterissuer.yaml
+kubectl delete -f command-issuer.yaml
+```
+
 To remove the controller from the cluster, run:
 ```shell
 make undeploy
