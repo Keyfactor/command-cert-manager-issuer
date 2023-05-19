@@ -49,11 +49,87 @@ To build the cert-manager external issuer for Keyfactor Command, run:
 make docker-build
 ```
 
+## Configure Keyfactor Command
+The Command Issuer for cert-manager populates metadata fields in Command pertaining to the K8s cluster and cert-manager Issuer/ClusterIssuer.
+Before configuring the issuer, create these metadata fields. These fields will be populated using the `kfutil` Keyfactor command line tool that offers convenient and powerful
+command line access to the Keyfactor platform. Before proceeding, ensure that `kfutil` is installed and configured
+by following the instructions here: [https://github.com/Keyfactor/kfutil](https://github.com/Keyfactor/kfutil)
+
+Use the `import` command to import the metadata fields into Command:
+```shell
+cat <<EOF >> metadata.json
+{
+    "Collections": [],
+    "MetadataFields": [
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The namespace that the issuer resource was created in.",
+            "Name": "Issuer-Namespace"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The certificate reconcile ID that the controller used to issue this certificate.",
+            "Name": "Controller-Reconcile-Id"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The namespace that the CertificateSigningRequest resource was created in.",
+            "Name": "Certificate-Signing-Request-Namespace"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The namespace that the controller container is running in.",
+            "Name": "Controller-Namespace"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The type of issuer that the controller used to issue this certificate.",
+            "Name": "Controller-Kind"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The group name of the resource that the Issuer or ClusterIssuer controller is managing.",
+            "Name": "Controller-Resource-Group-Name"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The name of the K8s issuer resource",
+            "Name": "Issuer-Name"
+        },
+        {
+            "AllowAPI": true,
+            "DataType": 1,
+            "Description": "The name of the K8s issuer resource",
+            "Name": "Issuer-Name"
+        }
+    ],
+    "ExpirationAlerts": [],
+    "IssuedCertAlerts": [],
+    "DeniedCertAlerts": [],
+    "PendingCertAlerts": [],
+    "Networks": [],
+    "WorkflowDefinitions": [],
+    "BuiltInReports": [],
+    "CustomReports": [],
+    "SecurityRoles": []
+}
+kfutil import --metadata --file metadata.json
+```
+
 ## Installation
 Install the static cert-manager configuration:
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
 ```
+
+:pushpin: **Note:** Running the static cert-manager configuration is not reccomended for production use. For more information, see [Installing cert-manager](https://cert-manager.io/docs/installation/).
 
 To install the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor Command, run:
 ```shell
@@ -93,8 +169,8 @@ spec:
   certificateAuthorityLogicalName: ""
   # The CAs hostname to use to sign the certificate request
   certificateAuthorityHostname: ""
-kubectl -n command-issuer-system apply -f issuer.yaml
-cat <<EOF >> clusterissuer.yaml
+kubectl -n command-issuer-system apply -f command-issuer.yaml
+cat <<EOF >> command-clusterissuer.yaml
 apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: ClusterIssuer
 metadata:
@@ -115,7 +191,7 @@ spec:
   # The CAs hostname to use to sign the certificate request
   certificateAuthorityHostname: ""
 EOF
-kubectl -n command-issuer-system apply -f clusterissuer.yaml
+kubectl -n command-issuer-system apply -f command-clusterissuer.yaml
 ```
 
 To create a certificate, create a CertificateRequest resource:

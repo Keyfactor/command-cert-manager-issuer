@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
-	"github.com/Keyfactor/keyfactor-go-client-sdk/api/keyfactor"
 	"os"
 	"strings"
 	"testing"
@@ -73,67 +72,6 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 	t.Logf("Signing took %s", time.Since(start))
 
 	t.Logf("Signed certificate: %s", string(signed))
-}
-
-func TestCommandSigner_setupCommandK8sMetadata(t *testing.T) {
-	deleteBeforeCheck := false
-	client, err := createCommandClientFromSecretData(getTestSignerConfigItems(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	signer := commandSigner{
-		client: client,
-	}
-
-	if deleteBeforeCheck {
-		err = deleteCommandK8sMetadataItems(t, client)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Log the time required to setup the metadata
-		start := time.Now()
-		err = signer.setupCommandK8sMetadata(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("setupCommandK8sMetadata took %s (created %d metadata fields in Command)", time.Since(start), len(commandMetadataMap))
-	}
-
-	for i := 0; i < 10; i++ {
-		// Now log the time required to check that the metadata is correctly configured
-		start := time.Now()
-		err = signer.setupCommandK8sMetadata(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("setupCommandK8sMetadata took %s (verified %d metadata fields in Command)", time.Since(start), len(commandMetadataMap))
-	}
-}
-
-func deleteCommandK8sMetadataItems(t *testing.T, client *keyfactor.APIClient) error {
-	metadataFields, _, err := client.MetadataFieldApi.MetadataFieldGetAllMetadataFields(context.Background()).Execute()
-	if err != nil {
-		return err
-	}
-
-	existingMetaMap := make(map[string]int32)
-	for _, field := range metadataFields {
-		existingMetaMap[*field.Name] = *field.Id
-	}
-
-	for metaName, description := range commandMetadataMap {
-		if id, ok := existingMetaMap[metaName]; ok {
-			t.Logf("Deleting metadata field %s \"%s\" (%d)", metaName, description, id)
-			_, err = client.MetadataFieldApi.MetadataFieldDeleteMetadataField(context.Background(), id).Execute()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte) {

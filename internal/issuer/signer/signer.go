@@ -106,12 +106,6 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 
 	k8sLog.Info(fmt.Sprintf("Using certificate template \"%s\" and certificate authority \"%s\" (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
 
-	// Configure metadata in Command.
-	err = signer.setupCommandK8sMetadata(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return &signer, nil
 }
 
@@ -262,52 +256,6 @@ var (
 		CommandMetaCertificateSigningRequestNamespace: "The namespace that the CertificateSigningRequest resource was created in.",
 	}
 )
-
-// setupCommandMetadataFromK8sContext creates Command metadata fields from the key-values injected by Kubernetes.
-func (s *commandSigner) setupCommandK8sMetadata(ctx context.Context) error {
-	k8sLog := log.FromContext(ctx)
-	existingMetaMap := make(map[string]bool)
-
-	metadataFields, _, err := s.client.MetadataFieldApi.MetadataFieldGetAllMetadataFields(ctx).Execute()
-	if err != nil {
-		return err
-	}
-
-	// Create a map of the existing metadata fields so that searching for them is O(1) time
-	// (instead of O(n) time on the inside of the for loop)
-	// (the total algorithm is still O(2n) time at worst, but this is better than O(n^2) time)
-	for _, field := range metadataFields {
-		existingMetaMap[*field.Name] = true
-	}
-
-	for metaName, description := range commandMetadataMap {
-		// Check if the metadata field already exists
-		if _, ok := existingMetaMap[metaName]; ok {
-			continue
-		}
-
-		k8sLog.Info(fmt.Sprintf("Metadata field \"%s\" doesn't exist in Command. Creating it now", metaName))
-
-		// If the metadata field doesn't exist, create it
-		field := keyfactor.KeyfactorApiModelsMetadataFieldMetadataFieldCreateRequest{
-			Name:        metaName,
-			Description: description,
-			DataType:    1,
-			Hint:        &metaName,
-		}
-		execute, _, err := s.client.MetadataFieldApi.MetadataFieldCreateMetadataField(ctx).MetadataFieldType(field).Execute()
-		if err != nil {
-			k8sLog.Error(err, fmt.Sprintf("Failed to create metadata field \"%s\" in Command", metaName))
-			return err
-		}
-
-		k8sLog.Info(fmt.Sprintf("Created metadata field \"%s\" in Command", execute.GetName()))
-	}
-
-	k8sLog.Info("Finished validating metadata fields in Command")
-
-	return nil
-}
 
 func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, secretData map[string][]byte) (*keyfactor.APIClient, error) {
 	k8sLogger := log.FromContext(ctx)
