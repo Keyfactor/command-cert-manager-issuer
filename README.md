@@ -33,6 +33,7 @@ The cert-manager external issuer for Keyfactor command is open source and commun
 * Kubernetes >= v1.19
 	* [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), or [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
 * [cert-manager](https://cert-manager.io/docs/installation/) >= v1.11.0
+* [cmctl](https://cert-manager.io/docs/reference/cmctl/) >= v1.11.0
 
 To quickly create a Kubernetes cluster for testing purposes, you can use [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
 ```shell
