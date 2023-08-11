@@ -74,7 +74,7 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 	t.Logf("Signed certificate: %s", string(signed))
 }
 
-func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte) {
+func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) {
 	// Get the username and password from the environment
 	secretData := make(map[string][]byte)
 	username := os.Getenv("COMMAND_USERNAME")
@@ -115,7 +115,21 @@ func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.Iss
 	}
 	spec.CertificateAuthorityHostname = certificateAuthorityHostname
 
-	return context.Background(), &spec, secretData
+	// Get the certificate authority path from the environment
+	pathToCaCert := os.Getenv("COMMAND_CA_CERT_PATH")
+
+	// Read the CA cert from the file system.
+	caCertBytes, err := os.ReadFile(pathToCaCert)
+	if err != nil {
+		t.Log("CA cert not found, assuming that EJBCA is using a trusted CA")
+	}
+
+	caSecretData := map[string][]byte{}
+	if len(caCertBytes) != 0 {
+		caSecretData["tls.crt"] = caCertBytes
+	}
+
+	return context.Background(), &spec, secretData, caSecretData
 }
 
 func generateCSR(subject string) ([]byte, error) {

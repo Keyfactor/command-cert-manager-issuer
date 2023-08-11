@@ -209,17 +209,32 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, errIssuerNotReady
 	}
 
-	secretName := types.NamespacedName{
+	authSecretName := types.NamespacedName{
 		Name:      issuerSpec.SecretName,
 		Namespace: secretNamespace,
 	}
 
-	var secret corev1.Secret
-	if err := r.Get(ctx, secretName, &secret); err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, secretName, err)
+	var authSecret corev1.Secret
+	if err := r.Get(ctx, authSecretName, &authSecret); err != nil {
+		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
 	}
 
-	commandSigner, err := r.SignerBuilder(ctx, issuerSpec, secret.Data)
+	// Retrieve the CA certificate secret
+	caSecretName := types.NamespacedName{
+		Name:      issuerSpec.CaSecretName,
+		Namespace: authSecretName.Namespace,
+	}
+
+	var caSecret corev1.Secret
+	if issuerSpec.CaSecretName != "" {
+		// If the CA secret name is not specified, we will not attempt to retrieve it
+		err = r.Get(ctx, caSecretName, &caSecret)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
+		}
+	}
+
+	commandSigner, err := r.SignerBuilder(ctx, issuerSpec, authSecret.Data, caSecret.Data)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerBuilder, err)
 	}

@@ -56,18 +56,17 @@ type HealthChecker interface {
 	Check() error
 }
 
-type HealthCheckerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte) (HealthChecker, error)
+type HealthCheckerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) (HealthChecker, error)
+type CommandSignerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) (Signer, error)
 
 type Signer interface {
 	Sign(context.Context, []byte, K8sMetadata) ([]byte, error)
 }
 
-type CommandSignerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte) (Signer, error)
-
-func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, secretData map[string][]byte) (HealthChecker, error) {
+func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (HealthChecker, error) {
 	signer := commandSigner{}
 
-	client, err := createCommandClientFromSecretData(ctx, spec, secretData)
+	client, err := createCommandClientFromSecretData(ctx, spec, authSecretData, caSecretData)
 	if err != nil {
 		return nil, err
 	}
@@ -77,12 +76,12 @@ func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *comm
 	return &signer, nil
 }
 
-func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, secretData map[string][]byte) (Signer, error) {
+func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (Signer, error) {
 	k8sLog := log.FromContext(ctx)
 
 	signer := commandSigner{}
 
-	client, err := createCommandClientFromSecretData(ctx, spec, secretData)
+	client, err := createCommandClientFromSecretData(ctx, spec, authSecretData, caSecretData)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +113,8 @@ func (s *commandSigner) Check() error {
 	if err != nil {
 		detail := fmt.Sprintf("failed to get endpoints from Keyfactor Command")
 
-		bodyError, ok := err.(*keyfactor.GenericOpenAPIError)
+		var bodyError *keyfactor.GenericOpenAPIError
+		ok := errors.As(err, &bodyError)
 		if ok {
 			detail += fmt.Sprintf(" - %s", string(bodyError.Body()))
 		}
@@ -175,7 +175,8 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	if err != nil {
 		detail := fmt.Sprintf("error enrolling certificate with Command. verify that the certificate template \"%s\" exists and that the certificate authority \"%s\" (%s) is configured correctly", s.certificateTemplate, s.certificateAuthorityLogicalName, s.certificateAuthorityHostname)
 
-		bodyError, ok := err.(*keyfactor.GenericOpenAPIError)
+		var bodyError *keyfactor.GenericOpenAPIError
+		ok := errors.As(err, &bodyError)
 		if ok {
 			detail += fmt.Sprintf(" - %s", string(bodyError.Body()))
 		}
@@ -257,35 +258,63 @@ var (
 	}
 )
 
-func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, secretData map[string][]byte) (*keyfactor.APIClient, error) {
+func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (*keyfactor.APIClient, error) {
 	k8sLogger := log.FromContext(ctx)
 
 	// Get username and password from secretData which contains key value pairs of a kubernetes.io/basic-auth secret
-	username := string(secretData["username"])
+	username := string(authSecretData["username"])
 	if username == "" {
 		k8sLogger.Error(errors.New("missing username"), "missing username")
 		return nil, errors.New("missing username")
 	}
-	password := string(secretData["password"])
+	password := string(authSecretData["password"])
 	if password == "" {
 		k8sLogger.Error(errors.New("missing password"), "missing password")
 		return nil, errors.New("missing password")
 	}
 
-	config := keyfactor.NewConfiguration()
-	if spec.Hostname != "" {
-		config.Host = spec.Hostname
-	} else {
-		k8sLogger.Error(errors.New("missing hostname"), "missing hostname")
-		return nil, errors.New("missing hostname")
-	}
+	keyfactorConfig := make(map[string]string)
 
 	// Set username and password for the Keyfactor client
-	config.BasicAuth.UserName = username
-	config.BasicAuth.Password = password
+	for key, value := range authSecretData {
+		keyfactorConfig[key] = string(value)
+	}
+	// Set the hostname for the Keyfactor client
+	keyfactorConfig["host"] = spec.Hostname
+
+	config := keyfactor.NewConfiguration(keyfactorConfig)
+	if config == nil {
+		k8sLogger.Error(errors.New("failed to create Keyfactor configuration"), "failed to create Keyfactor configuration")
+		return nil, errors.New("failed to create Keyfactor configuration")
+	}
 
 	// Set the user agent for the Keyfactor client
 	config.UserAgent = "command-issuer"
+
+	// If the CA certificate is provided, add it to the EJBCA configuration
+	if caSecretData != nil && len(caSecretData) > 0 {
+		// There is no requirement that the CA certificate is stored under a specific key in the secret, so we can just iterate over the map
+		var caCertBytes []byte
+		for _, caCertBytes = range caSecretData {
+		}
+
+		// Try to decode caCertBytes as a PEM formatted block
+		caChainBlocks, _ := decodePEMBytes(caCertBytes)
+		if caChainBlocks != nil {
+			var caChain []*x509.Certificate
+			for _, block := range caChainBlocks {
+				// Parse the PEM block into an x509 certificate
+				cert, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					return nil, err
+				}
+
+				caChain = append(caChain, cert)
+			}
+
+			config.SetCaCertificates(caChain)
+		}
+	}
 
 	client := keyfactor.NewAPIClient(config)
 	if client == nil {
@@ -296,6 +325,23 @@ func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.
 	k8sLogger.Info("Created Keyfactor Command client")
 
 	return client, nil
+}
+
+func decodePEMBytes(buf []byte) ([]*pem.Block, *pem.Block) {
+	var privKey *pem.Block
+	var certificates []*pem.Block
+	var block *pem.Block
+	for {
+		block, buf = pem.Decode(buf)
+		if block == nil {
+			break
+		} else if strings.Contains(block.Type, "PRIVATE KEY") {
+			privKey = block
+		} else {
+			certificates = append(certificates, block)
+		}
+	}
+	return certificates, privKey
 }
 
 func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {

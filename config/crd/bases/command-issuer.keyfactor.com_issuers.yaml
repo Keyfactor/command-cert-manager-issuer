@@ -35,6 +35,13 @@ spec:
           spec:
             description: IssuerSpec defines the desired state of Issuer
             properties:
+              caSecretName:
+                description: A reference to a Secret in the same namespace as the
+                  referent. If the referent is a ClusterIssuer, the reference instead
+                  refers to the resource with the given name in the configured 'cluster
+                  resource namespace', which is set as a flag on the controller component
+                  (and defaults to the namespace that the controller runs in).
+                type: string
               certificateAuthorityHostname:
                 description: CertificateAuthorityHostname is the hostname associated
                   with the Certificate Authority specified by CertificateAuthorityLogicalName
@@ -61,6 +68,8 @@ spec:
               hostname:
                 description: Hostname is the hostname of the Keyfactor server
                 type: string
+            required:
+            - caSecretName
             type: object
           status:
             description: IssuerStatus defines the observed state of Issuer

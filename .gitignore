@@ -18,3 +18,4 @@ bin
 
 # q: How to remove staged directory from git
 # a: git rm -r --cached .
+.DS_Store

@@ -40,6 +40,7 @@ const (
 
 var (
 	errGetAuthSecret        = errors.New("failed to get Secret containing Issuer credentials")
+	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
 	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
 	errHealthCheckerCheck   = errors.New("healthcheck failed")
 )
@@ -104,26 +105,41 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{}, nil
 	}
 
-	secretName := types.NamespacedName{
+	authSecretName := types.NamespacedName{
 		Name: issuerSpec.SecretName,
 	}
 
 	switch issuer.(type) {
 	case *commandissuer.Issuer:
-		secretName.Namespace = req.Namespace
+		authSecretName.Namespace = req.Namespace
 	case *commandissuer.ClusterIssuer:
-		secretName.Namespace = r.ClusterResourceNamespace
+		authSecretName.Namespace = r.ClusterResourceNamespace
 	default:
 		log.Error(fmt.Errorf("unexpected issuer type: %t", issuer), "Not retrying.")
 		return ctrl.Result{}, nil
 	}
 
-	var secret corev1.Secret
-	if err := r.Get(ctx, secretName, &secret); err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, secretName, err)
+	var authSecret corev1.Secret
+	if err := r.Get(ctx, authSecretName, &authSecret); err != nil {
+		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
 	}
 
-	checker, err := r.HealthCheckerBuilder(ctx, issuerSpec, secret.Data)
+	// Retrieve the CA certificate secret
+	caSecretName := types.NamespacedName{
+		Name:      issuerSpec.CaSecretName,
+		Namespace: authSecretName.Namespace,
+	}
+
+	var caSecret corev1.Secret
+	if issuerSpec.CaSecretName != "" {
+		// If the CA secret name is not specified, we will not attempt to retrieve it
+		err = r.Get(ctx, caSecretName, &caSecret)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
+		}
+	}
+
+	checker, err := r.HealthCheckerBuilder(ctx, issuerSpec, authSecret.Data, caSecret.Data)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errHealthCheckerBuilder, err)
 	}
