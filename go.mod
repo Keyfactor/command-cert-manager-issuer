@@ -3,7 +3,7 @@ module github.com/Keyfactor/command-issuer
 go 1.19
 
 require (
-	github.com/Keyfactor/keyfactor-go-client-sdk v0.2.0
+	github.com/Keyfactor/keyfactor-go-client-sdk v1.0.2
 	github.com/cert-manager/cert-manager v1.11.0
 	github.com/go-logr/logr v1.2.4
 	github.com/onsi/ginkgo/v2 v2.6.1
