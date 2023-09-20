@@ -154,8 +154,8 @@ kubectl -n command-issuer-system apply -f command-clusterissuer.yaml
 
 To create new resources from the above examples, replace the empty strings with the appropriate values and apply the resources to the cluster:
 ```shell
-kubectl -n ejbca-issuer-system apply -f issuer.yaml
-kubectl -n ejbca-issuer-system apply -f clusterissuer.yaml
+kubectl -n command-issuer-system apply -f issuer.yaml
+kubectl -n command-issuer-system apply -f clusterissuer.yaml
 ```
 
 ### Using Issuer and ClusterIssuer resources
@@ -208,7 +208,7 @@ will be in a `Pending` state until they are approved. CertificateRequest resourc
 [cmctl](https://cert-manager.io/docs/reference/cmctl/#approve-and-deny-certificaterequests). The following is an example
 of approving a CertificateRequest resource named `command-certificate` in the `command-issuer-system` namespace.
 ```shell
-cmctl -n ejbca-issuer-system approve ejbca-certificate
+cmctl -n command-issuer-system approve ejbca-certificate
 ```
 
 Once a certificate request has been approved, the certificate will be issued and stored in the secret specified in the
@@ -220,6 +220,46 @@ kubectl get secret command-certificate -n command-issuer-system -o jsonpath='{.d
 ###### To learn more about certificate approval and RBAC configuration, see the [cert-manager documentation](https://cert-manager.io/docs/concepts/certificaterequest/#approval).
 
 ###### :pushpin: If the certificate was issued successfully, the Approved and Ready field will both be set to `True`.
+
+## Annotation Overrides for Issuer and ClusterIssuer Resources
+The Keyfactor Command external issuer for cert-manager allows you to override default settings in the Issuer and ClusterIssuer resources through the use of annotations. This gives you more granular control on a per-Certificate/CertificateRequest basis.
+
+### Supported Annotations
+Here are the supported annotations that can override the default values:
+
+- **`command-issuer.keyfactor.com/certificateTemplate`**: Overrides the `certificateTemplate` field from the resource spec.
+
+    ```yaml
+    command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
+    ```
+
+- **`command-issuer.keyfactor.com/certificateAuthorityLogicalName`**: Specifies the Certificate Authority (CA) logical name to use, overriding the default CA specified in the resource spec.
+
+    ```yaml
+    command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
+    ```
+
+- **`command-issuer.keyfactor.com/certificateAuthorityHostname`**: Specifies the Certificate Authority (CA) hostname to use, overriding the default CA specified in the resource spec.
+
+    ```yaml
+    command-issuer.keyfactor.com/certificateAuthorityHostname: "example.com"
+    ```
+
+### How to Apply Annotations
+
+To apply these annotations, include them in the metadata section of your CertificateRequest resource:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  annotations:
+    command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
+    command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
+    # ... other annotations
+spec:
+# ... rest of the spec
+```
 
 ### Demo ClusterIssuer Usage with K8s Ingress
 This demo will show how to use a ClusterIssuer to issue a certificate for an Ingress resource. The demo uses the Kubernetes 
