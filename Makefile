@@ -1,6 +1,6 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= 1.0.2
+VERSION ?= 1.0.3
 # The Docker repository name, overridden in CI.
 DOCKER_REGISTRY ?= m8rmclarenkf
 DOCKER_IMAGE_NAME ?= command-cert-manager-external-issuer-controller
@@ -51,7 +51,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(CONTROLLER_GEN) object:headerFile="config/licenseheader.go.txt" paths="./..."
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

@@ -50,6 +50,7 @@ type commandSigner struct {
 	certificateTemplate             string
 	certificateAuthorityLogicalName string
 	certificateAuthorityHostname    string
+	certManagerCertificateName      string
 }
 
 type HealthChecker interface {
@@ -57,7 +58,7 @@ type HealthChecker interface {
 }
 
 type HealthCheckerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) (HealthChecker, error)
-type CommandSignerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) (Signer, error)
+type CommandSignerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string]string, map[string][]byte, map[string][]byte) (Signer, error)
 
 type Signer interface {
 	Sign(context.Context, []byte, K8sMetadata) ([]byte, error)
@@ -76,7 +77,7 @@ func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *comm
 	return &signer, nil
 }
 
-func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (Signer, error) {
+func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, annotations map[string]string, authSecretData map[string][]byte, caSecretData map[string][]byte) (Signer, error) {
 	k8sLog := log.FromContext(ctx)
 
 	signer := commandSigner{}
@@ -102,6 +103,21 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 
 	// CA Hostname is optional
 	signer.certificateAuthorityHostname = spec.CertificateAuthorityHostname
+
+	// Override defaults from annotations
+	if value, exists := annotations["command-issuer.keyfactor.com/certificateTemplate"]; exists {
+		signer.certificateTemplate = value
+	}
+	if value, exists := annotations["command-issuer.keyfactor.com/certificateAuthorityLogicalName"]; exists {
+		signer.certificateAuthorityLogicalName = value
+	}
+	if value, exists := annotations["command-issuer.keyfactor.com/certificateAuthorityHostname"]; exists {
+		signer.certificateAuthorityHostname = value
+	}
+
+	if value, exists := annotations["command-manager.io/certificate-name"]; exists {
+		signer.certManagerCertificateName = value
+	}
 
 	k8sLog.Info(fmt.Sprintf("Using certificate template \"%s\" and certificate authority \"%s\" (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
 

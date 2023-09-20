@@ -43,7 +43,7 @@ func TestCommandHealthCheckerFromIssuerAndSecretData(t *testing.T) {
 		HealthCheckerBuilder: CommandHealthCheckerFromIssuerAndSecretData,
 	}
 
-	builder, err := obj.HealthCheckerBuilder(getTestSignerConfigItems(t))
+	builder, err := obj.HealthCheckerBuilder(getTestHealthCheckerConfigItems(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,12 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 	t.Logf("Signed certificate: %s", string(signed))
 }
 
-func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) {
+func getTestHealthCheckerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string][]byte, map[string][]byte) {
+	ctx, spec, _, secret, configmap := getTestSignerConfigItems(t)
+	return ctx, spec, secret, configmap
+}
+
+func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.IssuerSpec, map[string]string, map[string][]byte, map[string][]byte) {
 	// Get the username and password from the environment
 	secretData := make(map[string][]byte)
 	username := os.Getenv("COMMAND_USERNAME")
@@ -145,7 +150,7 @@ func getTestSignerConfigItems(t *testing.T) (context.Context, *commandissuer.Iss
 		caSecretData["tls.crt"] = caCertBytes
 	}
 
-	return context.Background(), &spec, secretData, caSecretData
+	return context.Background(), &spec, make(map[string]string), secretData, caSecretData
 }
 
 func generateCSR(subject string) ([]byte, error) {
