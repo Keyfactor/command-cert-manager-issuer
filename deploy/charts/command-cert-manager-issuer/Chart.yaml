@@ -1,7 +1,7 @@
 apiVersion: v2
 
 name: command-cert-manager-issuer
-description: A Helm chart for Kubernetes
+description: A helm chart to deploy the cert-manager issuer for the Keyfactor Command platform for Certificate Lifecycle Management
 type: application
 
 home: https://github.com/Keyfactor/command-cert-manager-issuer
