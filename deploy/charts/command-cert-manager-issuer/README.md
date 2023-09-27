@@ -6,7 +6,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Keyfactor/command-cert-manager-issuer)](https://goreportcard.com/report/github.com/Keyfactor/command-cert-manager-issuer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![Version: v0.1.0](https://img.shields.io/badge/Version-v0.1.0-informational?style=flat-square)
+![Version: v1.0.3](https://img.shields.io/badge/Version-v1.0.3-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 ![AppVersion: v1.0.3](https://img.shields.io/badge/AppVersion-v1.0.3-informational?style=flat-square)
 
@@ -14,27 +14,47 @@ A Helm chart for the Keyfactor Command External Issuer for cert-manager.
 
 The Command external issuer for cert-manager allows users to enroll certificates from Keyfactor Command using cert-manager.
 
+## Installation
+
+### Add Helm Repository
+
+```bash
+helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
+helm repo update
+```
+
+### Install Chart
+
+```bash
+helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer
+```
+
+Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
+```bash
+helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer --set replicaCount=2
+```
+
 ## Configuration
 
 The following table lists the configurable parameters of the `command-cert-manager-issuer` chart and their default values.
 
-| Parameter                         | Description                                         | Default                                                      |
-|-----------------------------------|-----------------------------------------------------|--------------------------------------------------------------|
-| `replicaCount`                    | Number of replica command-cert-manager-issuers to run | `1`                                                          |
-| `image.repository`                | Image repository                                    | `m8rmclarenkf/command-cert-manager-external-issuer-controller` |
-| `image.pullPolicy`                | Image pull policy                                   | `IfNotPresent`                                               |
-| `image.tag`                       | Image tag                                           | `v1.3.1`                                                     |
-| `imagePullSecrets`                | Image pull secrets                                  | `[]`                                                         |
-| `nameOverride`                    | Name override                                       | `""`                                                         |
-| `fullnameOverride`                | Full name override                                  | `""`                                                         |
-| `crd.create`                      | Specifies if CRDs will be created                   | `true`                                                       |
-| `crd.annotations`                 | Annotations to add to the CRD                       | `{}`                                                         |
-| `serviceAccount.create`           | Specifies if a service account should be created    | `true`                                                       |
-| `serviceAccount.annotations`      | Annotations to add to the service account           | `{}`                                                         |
-| `serviceAccount.name`             | Name of the service account to use                  | `""` (uses the fullname template if `create` is true)        |
-| `podAnnotations`                  | Annotations for the pod                             | `{}`                                                         |
-| `podSecurityContext.runAsNonRoot` | Run pod as non-root                                 | `true`                                                       |
-| `securityContext`                 | Security context for the pod                        | `{}` (with commented out options)                            |
-| `resources`                       | CPU/Memory resource requests/limits                 | `{}` (with commented out options)                            |
-| `nodeSelector`                    | Node labels for pod assignment                      | `{}`                                                         |
-| `tolerations`                     | Tolerations for pod assignment                      | `[]`                                                         |
+| Parameter                         | Description                                           | Default                                                        |
+|-----------------------------------|-------------------------------------------------------|----------------------------------------------------------------|
+| `replicaCount`                    | Number of replica command-cert-manager-issuers to run | `1`                                                            |
+| `image.repository`                | Image repository                                      | `m8rmclarenkf/command-cert-manager-external-issuer-controller` |
+| `image.pullPolicy`                | Image pull policy                                     | `IfNotPresent`                                                 |
+| `image.tag`                       | Image tag                                             | `1.0.3`                                                        |
+| `imagePullSecrets`                | Image pull secrets                                    | `[]`                                                           |
+| `nameOverride`                    | Name override                                         | `""`                                                           |
+| `fullnameOverride`                | Full name override                                    | `""`                                                           |
+| `crd.create`                      | Specifies if CRDs will be created                     | `true`                                                         |
+| `crd.annotations`                 | Annotations to add to the CRD                         | `{}`                                                           |
+| `serviceAccount.create`           | Specifies if a service account should be created      | `true`                                                         |
+| `serviceAccount.annotations`      | Annotations to add to the service account             | `{}`                                                           |
+| `serviceAccount.name`             | Name of the service account to use                    | `""` (uses the fullname template if `create` is true)          |
+| `podAnnotations`                  | Annotations for the pod                               | `{}`                                                           |
+| `podSecurityContext.runAsNonRoot` | Run pod as non-root                                   | `true`                                                         |
+| `securityContext`                 | Security context for the pod                          | `{}` (with commented out options)                              |
+| `resources`                       | CPU/Memory resource requests/limits                   | `{}` (with commented out options)                              |
+| `nodeSelector`                    | Node labels for pod assignment                        | `{}`                                                           |
+| `tolerations`                     | Tolerations for pod assignment                        | `[]`                                                           |

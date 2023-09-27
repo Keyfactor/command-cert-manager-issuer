@@ -43,6 +43,8 @@ Additionally, verify that at least one Kubernetes node is running by running the
 kubectl get nodes
 ```
 
+### Installation from Manifests
+
 Once Kubernetes is running, a static installation of cert-manager can be installed with the following command:
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
@@ -58,6 +60,26 @@ make install
 Finally, deploy the controller to the cluster:
 ```shell
 make deploy
+```
+
+### Installation from Helm Chart
+
+The cert-manager external issuer for Keyfactor Command can also be installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
+
+First, add the Helm repository:
+```bash
+helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
+helm repo update
+```
+
+Then, install the chart:
+```bash
+helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer
+```
+
+Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
+```bash
+helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer --set replicaCount=2
 ```
 
 ## Usage
