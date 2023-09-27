@@ -21,8 +21,8 @@ jobs:
       - name: Update Helm App/Chart Version
         shell: bash
         run: |
-          sed -i "s/^version: .*/version: ${{ steps.extract_version.outputs.VERSION }}/g" deploy/charts/ejbca-cert-manager-issuer/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.extract_version.outputs.VERSION }}\"/g" deploy/charts/ejbca-cert-manager-issuer/Chart.yaml
+          sed -i "s/^version: .*/version: ${{ steps.extract_version.outputs.VERSION }}/g" deploy/charts/command-cert-manager-issuer/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.extract_version.outputs.VERSION }}\"/g" deploy/charts/command-cert-manager-issuer/Chart.yaml
 
       - name: Configure Git
         run: |
