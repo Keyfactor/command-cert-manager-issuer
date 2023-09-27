@@ -10,7 +10,7 @@
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 ![AppVersion: v1.0.3](https://img.shields.io/badge/AppVersion-v1.0.3-informational?style=flat-square)
 
-A Helm chart for the Keyfactor Command External Issuer for cert-manager.
+A Helm chart for the [Keyfactor Command External Issuer for cert-manager](https://github.com/Keyfactor/command-cert-manager-issuer).
 
 The Command external issuer for cert-manager allows users to enroll certificates from Keyfactor Command using cert-manager.
 
