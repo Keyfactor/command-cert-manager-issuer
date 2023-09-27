@@ -16,7 +16,6 @@ vendor/
 .idea
 bin
 
-# Helm
-*.tgz
-
+# q: How to remove staged directory from git
+# a: git rm -r --cached .
 .DS_Store
