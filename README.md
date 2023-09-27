@@ -64,7 +64,7 @@ make deploy
 The cert-manager external issuer for Keyfactor Command can be used to issue certificates from Keyfactor Command using cert-manager.
 
 ### Authentication
-Authentication to the Command platform is done using basic authentication. The credentials must be provided as a Kubernetes `kubernetes.io/basic-auth` secret.
+Authentication to the Command platform is done using basic authentication. The credentials must be provided as a Kubernetes `kubernetes.io/basic-auth` secret. These credentials should be for a user with "Certificate Enrollment: Enroll CSR" and "API: Read" permissions in Command.
 
 Create a `kubernetes.io/basic-auth` secret with the Keyfactor Command username and password:
 ```shell
