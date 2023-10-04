@@ -120,7 +120,7 @@ The `spec` field of both the Issuer and ClusterIssuer resources use the followin
 * `certificateTemplate` - The short name corresponding to a template in Command that will be used to issue certificates.
 * `certificateAuthorityLogicalName` - The logical name of the CA to use to sign the certificate request
 * `certificateAuthorityHostname` - The CAs hostname to use to sign the certificate request
-* `caBundleSecretName` - The name of the Kubernetes secret containing the CA certificate. This field is optional and only required if the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root.
+* `caSecretName` - The name of the Kubernetes secret containing the CA certificate. This field is optional and only required if the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root.
 
 ###### If a different combination of hostname/certificate authority/certificate profile/end entity profile is required, a new Issuer or ClusterIssuer resource must be created. Each resource instantiation represents a single configuration.
 
@@ -142,7 +142,7 @@ spec:
   certificateTemplate: ""
   certificateAuthorityLogicalName: ""
   certificateAuthorityHostname: ""
-  caBundleSecretName: ""
+  caSecretName: ""
 EOF
 kubectl -n command-issuer-system apply -f command-issuer.yaml
 ```
@@ -167,7 +167,7 @@ spec:
   certificateTemplate: ""
   certificateAuthorityLogicalName: ""
   certificateAuthorityHostname: ""
-  caBundleSecretName: ""
+  caSecretName: ""
 EOF
 kubectl -n command-issuer-system apply -f command-clusterissuer.yaml
 ```
