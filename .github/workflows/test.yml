@@ -1,0 +1,42 @@
+name: test
+on: [workflow_dispatch, push, pull_request]
+jobs:
+  build:
+    name: Build and Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - run: go mod download
+      - run: go build -v .
+      - name: Run linters
+        uses: golangci/golangci-lint-action@08e2f20817b15149a52b5b3ebe7de50aff2ba8c5 # v3.4.0
+        with:
+          version: latest
+  test:
+    name: Go Test
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - name: Set up Go 1.x
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - run: go mod download
+      - env:
+          COMMAND_CERTIFICATE_AUTHORITY_HOSTNAME: ${{ secrets.COMMAND_CERTIFICATE_AUTHORITY_HOSTNAME }}
+          COMMAND_CERTIFICATE_AUTHORITY_LOGICAL_NAME: ${{ secrets.COMMAND_CERTIFICATE_AUTHORITY_LOGICAL_NAME }}
+          COMMAND_CERTIFICATE_TEMPLATE: ${{ secrets.COMMAND_CERTIFICATE_TEMPLATE }}
+          COMMAND_HOSTNAME: ${{ secrets.COMMAND_HOSTNAME }}
+          COMMAND_USERNAME: ${{ secrets.COMMAND_USERNAME }}
+          COMMAND_PASSWORD: ${{ secrets.COMMAND_PASSWORD }}
+        name: Run go test
+        run: go test -v ./...

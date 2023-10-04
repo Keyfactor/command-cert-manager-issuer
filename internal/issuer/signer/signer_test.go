@@ -158,7 +158,7 @@ func generateCSR(subject string) ([]byte, error) {
 
 	subj, err := parseSubjectDN(subject, false)
 	if err != nil {
-		return make([]byte, 0, 0), err
+		return make([]byte, 0), err
 	}
 
 	template := x509.CertificateRequest{
@@ -169,7 +169,7 @@ func generateCSR(subject string) ([]byte, error) {
 	csrBytes, _ := x509.CreateCertificateRequest(rand.Reader, &template, keyBytes)
 	err = pem.Encode(&csrBuf, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	if err != nil {
-		return make([]byte, 0, 0), err
+		return make([]byte, 0), err
 	}
 
 	return csrBuf.Bytes(), nil
@@ -208,7 +208,7 @@ func parseSubjectDN(subject string, randomizeCn bool) (pkix.Name, error) {
 			name.OrganizationalUnit = []string{value}
 		case "CN":
 			if randomizeCn {
-				value = fmt.Sprintf("%s-%s", value, generateRandomString(5))
+				name.CommonName = fmt.Sprintf("%s-%s", value, generateRandomString(5))
 			} else {
 				name.CommonName = value
 			}

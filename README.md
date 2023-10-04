@@ -21,7 +21,7 @@ The cert-manager external issuer for Keyfactor command is open source and commun
 ## Quick Start
 
 The quick start guide will walk you through the process of installing the cert-manager external issuer for Keyfactor Command.
-The controller image is pulled from [Docker Hub](https://hub.docker.com/r/m8rmclarenkf/command-external-issuer).
+The controller image is pulled from [Docker Hub](https://hub.docker.com/r/m8rmclarenkf/command-cert-manager-external-issuer-controller).
 
 ###### To build  the container from sources, refer to the [Building Container Image from Source](#building-container-image-from-source) section.
 
@@ -120,7 +120,7 @@ The `spec` field of both the Issuer and ClusterIssuer resources use the followin
 * `certificateTemplate` - The short name corresponding to a template in Command that will be used to issue certificates.
 * `certificateAuthorityLogicalName` - The logical name of the CA to use to sign the certificate request
 * `certificateAuthorityHostname` - The CAs hostname to use to sign the certificate request
-* `caSecretName` - The name of the Kubernetes secret containing the CA certificate. This field is optional and only required if the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root.
+* `caBundleSecretName` - The name of the Kubernetes secret containing the CA certificate. This field is optional and only required if the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root.
 
 ###### If a different combination of hostname/certificate authority/certificate profile/end entity profile is required, a new Issuer or ClusterIssuer resource must be created. Each resource instantiation represents a single configuration.
 
@@ -142,7 +142,7 @@ spec:
   certificateTemplate: ""
   certificateAuthorityLogicalName: ""
   certificateAuthorityHostname: ""
-  caSecretName: ""
+  caBundleSecretName: ""
 EOF
 kubectl -n command-issuer-system apply -f command-issuer.yaml
 ```
@@ -167,7 +167,7 @@ spec:
   certificateTemplate: ""
   certificateAuthorityLogicalName: ""
   certificateAuthorityHostname: ""
-  caSecretName: ""
+  caBundleSecretName: ""
 EOF
 kubectl -n command-issuer-system apply -f command-clusterissuer.yaml
 ```

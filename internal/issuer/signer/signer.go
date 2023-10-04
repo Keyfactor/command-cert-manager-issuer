@@ -127,7 +127,7 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 func (s *commandSigner) Check() error {
 	endpoints, _, err := s.client.StatusApi.StatusGetEndpoints(context.Background()).Execute()
 	if err != nil {
-		detail := fmt.Sprintf("failed to get endpoints from Keyfactor Command")
+		detail := "failed to get endpoints from Keyfactor Command"
 
 		var bodyError *keyfactor.GenericOpenAPIError
 		ok := errors.As(err, &bodyError)
@@ -174,7 +174,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 			CommandMetaCertificateSigningRequestNamespace: k8sMeta.CertificateSigningRequestNamespace,
 		},
 		Template: &s.certificateTemplate,
-		SANs:     nil, // TODO figure out if the SANs from csr need to be copied here
+		SANs:     nil,
 	}
 
 	var caBuilder strings.Builder
@@ -244,7 +244,7 @@ func compileCertificatesToPemBytes(certificates []*x509.Certificate) ([]byte, er
 			Bytes: certificate.Raw,
 		})
 		if err != nil {
-			return make([]byte, 0, 0), err
+			return make([]byte, 0), err
 		}
 	}
 
@@ -259,19 +259,6 @@ const (
 	CommandMetaIssuerNamespace                    = "Issuer-Namespace"
 	CommandMetaControllerReconcileId              = "Controller-Reconcile-Id"
 	CommandMetaCertificateSigningRequestNamespace = "Certificate-Signing-Request-Namespace"
-)
-
-var (
-	// Map used to determine if Keyfactor Command has a metadata field with a given name in O(1) time.
-	commandMetadataMap = map[string]string{
-		CommandMetaControllerNamespace:                "The namespace that the controller container is running in.",
-		CommandMetaControllerKind:                     "The type of issuer that the controller used to issue this certificate.",
-		CommandMetaControllerResourceGroupName:        "The group name of the resource that the Issuer or ClusterIssuer controller is managing.",
-		CommandMetaIssuerName:                         "The name of the K8s issuer resource",
-		CommandMetaIssuerNamespace:                    "The namespace that the issuer resource was created in.",
-		CommandMetaControllerReconcileId:              "The certificate reconcile ID that the controller used to issue this certificate.",
-		CommandMetaCertificateSigningRequestNamespace: "The namespace that the CertificateSigningRequest resource was created in.",
-	}
 )
 
 func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (*keyfactor.APIClient, error) {
@@ -308,7 +295,7 @@ func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.
 	config.UserAgent = "command-issuer"
 
 	// If the CA certificate is provided, add it to the EJBCA configuration
-	if caSecretData != nil && len(caSecretData) > 0 {
+	if len(caSecretData) > 0 {
 		// There is no requirement that the CA certificate is stored under a specific key in the secret, so we can just iterate over the map
 		var caCertBytes []byte
 		for _, caCertBytes = range caSecretData {
