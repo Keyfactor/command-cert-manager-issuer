@@ -1,6 +1,6 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= 1.0.4
+VERSION ?= 1.0.3
 # The Docker repository name, overridden in CI.
 DOCKER_REGISTRY ?= m8rmclarenkf
 DOCKER_IMAGE_NAME ?= command-cert-manager-external-issuer-controller

@@ -22,9 +22,10 @@ import (
 
 // IssuerSpec defines the desired state of Issuer
 type IssuerSpec struct {
-	// Hostname is the hostname of the Keyfactor server
+	// Hostname is the hostname of a Keyfactor Command instance.
 	Hostname string `json:"hostname,omitempty"`
-	// CertificateTemplate is the name of the certificate template to use
+	// CertificateTemplate is the name of the certificate template to use.
+	// Refer to the Keyfactor Command documentation for more information.
 	CertificateTemplate string `json:"certificateTemplate,omitempty"`
 	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
 	// E.g. "Keyfactor Root CA" or "Intermediate CA"
@@ -33,20 +34,19 @@ type IssuerSpec struct {
 	// CertificateAuthorityLogicalName E.g. "ca.example.com"
 	CertificateAuthorityHostname string `json:"certificateAuthorityHostname,omitempty"`
 
-	// A reference to a Secret in the same namespace as the referent. If the
-	// referent is a ClusterIssuer, the reference instead refers to the resource
-	// with the given name in the configured 'cluster resource namespace', which
-	// is set as a flag on the controller component (and defaults to the
-	// namespace that the controller runs in). The secret must be a K8s basic-auth
-	// secret of type kubernetes.io/basic-auth with the username and password
-	// fields set.
-	SecretName string `json:"commandSecretName,omitempty"`
-
-	// A reference to a Secret in the same namespace as the referent. If the
+	// A reference to a K8s kubernetes.io/basic-auth Secret containing basic auth
+	// credentials for the Command instance configured in Hostname. The secret must
+	// be in the same namespace as the referent. If the
 	// referent is a ClusterIssuer, the reference instead refers to the resource
 	// with the given name in the configured 'cluster resource namespace', which
 	// is set as a flag on the controller component (and defaults to the
 	// namespace that the controller runs in).
+	SecretName string `json:"commandSecretName,omitempty"`
+
+	// The name of the secret containing the CA bundle to use when verifying
+	// Command's server certificate. If specified, the CA bundle will be added to
+	// the client trust roots for the Command issuer.
+	// +optional
 	CaSecretName string `json:"caSecretName"`
 }
 
