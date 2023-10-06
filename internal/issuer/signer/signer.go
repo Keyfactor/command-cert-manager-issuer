@@ -51,6 +51,7 @@ type commandSigner struct {
 	certificateAuthorityLogicalName string
 	certificateAuthorityHostname    string
 	certManagerCertificateName      string
+	customMetadata                  map[string]interface{}
 }
 
 type HealthChecker interface {
@@ -78,6 +79,10 @@ func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *comm
 }
 
 func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, annotations map[string]string, authSecretData map[string][]byte, caSecretData map[string][]byte) (Signer, error) {
+	return commandSignerFromIssuerAndSecretData(ctx, spec, annotations, authSecretData, caSecretData)
+}
+
+func commandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, annotations map[string]string, authSecretData map[string][]byte, caSecretData map[string][]byte) (*commandSigner, error) {
 	k8sLog := log.FromContext(ctx)
 
 	signer := commandSigner{}
@@ -121,7 +126,21 @@ func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 
 	k8sLog.Info(fmt.Sprintf("Using certificate template \"%s\" and certificate authority \"%s\" (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
 
+	signer.customMetadata = extractMetadataFromAnnotations(annotations)
+
 	return &signer, nil
+}
+
+func extractMetadataFromAnnotations(annotations map[string]string) map[string]interface{} {
+	metadata := make(map[string]interface{})
+
+	for key, value := range annotations {
+		if strings.HasPrefix(key, "metadata.command-issuer.keyfactor.com/") {
+			metadata[strings.TrimPrefix(key, "metadata.command-issuer.keyfactor.com/")] = value
+		}
+	}
+
+	return metadata
 }
 
 func (s *commandSigner) Check() error {
@@ -161,6 +180,19 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	// Log the common metadata of the CSR
 	k8sLog.Info(fmt.Sprintf("Found CSR wtih Common Name \"%s\" and %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
 
+	// Print the SANs
+	for _, dnsName := range csr.DNSNames {
+		k8sLog.Info(fmt.Sprintf("DNS SAN: %s", dnsName))
+	}
+
+	for _, ipAddress := range csr.IPAddresses {
+		k8sLog.Info(fmt.Sprintf("IP SAN: %s", ipAddress.String()))
+	}
+
+	for _, uri := range csr.URIs {
+		k8sLog.Info(fmt.Sprintf("URI SAN: %s", uri.String()))
+	}
+
 	modelRequest := keyfactor.ModelsEnrollmentCSREnrollmentRequest{
 		CSR:          string(csrBytes),
 		IncludeChain: ptr(true),
@@ -177,6 +209,11 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 		SANs:     nil,
 	}
 
+	for metaName, value := range s.customMetadata {
+		k8sLog.Info(fmt.Sprintf("Adding metadata \"%s\" with value \"%s\"", metaName, value))
+		modelRequest.Metadata[metaName] = value
+	}
+
 	var caBuilder strings.Builder
 	if s.certificateAuthorityHostname != "" {
 		caBuilder.WriteString(s.certificateAuthorityHostname)
@@ -189,7 +226,11 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 
 	commandCsrResponseObject, _, err := s.client.EnrollmentApi.EnrollmentPostCSREnroll(context.Background()).Request(modelRequest).XCertificateformat(enrollmentPEMFormat).Execute()
 	if err != nil {
-		detail := fmt.Sprintf("error enrolling certificate with Command. verify that the certificate template \"%s\" exists and that the certificate authority \"%s\" (%s) is configured correctly", s.certificateTemplate, s.certificateAuthorityLogicalName, s.certificateAuthorityHostname)
+		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template \"%s\" exists and that the certificate authority \"%s\" (%s) is configured correctly.", s.certificateTemplate, s.certificateAuthorityLogicalName, s.certificateAuthorityHostname)
+
+		if len(s.customMetadata) > 0 {
+			detail += " Also verify that the metadata fields provided exist in Command."
+		}
 
 		var bodyError *keyfactor.GenericOpenAPIError
 		ok := errors.As(err, &bodyError)

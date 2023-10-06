@@ -1,9 +1,9 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= 1.0.3
+VERSION ?= v1.0.4
 # The Docker repository name, overridden in CI.
-DOCKER_REGISTRY ?= m8rmclarenkf
-DOCKER_IMAGE_NAME ?= command-cert-manager-external-issuer-controller
+DOCKER_REGISTRY ?= ghcr.io
+DOCKER_IMAGE_NAME ?= keyfactor/command-cert-manager-issuer
 # Image URL to use all building/pushing image targets
 IMG ?= ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}
 #IMG ?= command-issuer-dev:latest
@@ -120,6 +120,14 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+# Build the manager image for local development. This image is not intended to be used in production.
+# Then, install it into the K8s cluster
+.PHONY: deploy-local
+deploy-local: manifests kustomize ## Build docker image with the manager.
+	docker build -t ejbca-issuer-dev:latest -f Dockerfile .
+	cd config/manager && $(KUSTOMIZE) edit set image controller=ejbca-issuer-dev:latest
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
