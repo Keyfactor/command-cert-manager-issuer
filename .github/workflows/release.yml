@@ -16,7 +16,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}.toLowerCase()
 
 jobs:
   build:
@@ -36,6 +35,11 @@ jobs:
       packages: write
 
     steps:
+
+      - name: Set IMAGE_NAME
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
       # Checkout code
       # https://github.com/actions/checkout
       - name: Checkout code
@@ -105,6 +109,10 @@ jobs:
     needs:
       - build
     steps:
+      - name: Set IMAGE_NAME
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
       # Download digests
       # https://github.com/actions/download-artifact
       - name: Download digests
@@ -153,6 +161,10 @@ jobs:
     needs:
       - merge
     steps:
+      - name: Set IMAGE_NAME
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
       # Checkout code
       # https://github.com/actions/checkout
       - name: Checkout code
