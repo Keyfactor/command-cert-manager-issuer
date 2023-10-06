@@ -154,8 +154,8 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 
 	t.Run("MetadataAnnotations", func(t *testing.T) {
 		annotations := map[string]string{
-			"metadata.command-issuer.keyfactor.com/key1": "value1",
-			"metadata.command-issuer.keyfactor.com/key2": "value2",
+			commandMetadataAnnotationPrefix + "key1": "value1",
+			commandMetadataAnnotationPrefix + "key2": "value2",
 		}
 
 		// Create the signer
@@ -268,8 +268,8 @@ func Test_extractMetadataFromAnnotations(t *testing.T) {
 		{
 			name: "annotations with metadata prefix",
 			annotations: map[string]string{
-				"metadata.command-issuer.keyfactor.com/key1": "value1",
-				"key2": "value2",
+				commandMetadataAnnotationPrefix + "key1": "value1",
+				"key2":                                   "value2",
 			},
 			expected: map[string]interface{}{
 				"key1": "value1",
@@ -278,9 +278,9 @@ func Test_extractMetadataFromAnnotations(t *testing.T) {
 		{
 			name: "mixed annotations",
 			annotations: map[string]string{
-				"metadata.command-issuer.keyfactor.com/key1": "value1",
-				"metadata.command-issuer.keyfactor.com/key2": "value2",
-				"key3": "value3",
+				commandMetadataAnnotationPrefix + "key1": "value1",
+				commandMetadataAnnotationPrefix + "key2": "value2",
+				"key3":                                   "value3",
 			},
 			expected: map[string]interface{}{
 				"key1": "value1",

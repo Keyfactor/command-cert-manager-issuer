@@ -32,7 +32,8 @@ import (
 
 const (
 	// Keyfactor enrollment PEM format
-	enrollmentPEMFormat = "PEM"
+	enrollmentPEMFormat             = "PEM"
+	commandMetadataAnnotationPrefix = "metadata.command-issuer.keyfactor.com/"
 )
 
 type K8sMetadata struct {
@@ -124,7 +125,7 @@ func commandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 		signer.certManagerCertificateName = value
 	}
 
-	k8sLog.Info(fmt.Sprintf("Using certificate template \"%s\" and certificate authority \"%s\" (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
+	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s)", signer.certificateTemplate, signer.certificateAuthorityLogicalName, signer.certificateAuthorityHostname))
 
 	signer.customMetadata = extractMetadataFromAnnotations(annotations)
 
@@ -135,8 +136,8 @@ func extractMetadataFromAnnotations(annotations map[string]string) map[string]in
 	metadata := make(map[string]interface{})
 
 	for key, value := range annotations {
-		if strings.HasPrefix(key, "metadata.command-issuer.keyfactor.com/") {
-			metadata[strings.TrimPrefix(key, "metadata.command-issuer.keyfactor.com/")] = value
+		if strings.HasPrefix(key, commandMetadataAnnotationPrefix) {
+			metadata[strings.TrimPrefix(key, commandMetadataAnnotationPrefix)] = value
 		}
 	}
 
@@ -178,7 +179,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	}
 
 	// Log the common metadata of the CSR
-	k8sLog.Info(fmt.Sprintf("Found CSR wtih Common Name \"%s\" and %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
+	k8sLog.Info(fmt.Sprintf("Found CSR wtih Common Name %q and %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
 
 	// Print the SANs
 	for _, dnsName := range csr.DNSNames {
@@ -210,7 +211,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	}
 
 	for metaName, value := range s.customMetadata {
-		k8sLog.Info(fmt.Sprintf("Adding metadata \"%s\" with value \"%s\"", metaName, value))
+		k8sLog.Info(fmt.Sprintf("Adding metadata %q with value %q", metaName, value))
 		modelRequest.Metadata[metaName] = value
 	}
 
@@ -226,7 +227,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 
 	commandCsrResponseObject, _, err := s.client.EnrollmentApi.EnrollmentPostCSREnroll(context.Background()).Request(modelRequest).XCertificateformat(enrollmentPEMFormat).Execute()
 	if err != nil {
-		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template \"%s\" exists and that the certificate authority \"%s\" (%s) is configured correctly.", s.certificateTemplate, s.certificateAuthorityLogicalName, s.certificateAuthorityHostname)
+		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template %q exists and that the certificate authority %q (%s) is configured correctly.", s.certificateTemplate, s.certificateAuthorityLogicalName, s.certificateAuthorityHostname)
 
 		if len(s.customMetadata) > 0 {
 			detail += " Also verify that the metadata fields provided exist in Command."
@@ -248,7 +249,7 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 		return nil, err
 	}
 
-	k8sLog.Info(fmt.Sprintf("Successfully enrolled certificate with Command with subject \"%s\". Certificate has %d SANs", certAndChain[0].Subject, len(certAndChain[0].DNSNames)+len(certAndChain[0].IPAddresses)+len(certAndChain[0].URIs)))
+	k8sLog.Info(fmt.Sprintf("Successfully enrolled certificate with Command with subject %q. Certificate has %d SANs", certAndChain[0].Subject, len(certAndChain[0].DNSNames)+len(certAndChain[0].IPAddresses)+len(certAndChain[0].URIs)))
 
 	// Return the certificate and chain in PEM format
 	return compileCertificatesToPemBytes(certAndChain)
