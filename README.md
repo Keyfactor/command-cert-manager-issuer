@@ -267,6 +267,15 @@ Here are the supported annotations that can override the default values:
     command-issuer.keyfactor.com/certificateAuthorityHostname: "example.com"
     ```
 
+### Metadata Annotations
+
+The Keyfactor Command external issuer for cert-manager also allows you to specify Command Metadata through the use of annotations. Metadata attached to a certificate request will be stored in Command and can be used for reporting and auditing purposes. The syntax for specifying metadata is as follows:
+```yaml
+metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
+```
+
+###### :pushpin: The metadata field name must match a name of a metadata field in Command exactly. If the metadata field name does not match, the CSR enrollment will fail.
+
 ### How to Apply Annotations
 
 To apply these annotations, include them in the metadata section of your CertificateRequest resource:
@@ -278,9 +287,10 @@ metadata:
   annotations:
     command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
     command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
+    metadata.command-issuer.keyfactor.com/ResponsibleTeam: "theResponsibleTeam@example.com"
     # ... other annotations
 spec:
-# ... rest of the spec
+# ... the rest of the spec
 ```
 
 ### Demo ClusterIssuer Usage with K8s Ingress
