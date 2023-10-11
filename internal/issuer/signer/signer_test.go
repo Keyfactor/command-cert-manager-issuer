@@ -473,6 +473,7 @@ func generateCSR(subject string) ([]byte, error) {
 	template := x509.CertificateRequest{
 		Subject:            subj,
 		SignatureAlgorithm: x509.SHA256WithRSA,
+		DNSNames:           []string{subj.CommonName},
 	}
 	var csrBuf bytes.Buffer
 	csrBytes, _ := x509.CreateCertificateRequest(rand.Reader, &template, keyBytes)
