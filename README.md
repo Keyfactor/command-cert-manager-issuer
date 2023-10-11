@@ -522,12 +522,6 @@ cat <<EOF >> metadata.json
             "DataType": 1,
             "Description": "The name of the K8s issuer resource",
             "Name": "Issuer-Name"
-        },
-        {
-            "AllowAPI": true,
-            "DataType": 1,
-            "Description": "The name of the K8s issuer resource",
-            "Name": "Issuer-Name"
         }
     ],
     "ExpirationAlerts": [],
@@ -540,6 +534,7 @@ cat <<EOF >> metadata.json
     "CustomReports": [],
     "SecurityRoles": []
 }
+EOF
 kfutil import --metadata --file metadata.json
 ```
 

@@ -86,13 +86,14 @@ func TestCommandSignerFromIssuerAndSecretData(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		signed, err := signer.Sign(context.Background(), csr, meta)
+		leaf, chain, err := signer.Sign(context.Background(), csr, meta)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("Signing took %s", time.Since(start))
 
-		t.Logf("Signed certificate: %s", string(signed))
+		t.Logf("Signed certificate: %s", string(leaf))
+		t.Logf("Chain: %s", string(chain))
 	})
 
 	// Set up test data
@@ -238,7 +239,7 @@ func TestCompileCertificatesToPemBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := compileCertificatesToPemBytes(tt.certificates)
+			_, _, err = compileCertificatesToPemBytes(tt.certificates)
 			if (err != nil) != tt.expectedError {
 				t.Errorf("expected error = %v, got %v", tt.expectedError, err)
 			}
@@ -305,12 +306,7 @@ func Test_createCommandClientFromSecretData(t *testing.T) {
 		t.Fatalf("failed to generate self-signed certificate: %v", err)
 	}
 
-	cert2, err := generateSelfSignedCertificate()
-	if err != nil {
-		t.Fatalf("failed to generate self-signed certificate: %v", err)
-	}
-
-	certBytes, err := compileCertificatesToPemBytes([]*x509.Certificate{cert1, cert2})
+	leafBytes, _, err := compileCertificatesToPemBytes([]*x509.Certificate{cert1})
 	if err != nil {
 		return
 	}
@@ -377,7 +373,7 @@ func Test_createCommandClientFromSecretData(t *testing.T) {
 				"password": []byte("password"),
 			},
 			caSecretData: map[string][]byte{
-				"tls.crt": certBytes,
+				"tls.crt": leafBytes,
 			},
 			verify: func(t *testing.T, client *keyfactor.APIClient) error {
 				if client == nil {

@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/keyfactor/command-cert-manager-issuer
-  newTag: v1.0.4
+  newTag: latest
