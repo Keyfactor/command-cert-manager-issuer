@@ -63,7 +63,7 @@ type HealthCheckerBuilder func(context.Context, *commandissuer.IssuerSpec, map[s
 type CommandSignerBuilder func(context.Context, *commandissuer.IssuerSpec, map[string]string, map[string][]byte, map[string][]byte) (Signer, error)
 
 type Signer interface {
-	Sign(context.Context, []byte, K8sMetadata) ([]byte, error)
+	Sign(context.Context, []byte, K8sMetadata) ([]byte, []byte, error)
 }
 
 func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (HealthChecker, error) {
@@ -169,13 +169,13 @@ func (s *commandSigner) Check() error {
 	return errors.New("missing \"POST /Enrollment/CSR\" endpoint")
 }
 
-func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMetadata) ([]byte, error) {
+func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMetadata) ([]byte, []byte, error) {
 	k8sLog := log.FromContext(ctx)
 
 	csr, err := parseCSR(csrBytes)
 	if err != nil {
 		k8sLog.Error(err, "failed to parse CSR")
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Log the common metadata of the CSR
@@ -241,12 +241,12 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 
 		k8sLog.Error(err, detail)
 
-		return nil, fmt.Errorf(detail)
+		return nil, nil, fmt.Errorf(detail)
 	}
 
 	certAndChain, err := getCertificatesFromCertificateInformation(commandCsrResponseObject.CertificateInformation)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	k8sLog.Info(fmt.Sprintf("Successfully enrolled certificate with Command with subject %q. Certificate has %d SANs", certAndChain[0].Subject, len(certAndChain[0].DNSNames)+len(certAndChain[0].IPAddresses)+len(certAndChain[0].URIs)))
@@ -277,20 +277,31 @@ func getCertificatesFromCertificateInformation(commandResp *keyfactor.ModelsPkcs
 
 // compileCertificatesToPemString takes a slice of x509 certificates and returns a string containing the certificates in PEM format
 // If an error occurred, the function logs the error and continues to parse the remaining objects.
-func compileCertificatesToPemBytes(certificates []*x509.Certificate) ([]byte, error) {
-	var pemBuilder strings.Builder
+func compileCertificatesToPemBytes(certificates []*x509.Certificate) ([]byte, []byte, error) {
+	var leaf strings.Builder
+	var chain strings.Builder
 
-	for _, certificate := range certificates {
-		err := pem.Encode(&pemBuilder, &pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: certificate.Raw,
-		})
-		if err != nil {
-			return make([]byte, 0), err
+	for i, certificate := range certificates {
+		if i == 0 {
+			err := pem.Encode(&leaf, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: certificate.Raw,
+			})
+			if err != nil {
+				return make([]byte, 0), make([]byte, 0), err
+			}
+		} else {
+			err := pem.Encode(&chain, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: certificate.Raw,
+			})
+			if err != nil {
+				return make([]byte, 0), make([]byte, 0), err
+			}
 		}
 	}
 
-	return []byte(pemBuilder.String()), nil
+	return []byte(leaf.String()), []byte(chain.String()), nil
 }
 
 const (

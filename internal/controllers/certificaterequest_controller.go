@@ -247,11 +247,12 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	meta.ControllerReconcileId = string(controller.ReconcileIDFromContext(ctx))
 	meta.CertificateSigningRequestNamespace = certificateRequest.Namespace
 
-	signed, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
+	leaf, chain, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerSign, err)
 	}
-	certificateRequest.Status.Certificate = signed
+	certificateRequest.Status.Certificate = leaf
+	certificateRequest.Status.CA = chain
 
 	setReadyCondition(cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
 	return ctrl.Result{}, nil
