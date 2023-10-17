@@ -115,7 +115,7 @@ The Issuer resource is namespaced, while the ClusterIssuer resource is cluster-s
 For example, ClusterIssuer resources can be used to issue certificates for resources in multiple namespaces, whereas Issuer resources can only be used to issue certificates for resources in the same namespace.
 
 The `spec` field of both the Issuer and ClusterIssuer resources use the following fields:
-* `hostname` - The hostname of the Keyfactor Command server
+* `hostname` - The hostname of the Keyfactor Command server - The signer sets the protocol to `https` and automatically trims the trailing path from the hostname. Additionally, the base Command API path is automatically set to `/KeyfactorAPI` and cannot be changed.
 * `commandSecretName` - The name of the Kubernetes `kubernetes.io/basic-auth` secret containing credentials to the Keyfactor instance
 * `certificateTemplate` - The short name corresponding to a template in Command that will be used to issue certificates.
 * `certificateAuthorityLogicalName` - The logical name of the CA to use to sign the certificate request
