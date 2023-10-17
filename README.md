@@ -45,42 +45,56 @@ kubectl get nodes
 
 ### Installation from Manifests
 
-Once Kubernetes is running, a static installation of cert-manager can be installed with the following command:
-```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
-```
+1. Once Kubernetes is running, a static installation of cert-manager can be installed with the following command:
+    ```shell
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+    ```
 
-###### :pushpin: Running the static cert-manager configuration is not recommended for production use. For more information, see [Installing cert-manager](https://cert-manager.io/docs/installation/).
+    ###### :pushpin: Running the static cert-manager configuration is not recommended for production use. For more information, see [Installing cert-manager](https://cert-manager.io/docs/installation/).
 
-Then, install the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor Command:
-```shell
-make install
-```
+2. Then, install the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor Command:
+    ```shell
+    make install
+    ```
 
-Finally, deploy the controller to the cluster:
-```shell
-make deploy
-```
+3. Finally, deploy the controller to the cluster:
+    ```shell
+    make deploy
+    ```
 
 ### Installation from Helm Chart
 
 The cert-manager external issuer for Keyfactor Command can also be installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
-First, add the Helm repository:
-```bash
-helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
-helm repo update
-```
+1. Add the Helm repository:
+    ```bash
+    helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
+    helm repo update
+    ```
 
-Then, install the chart:
-```bash
-helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer
-```
+2. Then, install the chart:
+    ```bash
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer
+    ```
 
-Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
-```bash
-helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer --set replicaCount=2
-```
+    a. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
+
+        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+            --set replicaCount=2
+
+    b. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the
+    `replicaCount` value, modify the `replicaCount` value in the `values.yaml` file:
+
+        cat <<EOF > override.yaml
+        replicaCount: 2
+        EOF
+
+    Then, use the `-f` flag to specify the `values.yaml` file:
+    
+    ```yaml
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+        -f override.yaml
+    ```
 
 ## Usage
 The cert-manager external issuer for Keyfactor Command can be used to issue certificates from Keyfactor Command using cert-manager.
@@ -115,7 +129,7 @@ The Issuer resource is namespaced, while the ClusterIssuer resource is cluster-s
 For example, ClusterIssuer resources can be used to issue certificates for resources in multiple namespaces, whereas Issuer resources can only be used to issue certificates for resources in the same namespace.
 
 The `spec` field of both the Issuer and ClusterIssuer resources use the following fields:
-* `hostname` - The hostname of the Keyfactor Command server
+* `hostname` - The hostname of the Keyfactor Command server - The signer sets the protocol to `https` and automatically trims the trailing path from this field, if it exists. Additionally, the base Command API path is automatically set to `/KeyfactorAPI` and cannot be changed.
 * `commandSecretName` - The name of the Kubernetes `kubernetes.io/basic-auth` secret containing credentials to the Keyfactor instance
 * `certificateTemplate` - The short name corresponding to a template in Command that will be used to issue certificates.
 * `certificateAuthorityLogicalName` - The logical name of the CA to use to sign the certificate request
