@@ -1,6 +1,6 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= v1.0.4
+VERSION ?= latest
 # The Docker repository name, overridden in CI.
 DOCKER_REGISTRY ?= ghcr.io
 DOCKER_IMAGE_NAME ?= keyfactor/command-cert-manager-issuer
