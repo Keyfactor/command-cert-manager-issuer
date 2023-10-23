@@ -2,8 +2,8 @@
 # and which will be used as the Docker image tag
 VERSION ?= latest
 # The Docker repository name, overridden in CI.
-DOCKER_REGISTRY ?= ghcr.io
-DOCKER_IMAGE_NAME ?= keyfactor/command-cert-manager-issuer
+DOCKER_REGISTRY ?= ""
+DOCKER_IMAGE_NAME ?= ""
 # Image URL to use all building/pushing image targets
 IMG ?= ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}
 #IMG ?= command-issuer-dev:latest
@@ -67,6 +67,11 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 ##@ Build
 
+.PHONY: regcheck
+regcheck: ## Check if the docker registry is set.
+	@test -n "$(DOCKER_REGISTRY)" || (echo "DOCKER_REGISTRY is not set" && exit 1)
+	@test -n "$(DOCKER_IMAGE_NAME)" || (echo "DOCKER_IMAGE_NAME is not set" && exit 1)
+
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
@@ -79,10 +84,10 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64 ). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: regcheck ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
-.PHONY: docker-push
+.PHONY: docker-push regcheck
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
@@ -94,7 +99,7 @@ docker-push: ## Push docker image with the manager.
 # To properly provided solutions that supports more than one platform you should use this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
-docker-buildx: test ## Build and push docker image for the manager for cross-platform support
+docker-buildx: regcheck ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- docker buildx create --name project-v3-builder
