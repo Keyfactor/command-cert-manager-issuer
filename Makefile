@@ -6,7 +6,6 @@ DOCKER_REGISTRY ?= ""
 DOCKER_IMAGE_NAME ?= ""
 # Image URL to use all building/pushing image targets
 IMG ?= ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}
-#IMG ?= command-issuer-dev:latest
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26.0
@@ -131,8 +130,8 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 # Then, install it into the K8s cluster
 .PHONY: deploy-local
 deploy-local: manifests kustomize ## Build docker image with the manager.
-	docker build -t ejbca-issuer-dev:latest -f Dockerfile .
-	cd config/manager && $(KUSTOMIZE) edit set image controller=ejbca-issuer-dev:latest
+	docker build -t command-issuer-dev:latest -f Dockerfile .
+	cd config/manager && $(KUSTOMIZE) edit set image controller=command-issuer-dev:latest
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
