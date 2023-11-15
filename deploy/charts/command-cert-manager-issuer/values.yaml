@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: m8rmclarenkf/command-cert-manager-external-issuer-controller
+  repository: ""
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
@@ -12,6 +12,11 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+
+# Whether to enable and configure the kube-rbac-proxy sidecar for authorized and authenticated
+# use of the /metrics endpoint by Prometheus.
+secureMetrics:
+  enabled: false
 
 crd:
   # Specifies whether CRDs will be created

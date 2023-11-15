@@ -2,6 +2,10 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: command-certificate
+  annotations:
+    command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
+    command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
+    metadata.command-issuer.keyfactor.com/ResponsibleTeam: "theResponsibleTeam@example.com"
 spec:
   commonName: command-issuer-sample
   secretName: command-certificate

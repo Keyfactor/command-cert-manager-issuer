@@ -19,9 +19,6 @@ package controllers
 import (
 	"context"
 	"errors"
-	"testing"
-	"time"
-
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -40,22 +37,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"testing"
 
 	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 )
 
 var (
-	fixedClockStart = time.Date(2021, time.January, 1, 1, 0, 0, 0, time.UTC)
-	fixedClock      = clock.RealClock{}
+	fixedClock = clock.RealClock{}
 )
 
 type fakeSigner struct {
 	errSign error
 }
 
-func (o *fakeSigner) Sign(context.Context, []byte, signer.K8sMetadata) ([]byte, error) {
-	return []byte("fake signed certificate"), o.errSign
+func (o *fakeSigner) Sign(context.Context, []byte, signer.K8sMetadata) ([]byte, []byte, error) {
+	return []byte("fake signed certificate"), []byte("fake ca chain"), o.errSign
 }
 
 func TestCertificateRequestReconcile(t *testing.T) {

@@ -36,11 +36,9 @@ spec:
             description: IssuerSpec defines the desired state of Issuer
             properties:
               caSecretName:
-                description: A reference to a Secret in the same namespace as the
-                  referent. If the referent is a ClusterIssuer, the reference instead
-                  refers to the resource with the given name in the configured 'cluster
-                  resource namespace', which is set as a flag on the controller component
-                  (and defaults to the namespace that the controller runs in).
+                description: The name of the secret containing the CA bundle to use
+                  when verifying Command's server certificate. If specified, the CA
+                  bundle will be added to the client trust roots for the Command issuer.
                 type: string
               certificateAuthorityHostname:
                 description: CertificateAuthorityHostname is the hostname associated
@@ -54,22 +52,20 @@ spec:
                 type: string
               certificateTemplate:
                 description: CertificateTemplate is the name of the certificate template
-                  to use
+                  to use. Refer to the Keyfactor Command documentation for more information.
                 type: string
               commandSecretName:
-                description: A reference to a Secret in the same namespace as the
-                  referent. If the referent is a ClusterIssuer, the reference instead
-                  refers to the resource with the given name in the configured 'cluster
-                  resource namespace', which is set as a flag on the controller component
-                  (and defaults to the namespace that the controller runs in). The
-                  secret must be a K8s basic-auth secret of type kubernetes.io/basic-auth
-                  with the username and password fields set.
+                description: A reference to a K8s kubernetes.io/basic-auth Secret
+                  containing basic auth credentials for the Command instance configured
+                  in Hostname. The secret must be in the same namespace as the referent.
+                  If the referent is a ClusterIssuer, the reference instead refers
+                  to the resource with the given name in the configured 'cluster resource
+                  namespace', which is set as a flag on the controller component (and
+                  defaults to the namespace that the controller runs in).
                 type: string
               hostname:
-                description: Hostname is the hostname of the Keyfactor server
+                description: Hostname is the hostname of a Keyfactor Command instance.
                 type: string
-            required:
-            - caSecretName
             type: object
           status:
             description: IssuerStatus defines the observed state of Issuer

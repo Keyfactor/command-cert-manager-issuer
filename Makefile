@@ -1,12 +1,11 @@
 # The version which will be reported by the --version argument of each binary
 # and which will be used as the Docker image tag
-VERSION ?= 1.0.3
+VERSION ?= latest
 # The Docker repository name, overridden in CI.
-DOCKER_REGISTRY ?= m8rmclarenkf
-DOCKER_IMAGE_NAME ?= command-cert-manager-external-issuer-controller
+DOCKER_REGISTRY ?= ""
+DOCKER_IMAGE_NAME ?= ""
 # Image URL to use all building/pushing image targets
 IMG ?= ${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${VERSION}
-#IMG ?= command-issuer-dev:latest
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26.0
@@ -67,6 +66,11 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 ##@ Build
 
+.PHONY: regcheck
+regcheck: ## Check if the docker registry is set.
+	@test -n "$(DOCKER_REGISTRY)" || (echo "DOCKER_REGISTRY is not set" && exit 1)
+	@test -n "$(DOCKER_IMAGE_NAME)" || (echo "DOCKER_IMAGE_NAME is not set" && exit 1)
+
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
@@ -79,10 +83,10 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64 ). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: regcheck ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
-.PHONY: docker-push
+.PHONY: docker-push regcheck
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
@@ -94,7 +98,7 @@ docker-push: ## Push docker image with the manager.
 # To properly provided solutions that supports more than one platform you should use this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
-docker-buildx: test ## Build and push docker image for the manager for cross-platform support
+docker-buildx: regcheck ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- docker buildx create --name project-v3-builder
@@ -120,6 +124,14 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+# Build the manager image for local development. This image is not intended to be used in production.
+# Then, install it into the K8s cluster
+.PHONY: deploy-local
+deploy-local: manifests kustomize ## Build docker image with the manager.
+	docker build -t command-issuer-dev:latest -f Dockerfile .
+	cd config/manager && $(KUSTOMIZE) edit set image controller=command-issuer-dev:latest
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy

@@ -13,3 +13,4 @@ spec:
   certificateTemplate: ""
   certificateAuthorityLogicalName: ""
   certificateAuthorityHostname: ""
+  caSecretName: ""

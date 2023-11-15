@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	issuerutil "github.com/Keyfactor/command-issuer/internal/issuer/util"
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
@@ -34,8 +35,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-
-	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
 )
 
 var (
@@ -245,14 +244,15 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	meta.ControllerResourceGroupName = commandissuer.GroupVersion.Group
 	meta.IssuerName = certificateRequest.Spec.IssuerRef.Name
 	meta.IssuerNamespace = certificateRequest.Namespace
-	meta.ControllerReconcileId = fmt.Sprintf("%s", controller.ReconcileIDFromContext(ctx))
+	meta.ControllerReconcileId = string(controller.ReconcileIDFromContext(ctx))
 	meta.CertificateSigningRequestNamespace = certificateRequest.Namespace
 
-	signed, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
+	leaf, chain, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerSign, err)
 	}
-	certificateRequest.Status.Certificate = signed
+	certificateRequest.Status.Certificate = leaf
+	certificateRequest.Status.CA = chain
 
 	setReadyCondition(cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
 	return ctrl.Result{}, nil
