@@ -91,29 +91,29 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
         # --set image.pullPolicy=Never # Only required if using a local image
     ```
 
-    a. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
+    1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
 
-    ```shell
-    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-        --namespace command-issuer-system \
-        --create-namespace \
-        --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-        --set image.tag=<tag>
-        --set replicaCount=2
-    ```
+        ```shell
+        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+            --namespace command-issuer-system \
+            --create-namespace \
+            --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
+            --set image.tag=<tag>
+            --set replicaCount=2
+        ```
 
-    b. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the
+    2. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the
     `replicaCount` value, modify the `replicaCount` value in the `values.yaml` file:
 
-    ```yaml
-    cat <<EOF > override.yaml
-    image:
-        repository: <your container registry>/keyfactor/command-cert-manager-issuer
-        pullPolicy: Never
-        tag: "latest"
-    replicaCount: 2
-    EOF
-    ```
+        ```yaml
+        cat <<EOF > override.yaml
+        image:
+            repository: <your container registry>/keyfactor/command-cert-manager-issuer
+            pullPolicy: Never
+            tag: "latest"
+        replicaCount: 2
+        EOF
+        ```
 
     Then, use the `-f` flag to specify the `values.yaml` file:
         

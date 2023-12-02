@@ -19,6 +19,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/Keyfactor/command-issuer/internal/controllers"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	"github.com/Keyfactor/command-issuer/internal/issuer/util"
@@ -62,6 +63,7 @@ func main() {
 	var clusterResourceNamespace string
 	var printVersion bool
 	var disableApprovedCheck bool
+	var secretAccessGrantedAtClusterLevel bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -72,6 +74,8 @@ func main() {
 	flag.BoolVar(&printVersion, "version", false, "Print version to stdout and exit")
 	flag.BoolVar(&disableApprovedCheck, "disable-approved-check", false,
 		"Disables waiting for CertificateRequests to have an approved condition before signing.")
+	flag.BoolVar(&secretAccessGrantedAtClusterLevel, "secret-access-granted-at-cluster-level", false,
+		"Set this flag to true if the secret access is granted at cluster level. This will allow the controller to access secrets in any namespace. ")
 
 	opts := zap.Options{
 		Development: true,
@@ -92,6 +96,12 @@ func main() {
 			}
 			os.Exit(1)
 		}
+	}
+
+	if secretAccessGrantedAtClusterLevel {
+		setupLog.Info("expecting secret access at cluster level")
+	} else {
+		setupLog.Info(fmt.Sprintf("expecting secret access at namespace level (%s)", clusterResourceNamespace))
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -119,21 +129,23 @@ func main() {
 	}
 
 	if err = (&controllers.IssuerReconciler{
-		Kind:                     "Issuer",
-		Client:                   mgr.GetClient(),
-		Scheme:                   mgr.GetScheme(),
-		ClusterResourceNamespace: clusterResourceNamespace,
-		HealthCheckerBuilder:     signer.CommandHealthCheckerFromIssuerAndSecretData,
+		Kind:                              "Issuer",
+		Client:                            mgr.GetClient(),
+		Scheme:                            mgr.GetScheme(),
+		ClusterResourceNamespace:          clusterResourceNamespace,
+		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
+		HealthCheckerBuilder:              signer.CommandHealthCheckerFromIssuerAndSecretData,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
 		os.Exit(1)
 	}
 	if err = (&controllers.IssuerReconciler{
-		Kind:                     "ClusterIssuer",
-		Client:                   mgr.GetClient(),
-		Scheme:                   mgr.GetScheme(),
-		ClusterResourceNamespace: clusterResourceNamespace,
-		HealthCheckerBuilder:     signer.CommandHealthCheckerFromIssuerAndSecretData,
+		Kind:                              "ClusterIssuer",
+		Client:                            mgr.GetClient(),
+		Scheme:                            mgr.GetScheme(),
+		ClusterResourceNamespace:          clusterResourceNamespace,
+		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
+		HealthCheckerBuilder:              signer.CommandHealthCheckerFromIssuerAndSecretData,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
 		os.Exit(1)

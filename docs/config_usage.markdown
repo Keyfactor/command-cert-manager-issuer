@@ -98,6 +98,8 @@ data:
 EOF
 ```
 
+If the Helm chart was deployed with the `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag, the secret must be created in the same namespace as any Issuer resources deployed. Otherwise, the secret must be created in the same namespace as the controller.
+
 If the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root, the CA certificate must be provided as a Kubernetes secret.
 ```shell
 kubectl -n command-issuer-system create secret generic command-ca-secret --from-file=ca.crt

@@ -51,23 +51,25 @@ helm install command-cert-manager-issuer command-issuer/command-cert-manager-iss
 
 The following table lists the configurable parameters of the `command-cert-manager-issuer` chart and their default values.
 
-| Parameter                         | Description                                           | Default                                               |
-|-----------------------------------|-------------------------------------------------------|-------------------------------------------------------|
-| `replicaCount`                    | Number of replica command-cert-manager-issuers to run | `1`                                                   |
-| `image.repository`                | Image repository                                      | `ghcr.io/keyfactor/command-cert-manager-issuer`       |
-| `image.pullPolicy`                | Image pull policy                                     | `IfNotPresent`                                        |
-| `image.tag`                       | Image tag                                             | `""`                                                  |
-| `imagePullSecrets`                | Image pull secrets                                    | `[]`                                                  |
-| `nameOverride`                    | Name override                                         | `""`                                                  |
-| `fullnameOverride`                | Full name override                                    | `""`                                                  |
-| `crd.create`                      | Specifies if CRDs will be created                     | `true`                                                |
-| `crd.annotations`                 | Annotations to add to the CRD                         | `{}`                                                  |
-| `serviceAccount.create`           | Specifies if a service account should be created      | `true`                                                |
-| `serviceAccount.annotations`      | Annotations to add to the service account             | `{}`                                                  |
-| `serviceAccount.name`             | Name of the service account to use                    | `""` (uses the fullname template if `create` is true) |
-| `podAnnotations`                  | Annotations for the pod                               | `{}`                                                  |
-| `podSecurityContext.runAsNonRoot` | Run pod as non-root                                   | `true`                                                |
-| `securityContext`                 | Security context for the pod                          | `{}` (with commented out options)                     |
-| `resources`                       | CPU/Memory resource requests/limits                   | `{}` (with commented out options)                     |
-| `nodeSelector`                    | Node labels for pod assignment                        | `{}`                                                  |
-| `tolerations`                     | Tolerations for pod assignment                        | `[]`                                                  |
+| Parameter                                    | Description                                                                                                                              | Default                                               |
+|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| `replicaCount`                               | Number of replica command-cert-manager-issuers to run                                                                                    | `1`                                                   |
+| `image.repository`                           | Image repository                                                                                                                         | `ghcr.io/keyfactor/command-cert-manager-issuer`       |
+| `image.pullPolicy`                           | Image pull policy                                                                                                                        | `IfNotPresent`                                        |
+| `image.tag`                                  | Image tag                                                                                                                                | `""`                                                  |
+| `imagePullSecrets`                           | Image pull secrets                                                                                                                       | `[]`                                                  |
+| `nameOverride`                               | Name override                                                                                                                            | `""`                                                  |
+| `fullnameOverride`                           | Full name override                                                                                                                       | `""`                                                  |
+| `crd.create`                                 | Specifies if CRDs will be created                                                                                                        | `true`                                                |
+| `crd.annotations`                            | Annotations to add to the CRD                                                                                                            | `{}`                                                  |
+| `serviceAccount.create`                      | Specifies if a service account should be created                                                                                         | `true`                                                |
+| `serviceAccount.annotations`                 | Annotations to add to the service account                                                                                                | `{}`                                                  |
+| `serviceAccount.name`                        | Name of the service account to use                                                                                                       | `""` (uses the fullname template if `create` is true) |
+| `podAnnotations`                             | Annotations for the pod                                                                                                                  | `{}`                                                  |
+| `podSecurityContext.runAsNonRoot`            | Run pod as non-root                                                                                                                      | `true`                                                |
+| `securityContext`                            | Security context for the pod                                                                                                             | `{}` (with commented out options)                     |
+| `resources`                                  | CPU/Memory resource requests/limits                                                                                                      | `{}` (with commented out options)                     |
+| `nodeSelector`                               | Node labels for pod assignment                                                                                                           | `{}`                                                  |
+| `tolerations`                                | Tolerations for pod assignment                                                                                                           | `[]`                                                  |
+| `secureMetrics.enabled`                      | Whether to enable and configure the kube-rbac-proxy sidecar for authorized and authenticated use of the /metrics endpoint by Prometheus. | `false`                                               |
+| `secretConfig.useClusterRoleForSecretAccess` | Specifies if the ServiceAccount should be granted access to the Secret resource using a ClusterRole                                      | `false`                                               |
