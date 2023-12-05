@@ -83,6 +83,7 @@ kfutil import --metadata --file metadata.json
 
 ### Authentication
 Authentication to the Command platform is done using basic authentication. The credentials must be provided as a Kubernetes `kubernetes.io/basic-auth` secret. These credentials should be for a user with "Certificate Enrollment: Enroll CSR" and "API: Read" permissions in Command.
+If the Helm chart was deployed with the `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag, the secret must be created in the same namespace as any Issuer resources deployed. Otherwise, the secret must be created in the same namespace as the controller.
 
 Create a `kubernetes.io/basic-auth` secret with the Keyfactor Command username and password:
 ```shell
@@ -97,8 +98,6 @@ data:
   password: <base64 encoded password>
 EOF
 ```
-
-If the Helm chart was deployed with the `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag, the secret must be created in the same namespace as any Issuer resources deployed. Otherwise, the secret must be created in the same namespace as the controller.
 
 If the Command server is configured to use a self-signed certificate or with a certificate signed by an untrusted root, the CA certificate must be provided as a Kubernetes secret.
 ```shell

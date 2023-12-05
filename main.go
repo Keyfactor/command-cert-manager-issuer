@@ -151,12 +151,13 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.CertificateRequestReconciler{
-		Client:                   mgr.GetClient(),
-		Scheme:                   mgr.GetScheme(),
-		ClusterResourceNamespace: clusterResourceNamespace,
-		SignerBuilder:            signer.CommandSignerFromIssuerAndSecretData,
-		CheckApprovedCondition:   !disableApprovedCheck,
-		Clock:                    clock.RealClock{},
+		Client:                            mgr.GetClient(),
+		Scheme:                            mgr.GetScheme(),
+		ClusterResourceNamespace:          clusterResourceNamespace,
+		SignerBuilder:                     signer.CommandSignerFromIssuerAndSecretData,
+		CheckApprovedCondition:            !disableApprovedCheck,
+		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
+		Clock:                             clock.RealClock{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertificateRequest")
 		os.Exit(1)

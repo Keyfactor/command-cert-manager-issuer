@@ -18,32 +18,46 @@ The Command external issuer for cert-manager allows users to enroll certificates
 
 ### Add Helm Repository
 
-```bash
+```shell
 helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
 helm repo update
 ```
 
 ### Install Chart
 
-```bash
-helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer
-```
-
-Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
-```bash
+```shell
 helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-    --set replicaCount=2
+    --namespace command-issuer-system \
+    --create-namespace \
+    --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
+    --set image.tag=<tag> \
+    --set crd.create=true \
+    # --set image.pullPolicy=Never # Only required if using a local image
 ```
 
-Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the `replicaCount` value, modify the `replicaCount` value in the `values.yaml` file:
+Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `secretConfig.useClusterRoleForSecretAccess` to configure the chart to use a cluster role for secret access, run the following command:
+
+```shell
+helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+    --namespace command-issuer-system \
+    --create-namespace \
+    --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
+    --set image.tag=<tag> \
+    --set crd.create=true \
+    --set secretConfig.useClusterRoleForSecretAccess=true
+```
+
+Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the `secretConfig.useClusterRoleForSecretAccess` value to configure the chart to use a cluster role for secret access, modify the `secretConfig.useClusterRoleForSecretAccess` value in the `values.yaml` file by creating an override file:
 ```yaml
 cat <<EOF > override.yaml
-replicaCount: 2
+secretConfig:
+    useClusterRoleForSecretAccess: true
 EOF
 ```
 Then, use the `-f` flag to specify the `values.yaml` file:
-```bash
+```shell
 helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+    --namespace command-issuer-system \
     -f override.yaml
 ```
 

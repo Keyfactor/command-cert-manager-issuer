@@ -42,7 +42,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 The cert-manager external issuer for Keyfactor Command is distributed as source code, and the container must be built manually. The container image can be built using the following command:
 ```shell
-make docker-build DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer
+make docker-build DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
 ```
 
 ###### :pushpin: The container image can be built using Docker Buildx by running `make docker-buildx`. This will build the image for all supported platforms.
@@ -50,7 +50,7 @@ make docker-build DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=ke
 To push the container image to a container registry, run the following command:
 ```shell
 docker login <your container registry>
-make docker-push DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer
+make docker-push DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
 ```
 
 ### Installation from Manifests
@@ -66,7 +66,7 @@ The cert-manager external issuer for Keyfactor Command can be installed using th
 2. Finally, deploy the controller to the cluster:
 
     ```shell
-    make deploy DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer
+    make deploy DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
     ```
 
 ### Installation from Helm Chart
@@ -75,51 +75,54 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
 
 1. Add the Helm repository:
     
-    ```bash
+    ```shell
     helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
     helm repo update
     ```
 
 2. Then, install the chart:
     
-    ```bash
+    ```shell
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
         --create-namespace \
         --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-        --set image.tag=<tag>
+        --set image.tag=<tag> \
+        --set crd.create=true \
         # --set image.pullPolicy=Never # Only required if using a local image
     ```
 
-    1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `replicaCount` value, run the following command:
+    1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `secretConfig.useClusterRoleForSecretAccess` to configure the chart to use a cluster role for secret access, run the following command:
 
         ```shell
         helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
             --namespace command-issuer-system \
             --create-namespace \
             --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-            --set image.tag=<tag>
-            --set replicaCount=2
+            --set image.tag=<tag> \
+            --set crd.create=true \
+            --set secretConfig.useClusterRoleForSecretAccess=true
         ```
 
-    2. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the
-    `replicaCount` value, modify the `replicaCount` value in the `values.yaml` file:
+    2. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the `secretConfig.useClusterRoleForSecretAccess` value to configure the chart to use a cluster role for secret access, modify the `secretConfig.useClusterRoleForSecretAccess` value in the `values.yaml` file by creating an override file:
 
         ```yaml
         cat <<EOF > override.yaml
         image:
             repository: <your container registry>/keyfactor/command-cert-manager-issuer
             pullPolicy: Never
-            tag: "latest"
-        replicaCount: 2
+            tag: "<tag>"
+        secretConfig:
+            useClusterRoleForSecretAccess: true
         EOF
         ```
 
-    Then, use the `-f` flag to specify the `values.yaml` file:
-        
-    ```yaml
-    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-        -f override.yaml
-    ```
+        Then, use the `-f` flag to specify the `values.yaml` file:
+
+        ```shell
+        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+            --namespace command-issuer-system \
+            -f override.yaml
+        ```
 
 Next, complete the [Usage](config_usage.markdown) steps to configure the cert-manager external issuer for Keyfactor Command.
