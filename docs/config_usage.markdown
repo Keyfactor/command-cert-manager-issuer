@@ -27,7 +27,7 @@ cat <<EOF >> metadata.json
         {
             "AllowAPI": true,
             "DataType": 1,
-            "Description": "The namespace that the issuer resource was created in.",
+            "Description": "The namespace that the issuer resource was created in that .",
             "Name": "Issuer-Namespace"
         },
         {

@@ -185,6 +185,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	case *commandissuer.ClusterIssuer:
 		secretNamespace = r.ClusterResourceNamespace
 		log = log.WithValues("clusterissuer", issuerName)
+		meta.ControllerKind = "clusterissuer"
 	default:
 		err := fmt.Errorf("unexpected issuer type: %v", t)
 		log.Error(err, "The issuerRef referred to a registered Kind which is not yet handled. Ignoring.")
