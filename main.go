@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -104,6 +105,12 @@ func main() {
 		setupLog.Info(fmt.Sprintf("expecting secret access at namespace level (%s)", clusterResourceNamespace))
 	}
 
+	ctx := context.Background()
+	configClient, err := util.NewConfigClient(ctx)
+	if err != nil {
+		setupLog.Error(err, "error creating config client")
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -131,6 +138,7 @@ func main() {
 	if err = (&controllers.IssuerReconciler{
 		Kind:                              "Issuer",
 		Client:                            mgr.GetClient(),
+		ConfigClient:                      configClient,
 		Scheme:                            mgr.GetScheme(),
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
@@ -142,6 +150,7 @@ func main() {
 	if err = (&controllers.IssuerReconciler{
 		Kind:                              "ClusterIssuer",
 		Client:                            mgr.GetClient(),
+		ConfigClient:                      configClient,
 		Scheme:                            mgr.GetScheme(),
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
@@ -153,6 +162,7 @@ func main() {
 	if err = (&controllers.CertificateRequestReconciler{
 		Client:                            mgr.GetClient(),
 		Scheme:                            mgr.GetScheme(),
+		ConfigClient:                      configClient,
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SignerBuilder:                     signer.CommandSignerFromIssuerAndSecretData,
 		CheckApprovedCondition:            !disableApprovedCheck,

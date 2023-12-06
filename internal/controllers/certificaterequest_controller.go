@@ -47,6 +47,7 @@ var (
 
 type CertificateRequestReconciler struct {
 	client.Client
+	ConfigClient                      issuerutil.ConfigClient
 	Scheme                            *runtime.Scheme
 	SignerBuilder                     signer.CommandSignerBuilder
 	ClusterResourceNamespace          string
@@ -156,8 +157,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Add a Ready condition if one does not already exist
 	if ready := cmutil.GetCertificateRequestCondition(&certificateRequest, cmapi.CertificateRequestConditionReady); ready == nil {
-		log.Info("Initialising Ready condition")
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initialising")
+		log.Info("Initializing Ready condition")
+		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initializing")
 		return ctrl.Result{}, nil
 	}
 
@@ -214,13 +215,16 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, errIssuerNotReady
 	}
 
+	// Set the context on the config client
+	r.ConfigClient.SetContext(ctx)
+
 	authSecretName := types.NamespacedName{
 		Name:      issuerSpec.SecretName,
 		Namespace: secretNamespace,
 	}
 
 	var authSecret corev1.Secret
-	if err := r.Get(ctx, authSecretName, &authSecret); err != nil {
+	if err = r.ConfigClient.GetSecret(authSecretName, &authSecret); err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
 	}
 
@@ -233,7 +237,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var caSecret corev1.Secret
 	if issuerSpec.CaSecretName != "" {
 		// If the CA secret name is not specified, we will not attempt to retrieve it
-		err = r.Get(ctx, caSecretName, &caSecret)
+		err = r.ConfigClient.GetSecret(caSecretName, &caSecret)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
 		}

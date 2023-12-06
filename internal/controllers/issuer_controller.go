@@ -48,6 +48,7 @@ var (
 // IssuerReconciler reconciles a Issuer object
 type IssuerReconciler struct {
 	client.Client
+	ConfigClient                      issuerutil.ConfigClient
 	Kind                              string
 	ClusterResourceNamespace          string
 	SecretAccessGrantedAtClusterLevel bool
@@ -73,7 +74,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	issuer, err := r.newIssuer()
 	if err != nil {
-		log.Error(err, "Unrecognised issuer type")
+		log.Error(err, "Unrecognized issuer type")
 		return ctrl.Result{}, nil
 	}
 	if err := r.Get(ctx, req.NamespacedName, issuer); err != nil {
@@ -125,8 +126,11 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		authSecretName.Namespace = r.ClusterResourceNamespace
 	}
 
+	// Set the context on the config client
+	r.ConfigClient.SetContext(ctx)
+
 	var authSecret corev1.Secret
-	if err := r.Get(ctx, authSecretName, &authSecret); err != nil {
+	if err := r.ConfigClient.GetSecret(authSecretName, &authSecret); err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
 	}
 
@@ -139,7 +143,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	var caSecret corev1.Secret
 	if issuerSpec.CaSecretName != "" {
 		// If the CA secret name is not specified, we will not attempt to retrieve it
-		err = r.Get(ctx, caSecretName, &caSecret)
+		err = r.ConfigClient.GetSecret(caSecretName, &caSecret)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
 		}

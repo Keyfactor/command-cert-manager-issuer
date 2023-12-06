@@ -21,7 +21,7 @@ import (
 	"errors"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	issuerutil "github.com/Keyfactor/command-issuer/internal/issuer/util"
-	logrtesting "github.com/go-logr/logr/testing"
+	logrtesting "github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -126,7 +126,7 @@ func TestIssuerReconcile(t *testing.T) {
 			expectedReadyConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:               ctrl.Result{RequeueAfter: defaultHealthCheckInterval},
 		},
-		"issuer-kind-unrecognised": {
+		"issuer-kind-Unrecognized": {
 			kind: "UnrecognizedType",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 		},
@@ -253,13 +253,14 @@ func TestIssuerReconcile(t *testing.T) {
 			controller := IssuerReconciler{
 				Kind:                              tc.kind,
 				Client:                            fakeClient,
+				ConfigClient:                      NewFakeConfigClient(fakeClient),
 				Scheme:                            scheme,
 				HealthCheckerBuilder:              tc.healthCheckerBuilder,
 				ClusterResourceNamespace:          tc.clusterResourceNamespace,
 				SecretAccessGrantedAtClusterLevel: true,
 			}
 			result, err := controller.Reconcile(
-				ctrl.LoggerInto(context.TODO(), logrtesting.NewTestLogger(t)),
+				ctrl.LoggerInto(context.TODO(), logrtesting.New(t)),
 				reconcile.Request{NamespacedName: tc.name},
 			)
 			if tc.expectedError != nil {

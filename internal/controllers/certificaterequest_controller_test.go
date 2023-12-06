@@ -23,7 +23,7 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	cmgen "github.com/cert-manager/cert-manager/test/unit/gen"
-	logrtesting "github.com/go-logr/logr/testing"
+	logrtesting "github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -603,6 +603,7 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				Build()
 			controller := CertificateRequestReconciler{
 				Client:                            fakeClient,
+				ConfigClient:                      NewFakeConfigClient(fakeClient),
 				Scheme:                            scheme,
 				ClusterResourceNamespace:          tc.clusterResourceNamespace,
 				SignerBuilder:                     tc.Builder,
@@ -611,7 +612,7 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				SecretAccessGrantedAtClusterLevel: true,
 			}
 			result, err := controller.Reconcile(
-				ctrl.LoggerInto(context.TODO(), logrtesting.NewTestLogger(t)),
+				ctrl.LoggerInto(context.TODO(), logrtesting.New(t)),
 				reconcile.Request{NamespacedName: tc.name},
 			)
 			if tc.expectedError != nil {
