@@ -268,6 +268,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager registers the CertificateRequestReconciler with the controller manager.
+// It configures controller-runtime to reconcile cert-manager CertificateRequests in the cluster.
 func (r *CertificateRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cmapi.CertificateRequest{}).

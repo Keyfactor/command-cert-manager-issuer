@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Keyfactor Command Authors.
+Copyright © 2023 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 
 const inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
+// GetSpecAndStatus is a helper function that returns the Spec and Status of an Issuer object.
 func GetSpecAndStatus(issuer client.Object) (*commandissuer.IssuerSpec, *commandissuer.IssuerStatus, error) {
 	switch t := issuer.(type) {
 	case *commandissuer.Issuer:
@@ -40,6 +41,7 @@ func GetSpecAndStatus(issuer client.Object) (*commandissuer.IssuerSpec, *command
 	}
 }
 
+// SetReadyCondition is a helper function that sets the Ready condition on an IssuerStatus.
 func SetReadyCondition(status *commandissuer.IssuerStatus, conditionStatus commandissuer.ConditionStatus, reason, message string) {
 	ready := GetReadyCondition(status)
 	if ready == nil {
@@ -64,6 +66,7 @@ func SetReadyCondition(status *commandissuer.IssuerStatus, conditionStatus comma
 	}
 }
 
+// GetReadyCondition is a helper function that returns the Ready condition from an IssuerStatus.
 func GetReadyCondition(status *commandissuer.IssuerStatus) *commandissuer.IssuerCondition {
 	for _, c := range status.Conditions {
 		if c.Type == commandissuer.IssuerConditionReady {
@@ -73,6 +76,7 @@ func GetReadyCondition(status *commandissuer.IssuerStatus) *commandissuer.Issuer
 	return nil
 }
 
+// IsReady is a helper function that returns true if the Ready condition is set to True.
 func IsReady(status *commandissuer.IssuerStatus) bool {
 	if c := GetReadyCondition(status); c != nil {
 		return c.Status == commandissuer.ConditionTrue

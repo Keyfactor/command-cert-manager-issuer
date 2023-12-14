@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Keyfactor Command Authors.
+Copyright © 2023 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -162,7 +162,8 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	return ctrl.Result{RequeueAfter: defaultHealthCheckInterval}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager registers the IssuerReconciler with the controller manager.
+// It configures controller-runtime to reconcile Keyfactor Command Issuers/ClusterIssuers in the cluster.
 func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	issuerType, err := r.newIssuer()
 	if err != nil {
