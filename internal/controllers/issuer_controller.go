@@ -60,6 +60,7 @@ type IssuerReconciler struct {
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/status;clusterissuers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/finalizers,verbs=update
 
+// newIssuer returns a new Issuer or ClusterIssuer object
 func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 	issuerGVK := commandissuer.GroupVersion.WithKind(r.Kind)
 	ro, err := r.Scheme.New(issuerGVK)
@@ -69,6 +70,7 @@ func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 	return ro.(client.Object), nil
 }
 
+// Reconcile reconciles and updates the status of an Issuer or ClusterIssuer object
 func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	log := ctrl.LoggerFrom(ctx)
 
