@@ -66,6 +66,7 @@ type Signer interface {
 	Sign(context.Context, []byte, K8sMetadata) ([]byte, []byte, error)
 }
 
+// CommandHealthCheckerFromIssuerAndSecretData creates a new HealthChecker instance using the provided issuer spec and secret data
 func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (HealthChecker, error) {
 	signer := commandSigner{}
 
@@ -79,10 +80,13 @@ func CommandHealthCheckerFromIssuerAndSecretData(ctx context.Context, spec *comm
 	return &signer, nil
 }
 
+// CommandSignerFromIssuerAndSecretData is a wrapper for commandSignerFromIssuerAndSecretData that returns a Signer interface
+// given the provided issuer spec and secret data
 func CommandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, annotations map[string]string, authSecretData map[string][]byte, caSecretData map[string][]byte) (Signer, error) {
 	return commandSignerFromIssuerAndSecretData(ctx, spec, annotations, authSecretData, caSecretData)
 }
 
+// commandSignerFromIssuerAndSecretData creates a new Signer instance using the provided issuer spec and secret data
 func commandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, annotations map[string]string, authSecretData map[string][]byte, caSecretData map[string][]byte) (*commandSigner, error) {
 	k8sLog := log.FromContext(ctx)
 
@@ -132,6 +136,7 @@ func commandSignerFromIssuerAndSecretData(ctx context.Context, spec *commandissu
 	return &signer, nil
 }
 
+// extractMetadataFromAnnotations extracts metadata from the provided annotations
 func extractMetadataFromAnnotations(annotations map[string]string) map[string]interface{} {
 	metadata := make(map[string]interface{})
 
@@ -144,6 +149,7 @@ func extractMetadataFromAnnotations(annotations map[string]string) map[string]in
 	return metadata
 }
 
+// Check checks the health of the signer by verifying that the "POST /Enrollment/CSR" endpoint exists
 func (s *commandSigner) Check() error {
 	endpoints, _, err := s.client.StatusApi.StatusGetEndpoints(context.Background()).Execute()
 	if err != nil {
@@ -169,6 +175,7 @@ func (s *commandSigner) Check() error {
 	return errors.New("missing \"POST /Enrollment/CSR\" endpoint")
 }
 
+// Sign signs the provided CSR using the Keyfactor Command API
 func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMetadata) ([]byte, []byte, error) {
 	k8sLog := log.FromContext(ctx)
 
@@ -255,6 +262,8 @@ func (s *commandSigner) Sign(ctx context.Context, csrBytes []byte, k8sMeta K8sMe
 	return compileCertificatesToPemBytes(certAndChain)
 }
 
+// getCertificatesFromCertificateInformation takes a keyfactor.ModelsPkcs10CertificateResponse object and
+// returns a slice of x509 certificates
 func getCertificatesFromCertificateInformation(commandResp *keyfactor.ModelsPkcs10CertificateResponse) ([]*x509.Certificate, error) {
 	var certBytes []byte
 
@@ -314,6 +323,7 @@ const (
 	CommandMetaCertificateSigningRequestNamespace = "Certificate-Signing-Request-Namespace"
 )
 
+// createCommandClientFromSecretData creates a new Keyfactor Command client using the provided issuer spec and secret data
 func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.IssuerSpec, authSecretData map[string][]byte, caSecretData map[string][]byte) (*keyfactor.APIClient, error) {
 	k8sLogger := log.FromContext(ctx)
 
@@ -383,6 +393,7 @@ func createCommandClientFromSecretData(ctx context.Context, spec *commandissuer.
 	return client, nil
 }
 
+// decodePEMBytes takes a byte array containing PEM encoded data and returns a slice of PEM blocks and a private key PEM block
 func decodePEMBytes(buf []byte) ([]*pem.Block, *pem.Block) {
 	var privKey *pem.Block
 	var certificates []*pem.Block
@@ -400,6 +411,7 @@ func decodePEMBytes(buf []byte) ([]*pem.Block, *pem.Block) {
 	return certificates, privKey
 }
 
+// parseCSR takes a byte array containing a PEM encoded CSR and returns a x509.CertificateRequest object
 func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {
 	// extract PEM from request object
 	block, _ := pem.Decode(pemBytes)
@@ -409,6 +421,7 @@ func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {
 	return x509.ParseCertificateRequest(block.Bytes)
 }
 
+// generateRandomString generates a random string of the specified length
 func generateRandomString(length int) string {
 	rand.Seed(time.Now().UnixNano())
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -419,6 +432,7 @@ func generateRandomString(length int) string {
 	return string(b)
 }
 
+// ptr returns a pointer to the provided value
 func ptr[T any](v T) *T {
 	return &v
 }

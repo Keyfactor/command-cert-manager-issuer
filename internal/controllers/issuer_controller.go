@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Keyfactor Command Authors.
+Copyright © 2023 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,16 +48,19 @@ var (
 // IssuerReconciler reconciles a Issuer object
 type IssuerReconciler struct {
 	client.Client
-	Kind                     string
-	ClusterResourceNamespace string
-	Scheme                   *runtime.Scheme
-	HealthCheckerBuilder     signer.HealthCheckerBuilder
+	ConfigClient                      issuerutil.ConfigClient
+	Kind                              string
+	ClusterResourceNamespace          string
+	SecretAccessGrantedAtClusterLevel bool
+	Scheme                            *runtime.Scheme
+	HealthCheckerBuilder              signer.HealthCheckerBuilder
 }
 
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers;clusterissuers,verbs=get;list;watch
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/status;clusterissuers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/finalizers,verbs=update
 
+// newIssuer returns a new Issuer or ClusterIssuer object
 func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 	issuerGVK := commandissuer.GroupVersion.WithKind(r.Kind)
 	ro, err := r.Scheme.New(issuerGVK)
@@ -67,12 +70,13 @@ func (r *IssuerReconciler) newIssuer() (client.Object, error) {
 	return ro.(client.Object), nil
 }
 
+// Reconcile reconciles and updates the status of an Issuer or ClusterIssuer object
 func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	issuer, err := r.newIssuer()
 	if err != nil {
-		log.Error(err, "Unrecognised issuer type")
+		log.Error(err, "Unrecognized issuer type")
 		return ctrl.Result{}, nil
 	}
 	if err := r.Get(ctx, req.NamespacedName, issuer); err != nil {
@@ -119,8 +123,16 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{}, nil
 	}
 
+	// If SecretAccessGrantedAtClusterLevel is false, we always look for the Secret in the same namespace as the Issuer
+	if !r.SecretAccessGrantedAtClusterLevel {
+		authSecretName.Namespace = r.ClusterResourceNamespace
+	}
+
+	// Set the context on the config client
+	r.ConfigClient.SetContext(ctx)
+
 	var authSecret corev1.Secret
-	if err := r.Get(ctx, authSecretName, &authSecret); err != nil {
+	if err := r.ConfigClient.GetSecret(authSecretName, &authSecret); err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
 	}
 
@@ -133,7 +145,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	var caSecret corev1.Secret
 	if issuerSpec.CaSecretName != "" {
 		// If the CA secret name is not specified, we will not attempt to retrieve it
-		err = r.Get(ctx, caSecretName, &caSecret)
+		err = r.ConfigClient.GetSecret(caSecretName, &caSecret)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
 		}
@@ -152,7 +164,8 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	return ctrl.Result{RequeueAfter: defaultHealthCheckInterval}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager registers the IssuerReconciler with the controller manager.
+// It configures controller-runtime to reconcile Keyfactor Command Issuers/ClusterIssuers in the cluster.
 func (r *IssuerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	issuerType, err := r.newIssuer()
 	if err != nil {
