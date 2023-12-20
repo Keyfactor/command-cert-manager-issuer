@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Keyfactor Command Authors.
+Copyright © 2023 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	cmgen "github.com/cert-manager/cert-manager/test/unit/gen"
-	logrtesting "github.com/go-logr/logr/testing"
+	logrtesting "github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -602,15 +602,17 @@ func TestCertificateRequestReconcile(t *testing.T) {
 				WithObjects(tc.objects...).
 				Build()
 			controller := CertificateRequestReconciler{
-				Client:                   fakeClient,
-				Scheme:                   scheme,
-				ClusterResourceNamespace: tc.clusterResourceNamespace,
-				SignerBuilder:            tc.Builder,
-				CheckApprovedCondition:   true,
-				Clock:                    fixedClock,
+				Client:                            fakeClient,
+				ConfigClient:                      NewFakeConfigClient(fakeClient),
+				Scheme:                            scheme,
+				ClusterResourceNamespace:          tc.clusterResourceNamespace,
+				SignerBuilder:                     tc.Builder,
+				CheckApprovedCondition:            true,
+				Clock:                             fixedClock,
+				SecretAccessGrantedAtClusterLevel: true,
 			}
 			result, err := controller.Reconcile(
-				ctrl.LoggerInto(context.TODO(), logrtesting.NewTestLogger(t)),
+				ctrl.LoggerInto(context.TODO(), logrtesting.New(t)),
 				reconcile.Request{NamespacedName: tc.name},
 			)
 			if tc.expectedError != nil {
