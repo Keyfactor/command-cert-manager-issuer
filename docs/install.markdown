@@ -38,20 +38,52 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 ###### :pushpin: Running the static cert-manager configuration is not recommended for production use. For more information, see [Installing cert-manager](https://cert-manager.io/docs/installation/).
 
-### Building the Container Image
+### Installation from Helm Chart [recommended]
 
-The cert-manager external issuer for Keyfactor Command is distributed as source code, and the container must be built manually. The container image can be built using the following command:
-```shell
-make docker-build DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
-```
+The cert-manager external issuer for Keyfactor Command is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
-###### :pushpin: The container image can be built using Docker Buildx by running `make docker-buildx`. This will build the image for all supported platforms.
+1. Add the Helm repository:
+    
+    ```shell
+    helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
+    helm repo update
+    ```
 
-To push the container image to a container registry, run the following command:
-```shell
-docker login <your container registry>
-make docker-push DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
-```
+2. Then, install the chart:
+    
+    ```shell
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+        --namespace command-issuer-system \
+        --create-namespace \
+        --set crd.create=true
+    ```
+
+    1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `secretConfig.useClusterRoleForSecretAccess` to configure the chart to use a cluster role for secret access, run the following command:
+
+        ```shell
+        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+            --namespace command-issuer-system \
+            --create-namespace \
+            --set crd.create=true \
+            --set secretConfig.useClusterRoleForSecretAccess=true
+        ```
+
+    2. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the `secretConfig.useClusterRoleForSecretAccess` value to configure the chart to use a cluster role for secret access, modify the `secretConfig.useClusterRoleForSecretAccess` value in the `values.yaml` file by creating an override file:
+
+        ```yaml
+        cat <<EOF > override.yaml
+        secretConfig:
+            useClusterRoleForSecretAccess: true
+        EOF
+        ```
+
+        Then, use the `-f` flag to specify the `values.yaml` file:
+
+        ```shell
+        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+            --namespace command-issuer-system \
+            -f override.yaml
+        ```
 
 ### Installation from Manifests
 
@@ -68,61 +100,5 @@ The cert-manager external issuer for Keyfactor Command can be installed using th
     ```shell
     make deploy DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
     ```
-
-### Installation from Helm Chart
-
-The cert-manager external issuer for Keyfactor Command can also be installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
-
-1. Add the Helm repository:
-    
-    ```shell
-    helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
-    helm repo update
-    ```
-
-2. Then, install the chart:
-    
-    ```shell
-    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-        --namespace command-issuer-system \
-        --create-namespace \
-        --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-        --set image.tag=<tag> \
-        --set crd.create=true \
-        # --set image.pullPolicy=Never # Only required if using a local image
-    ```
-
-    1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `secretConfig.useClusterRoleForSecretAccess` to configure the chart to use a cluster role for secret access, run the following command:
-
-        ```shell
-        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-            --namespace command-issuer-system \
-            --create-namespace \
-            --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-            --set image.tag=<tag> \
-            --set crd.create=true \
-            --set secretConfig.useClusterRoleForSecretAccess=true
-        ```
-
-    2. Modifications can also be made by modifying the `values.yaml` file directly. For example, to override the `secretConfig.useClusterRoleForSecretAccess` value to configure the chart to use a cluster role for secret access, modify the `secretConfig.useClusterRoleForSecretAccess` value in the `values.yaml` file by creating an override file:
-
-        ```yaml
-        cat <<EOF > override.yaml
-        image:
-            repository: <your container registry>/keyfactor/command-cert-manager-issuer
-            pullPolicy: Never
-            tag: "<tag>"
-        secretConfig:
-            useClusterRoleForSecretAccess: true
-        EOF
-        ```
-
-        Then, use the `-f` flag to specify the `values.yaml` file:
-
-        ```shell
-        helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-            --namespace command-issuer-system \
-            -f override.yaml
-        ```
 
 Next, complete the [Usage](config_usage.markdown) steps to configure the cert-manager external issuer for Keyfactor Command.
