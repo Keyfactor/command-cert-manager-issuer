@@ -1,6 +1,7 @@
 # v1.0.6
 
 ## Features
+* feat(helm): Rename `secureMetrics` to `metrics` and add `metrics.secure` and `metrics.metricsAddress` as configuration values. This way, Prometheus can scrape the controller manager metrics without the secure metrics proxy.
 * feat(helm): Add configuration element in Helm chart default values file to configure container ports on the controller manager container.
 
 ## Fixes

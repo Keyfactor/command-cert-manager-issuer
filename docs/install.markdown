@@ -38,38 +38,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 ###### :pushpin: Running the static cert-manager configuration is not recommended for production use. For more information, see [Installing cert-manager](https://cert-manager.io/docs/installation/).
 
-### Building the Container Image
-
-The cert-manager external issuer for Keyfactor Command is distributed as source code, and the container must be built manually. The container image can be built using the following command:
-```shell
-make docker-build DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
-```
-
-###### :pushpin: The container image can be built using Docker Buildx by running `make docker-buildx`. This will build the image for all supported platforms.
-
-To push the container image to a container registry, run the following command:
-```shell
-docker login <your container registry>
-make docker-push DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
-```
-
-### Installation from Manifests
-
-The cert-manager external issuer for Keyfactor Command can be installed using the manifests in the `config/` directory.
-
-1. Install the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor Command:
-
-    ```shell
-    make install
-    ```
-
-2. Finally, deploy the controller to the cluster:
-
-    ```shell
-    make deploy DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
-    ```
-
-### Installation from Helm Chart
+### Installation from Helm Chart [recommended]
 
 The cert-manager external issuer for Keyfactor Command can also be installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
@@ -86,10 +55,7 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
         --create-namespace \
-        --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-        --set image.tag=<tag> \
-        --set crd.create=true \
-        # --set image.pullPolicy=Never # Only required if using a local image
+        --set crd.create=true
     ```
 
     1. Modifications can be made by overriding the default values in the `values.yaml` file with the `--set` flag. For example, to override the `secretConfig.useClusterRoleForSecretAccess` to configure the chart to use a cluster role for secret access, run the following command:
@@ -98,8 +64,6 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
         helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
             --namespace command-issuer-system \
             --create-namespace \
-            --set image.repository=<your container registry>/keyfactor/command-cert-manager-issuer \
-            --set image.tag=<tag> \
             --set crd.create=true \
             --set secretConfig.useClusterRoleForSecretAccess=true
         ```
@@ -108,10 +72,6 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
 
         ```yaml
         cat <<EOF > override.yaml
-        image:
-            repository: <your container registry>/keyfactor/command-cert-manager-issuer
-            pullPolicy: Never
-            tag: "<tag>"
         secretConfig:
             useClusterRoleForSecretAccess: true
         EOF
@@ -124,5 +84,21 @@ The cert-manager external issuer for Keyfactor Command can also be installed usi
             --namespace command-issuer-system \
             -f override.yaml
         ```
+
+### Installation from Manifests
+
+The cert-manager external issuer for Keyfactor Command can be installed using the manifests in the `config/` directory.
+
+1. Install the custom resource definitions (CRDs) for the cert-manager external issuer for Keyfactor Command:
+
+    ```shell
+    make install
+    ```
+
+2. Finally, deploy the controller to the cluster:
+
+    ```shell
+    make deploy DOCKER_REGISTRY=<your container registry> DOCKER_IMAGE_NAME=keyfactor/command-cert-manager-issuer VERSION=<tag>
+    ```
 
 Next, complete the [Usage](config_usage.markdown) steps to configure the cert-manager external issuer for Keyfactor Command.
