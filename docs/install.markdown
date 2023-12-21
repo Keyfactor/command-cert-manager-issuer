@@ -40,7 +40,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 ### Installation from Helm Chart [recommended]
 
-The cert-manager external issuer for Keyfactor Command can also be installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
+The cert-manager external issuer for Keyfactor Command is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
 1. Add the Helm repository:
     
