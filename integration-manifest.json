@@ -4,5 +4,7 @@
     "name": "command-cert-manager-issuer",
     "status": "pilot",
     "link_github":false,
+    "update_catalog": false,
+    "support_level": "kf-supported",
     "description": "cert-manager external issuer for the Keyfactor Command platform" 
 }
