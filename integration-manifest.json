@@ -1,8 +1,10 @@
 {
-    "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
-    "integration_type": "api-client",
-    "name": "command-cert-manager-issuer",
-    "status": "pilot",
-    "link_github":false,
-    "description": "cert-manager external issuer for the Keyfactor Command platform" 
+  "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
+  "integration_type": "api-client",
+  "name": "command-cert-manager-issuer",
+  "status": "pilot",
+  "link_github": false,
+  "update_catalog": false,
+  "support_level": "kf-community",
+  "description": "The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager, allowing security administrators to manage the lifecycle of certificates for Kubernetes applications. "
 }
