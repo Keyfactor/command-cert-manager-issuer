@@ -1,6 +1,6 @@
 # command-cert-manager-issuer
 
-The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager, allowing security administrators to manage the lifecycle of certificates for Kubernetes applications.
+The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager, allowing security administrators to manage the lifecycle of certificates for Kubernetes applications. 
 
 #### Integration status: Pilot - Ready for use in test environments. Not for use in production.
 
