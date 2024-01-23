@@ -2,7 +2,7 @@
   "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
   "integration_type": "api-client",
   "name": "command-cert-manager-issuer",
-  "status": "pilot",
+  "status": "production",
   "link_github": false,
   "update_catalog": false,
   "support_level": "kf-community",
