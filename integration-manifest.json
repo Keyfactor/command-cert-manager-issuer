@@ -6,5 +6,6 @@
   "link_github": false,
   "update_catalog": false,
   "support_level": "kf-community",
+  "platform_matrix": "linux/amd64,linux/foo32",
   "description": "The Command external issuer for cert-manager allows users to enroll certificates with a CA managed by Keyfactor Command using cert-manager, allowing security administrators to manage the lifecycle of certificates for Kubernetes applications. "
 }
