@@ -21,12 +21,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/Keyfactor/command-issuer/internal/controllers"
 	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
 	"github.com/Keyfactor/command-issuer/internal/issuer/util"
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"k8s.io/utils/clock"
-	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -38,6 +39,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	webhookserver "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	commandissuerv1alpha1 "github.com/Keyfactor/command-issuer/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
@@ -111,10 +114,17 @@ func main() {
 		setupLog.Error(err, "error creating config client")
 	}
 
+	mtr := metricsserver.Options{
+		BindAddress: metricsAddr,
+	}
+	hookServer := webhookserver.NewServer(webhookserver.Options{
+		Port: 9443,
+	})
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                mtr,
+		WebhookServer:          hookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "b68cef20.keyfactor.com",

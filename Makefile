@@ -84,7 +84,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: regcheck ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	docker buildx build -t ${IMG} .
 
 .PHONY: docker-push regcheck
 docker-push: ## Push docker image with the manager.
@@ -130,7 +130,7 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 # Then, install it into the K8s cluster
 .PHONY: deploy-local
 deploy-local: manifests kustomize ## Build docker image with the manager.
-	docker build -t command-issuer-dev:latest -f Dockerfile .
+	docker buildx build -t command-issuer-dev:latest -f Dockerfile .
 	cd config/manager && $(KUSTOMIZE) edit set image controller=command-issuer-dev:latest
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
