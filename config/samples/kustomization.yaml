@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- command-issuer_v1alpha1_issuer.yaml
+- command-issuer_v1alpha1_clusterissuer.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

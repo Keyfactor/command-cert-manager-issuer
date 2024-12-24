@@ -1,8 +1,10 @@
 {
-    "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
+    "$schema": "https://keyfactor.github.io/v2/integration-manifest-schema.json",
     "integration_type": "api-client",
     "name": "command-cert-manager-issuer",
-    "status": "pilot",
-    "link_github":false,
-    "description": "cert-manager external issuer for the Keyfactor Command platform" 
+    "status": "production",
+    "link_github": false,
+    "update_catalog": false,
+    "support_level": "community",
+    "description": "cert-manager external issuer for the Keyfactor Command platform"
 }

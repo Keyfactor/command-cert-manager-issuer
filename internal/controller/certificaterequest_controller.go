@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Keyfactor.
+Copyright © 2024 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	commandissuer "github.com/Keyfactor/command-issuer/api/v1alpha1"
-	"github.com/Keyfactor/command-issuer/internal/issuer/signer"
-	issuerutil "github.com/Keyfactor/command-issuer/internal/issuer/util"
+
+	commandissuer "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
+	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
 	cmutil "github.com/cert-manager/cert-manager/pkg/api/util"
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -47,9 +46,8 @@ var (
 
 type CertificateRequestReconciler struct {
 	client.Client
-	ConfigClient                      issuerutil.ConfigClient
 	Scheme                            *runtime.Scheme
-	SignerBuilder                     signer.CommandSignerBuilder
+	SignerBuilder                     command.SignerBuilder
 	ClusterResourceNamespace          string
 	SecretAccessGrantedAtClusterLevel bool
 	Clock                             clock.Clock
@@ -65,7 +63,7 @@ type CertificateRequestReconciler struct {
 func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	meta := signer.K8sMetadata{}
+	meta := command.K8sMetadata{}
 
 	// Get the CertificateRequest
 	var certificateRequest cmapi.CertificateRequest
@@ -73,7 +71,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if err := client.IgnoreNotFound(err); err != nil {
 			return ctrl.Result{}, fmt.Errorf("unexpected get error: %v", err)
 		}
-		log.Info("Not found. Ignoring.")
+		log.Info("CertificateRequest not found. ignoring.")
 		return ctrl.Result{}, nil
 	}
 
@@ -113,20 +111,11 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// We now have a CertificateRequest that belongs to us so we are responsible
 	// for updating its Ready condition.
-	setReadyCondition := func(status cmmeta.ConditionStatus, reason, message string) {
-		cmutil.SetCertificateRequestCondition(
-			&certificateRequest,
-			cmapi.CertificateRequestConditionReady,
-			status,
-			reason,
-			message,
-		)
-	}
 
 	// Always attempt to update the Ready condition
 	defer func() {
 		if err != nil {
-			setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, err.Error())
+			setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, err.Error())
 		}
 		if updateErr := r.Status().Update(ctx, &certificateRequest); updateErr != nil {
 			err = utilerrors.NewAggregate([]error{err, updateErr})
@@ -145,7 +134,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 
 		message := "The CertificateRequest was denied by an approval controller"
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonDenied, message)
+		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonDenied, message)
 		return ctrl.Result{}, nil
 	}
 
@@ -160,7 +149,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Add a Ready condition if one does not already exist
 	if ready := cmutil.GetCertificateRequestCondition(&certificateRequest, cmapi.CertificateRequestConditionReady); ready == nil {
 		log.Info("Initializing Ready condition")
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initializing")
+		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonPending, "Initializing")
 		return ctrl.Result{}, nil
 	}
 
@@ -170,30 +159,33 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err != nil {
 		err = fmt.Errorf("%w: %v", errIssuerRef, err)
 		log.Error(err, "Unrecognized kind. Ignoring.")
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
+		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
 		return ctrl.Result{}, nil
 	}
-	issuer := issuerRO.(client.Object)
-	// Create a Namespaced name for Issuer and a non-Namespaced name for ClusterIssuer
-	issuerName := types.NamespacedName{
-		Name: certificateRequest.Spec.IssuerRef.Name,
+	issuer, ok := issuerRO.(commandissuer.IssuerLike)
+	if !ok {
+		err := fmt.Errorf("unexpected type for issuer object: %T", issuerRO)
+		log.Error(err, "Failed to cast to commandissuer.IssuerLike")
+		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
+		return ctrl.Result{}, nil
 	}
+
 	var secretNamespace string
-	switch t := issuer.(type) {
-	case *commandissuer.Issuer:
-		issuerName.Namespace = certificateRequest.Namespace
-		secretNamespace = certificateRequest.Namespace
-		log = log.WithValues("issuer", issuerName)
-		meta.ControllerKind = "issuer"
-	case *commandissuer.ClusterIssuer:
+	var issuerNamespace string
+
+	// Create a Namespaced name for Issuer and a non-Namespaced name for ClusterIssuer
+	switch {
+	case issuer.IsClusterScoped():
+		issuerNamespace = ""
 		secretNamespace = r.ClusterResourceNamespace
-		log = log.WithValues("clusterissuer", issuerName)
+		log = log.WithValues("clusterissuer", issuerNamespace)
 		meta.ControllerKind = "clusterissuer"
-	default:
-		err := fmt.Errorf("unexpected issuer type: %v", t)
-		log.Error(err, "The issuerRef referred to a registered Kind which is not yet handled. Ignoring.")
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
-		return ctrl.Result{}, nil
+
+	case !issuer.IsClusterScoped():
+		issuerNamespace = certificateRequest.Namespace
+		secretNamespace = certificateRequest.Namespace
+		log = log.WithValues("issuer", issuerNamespace)
+		meta.ControllerKind = "issuer"
 	}
 
 	// If SecretAccessGrantedAtClusterLevel is false, we always look for the Secret in the same namespace as the Issuer
@@ -202,50 +194,24 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Get the Issuer or ClusterIssuer
-	if err := r.Get(ctx, issuerName, issuer); err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w: %v", errGetIssuer, err)
-	}
-
-	issuerSpec, issuerStatus, err := issuerutil.GetSpecAndStatus(issuer)
+	err = r.Get(ctx, types.NamespacedName{
+		Name:      certificateRequest.Spec.IssuerRef.Name,
+		Namespace: issuerNamespace,
+	}, issuer)
 	if err != nil {
-		log.Error(err, "Unable to get the IssuerStatus. Ignoring.")
-		setReadyCondition(cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, fmt.Errorf("%w: %w", errGetIssuer, err)
 	}
 
-	if !issuerutil.IsReady(issuerStatus) {
+	if !issuer.GetStatus().HasCondition(commandissuer.IssuerConditionReady, commandissuer.ConditionTrue) {
 		return ctrl.Result{}, errIssuerNotReady
 	}
 
-	// Set the context on the config client
-	r.ConfigClient.SetContext(ctx)
-
-	authSecretName := types.NamespacedName{
-		Name:      issuerSpec.SecretName,
-		Namespace: secretNamespace,
+	config, err := commandConfigFromIssuer(ctx, r.Client, issuer, secretNamespace)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	var authSecret corev1.Secret
-	if err = r.ConfigClient.GetSecret(authSecretName, &authSecret); err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetAuthSecret, authSecretName, err)
-	}
-
-	// Retrieve the CA certificate secret
-	caSecretName := types.NamespacedName{
-		Name:      issuerSpec.CaSecretName,
-		Namespace: authSecretName.Namespace,
-	}
-
-	var caSecret corev1.Secret
-	if issuerSpec.CaSecretName != "" {
-		// If the CA secret name is not specified, we will not attempt to retrieve it
-		err = r.ConfigClient.GetSecret(caSecretName, &caSecret)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("%w, secret name: %s, reason: %v", errGetCaSecret, caSecretName, err)
-		}
-	}
-
-	commandSigner, err := r.SignerBuilder(ctx, issuerSpec, certificateRequest.GetAnnotations(), authSecret.Data, caSecret.Data)
+	commandSigner, err := r.SignerBuilder(ctx, config)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerBuilder, err)
 	}
@@ -259,15 +225,40 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	meta.ControllerReconcileId = string(controller.ReconcileIDFromContext(ctx))
 	meta.CertificateSigningRequestNamespace = certificateRequest.Namespace
 
-	leaf, chain, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, meta)
+	if value, exists := certificateRequest.Annotations["cert-manager.io/certificate-name"]; exists {
+		meta.CertManagerCertificateName = value
+	}
+
+	signConfig := &command.SignConfig{
+		CertificateTemplate:             issuer.GetSpec().CertificateTemplate,
+		CertificateAuthorityLogicalName: issuer.GetSpec().CertificateAuthorityLogicalName,
+		CertificateAuthorityHostname:    issuer.GetSpec().CertificateAuthorityHostname,
+		Annotations:                     certificateRequest.GetAnnotations(),
+	}
+
+	if issuer.GetStatus().HasCondition(commandissuer.IssuerConditionSupportsMetadata, commandissuer.ConditionTrue) {
+		signConfig.Meta = &meta
+	}
+
+	leaf, chain, err := commandSigner.Sign(ctx, certificateRequest.Spec.Request, signConfig)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerSign, err)
+		return ctrl.Result{}, fmt.Errorf("%w: %w", errSignerSign, err)
 	}
 	certificateRequest.Status.Certificate = leaf
 	certificateRequest.Status.CA = chain
 
-	setReadyCondition(cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
+	setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
 	return ctrl.Result{}, nil
+}
+
+func setCertificateRequestReadyCondition(cr *cmapi.CertificateRequest, status cmmeta.ConditionStatus, reason, message string) {
+	cmutil.SetCertificateRequestCondition(
+		cr,
+		cmapi.CertificateRequestConditionReady,
+		status,
+		reason,
+		message,
+	)
 }
 
 // SetupWithManager registers the CertificateRequestReconciler with the controller manager.
