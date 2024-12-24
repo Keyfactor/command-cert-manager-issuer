@@ -5,8 +5,8 @@ metadata:
     app.kubernetes.io/name: rolebinding
     app.kubernetes.io/instance: leader-election-rolebinding
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: command-issuer
-    app.kubernetes.io/part-of: command-issuer
+    app.kubernetes.io/created-by: command-cert-manager-issuer
+    app.kubernetes.io/part-of: command-cert-manager-issuer
     app.kubernetes.io/managed-by: kustomize
   name: leader-election-rolebinding
 roleRef:
