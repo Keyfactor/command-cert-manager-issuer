@@ -4,8 +4,8 @@
 # More info: https://book.kubebuilder.io/reference/project-config.html
 domain: keyfactor.com
 layout:
-- go.kubebuilder.io/v3
-projectName: command-issuer
+- go.kubebuilder.io/v4
+projectName: command-cert-manager-issuer
 repo: github.com/Keyfactor/command-issuer
 resources:
 - api:
@@ -19,6 +19,7 @@ resources:
   version: v1alpha1
 - api:
     crdVersion: v1
+    namespaced: true
   controller: true
   domain: keyfactor.com
   group: command-issuer
