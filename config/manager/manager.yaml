@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: namespace
     app.kubernetes.io/instance: system
     app.kubernetes.io/component: manager
-    app.kubernetes.io/created-by: command-issuer
-    app.kubernetes.io/part-of: command-issuer
+    app.kubernetes.io/created-by: command-cert-manager-issuer
+    app.kubernetes.io/part-of: command-cert-manager-issuer
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
@@ -21,8 +21,8 @@ metadata:
     app.kubernetes.io/name: deployment
     app.kubernetes.io/instance: controller-manager
     app.kubernetes.io/component: manager
-    app.kubernetes.io/created-by: command-issuer
-    app.kubernetes.io/part-of: command-issuer
+    app.kubernetes.io/created-by: command-cert-manager-issuer
+    app.kubernetes.io/part-of: command-cert-manager-issuer
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
@@ -71,13 +71,13 @@ spec:
         args:
         - --leader-elect
         image: controller:latest
-        #imagePullPolicy: Never # TODO dev parameter
+        imagePullPolicy: Never
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-              - "ALL"
+            - "ALL"
         livenessProbe:
           httpGet:
             path: /healthz

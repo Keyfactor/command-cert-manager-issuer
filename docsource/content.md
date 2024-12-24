@@ -1,36 +1,3 @@
-<h1 align="center" style="border-bottom: none">
-    command-cert-manager-issuer
-</h1>
-
-<p align="center">
-  <!-- Badges -->
-<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
-<a href="https://github.com/Keyfactor/command-cert-manager-issuer/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Release" /></a>
-<img src="https://img.shields.io/github/issues/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Issues" />
-<img src="https://img.shields.io/github/downloads/Keyfactor/command-cert-manager-issuer/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
-</p>
-
-<p align="center">
-  <!-- TOC -->
-  <a href="#support">
-    <b>Support</b>
-  </a> 
-  ·
-  <a href="#license">
-    <b>License</b>
-  </a>
-  ·
-  <a href="https://github.com/topics/keyfactor-integration">
-    <b>Related Integrations</b>
-  </a>
-</p>
-
-## Support
-The command-cert-manager-issuer is open source and community supported, meaning that there is **no SLA** applicable. 
-
-> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
-
-
 # Overview
 
 The Command Issuer for [cert-manager](https://cert-manager.io/) is a [CertificateRequest](https://cert-manager.io/docs/usage/certificaterequest/) controller that issues certificates using [Keyfactor Command](https://www.keyfactor.com/products/command/).
@@ -262,22 +229,6 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
         kubectl apply -f clusterissuer.yaml
         ```
 
-> **Overriding the `spec` using Kubernetes Annotations on CertificateRequest Resources** 
->
-> The 
->
-> <details><summary>Notes</summary>
-> The GoDaddy AnyCA Gateway REST plugin requires several custom enrollment parameters that are passed to GoDaddy upon the submission of a new PFX/CSR enrollment request. These custom enrollment parameters configure the domain/organization/extended validation procedure required to complete the certificate enrollment.
->
-> Prior to Command v12.3, custom enrollment parameters are not supported on a per-request basis for PFX/CSR Enrollment. If your Keyfactor Command version is less than v12.3, the only way to configure custom enrollment parameters is to set default parameter values on the Certificate Template in the Keyfactor AnyCA Gateway REST. 
->
-> Before continuing with installation prior to Command 12.3, users should consider the following:
->
-> * Each combination of custom enrollment parameters will require the creation of a new Certificate Template and Certificate Profile in the Keyfactor AnyCA Gateway REST. 
-> * If you have multiple combinations of custom enrollment parameters, consider the operational complexity of managing multiple Certificate Templates and Certificate Profiles.
-> * If your certificate workflows mostly consist of certificate renewal, re-issuance, and revocation, the GoDaddy AnyCA Gateway REST plugin is fully supported.
-> </details>
-
 # Creating a Certificate
 
 Once an Issuer or ClusterIssuer resource is created, they can be used to issue certificates using cert-manager. The two most important concepts are `Certificate` and `CertificateRequest` resources. 
@@ -374,7 +325,7 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
 
 - **Pre-defined Certificate Metadata**
 
-    If **all of the following metadata fields are defined** in Command, Command Issuer will populate the fields upon certificate enrollment. All of the metadata fields are String types. Please refer to the [Command docs](https://software.keyfactor.com/Core/Current/Content/ReferenceGuide/Certificate%20Metadata.htm) to define these metadata fields in Command.
+    If **all of the following metadata fields are defined** in Command, Command Issuer will populate the fields upon certificate enrollment. All of the metadata fields are String types. Please refer to the [Command docs](https://software.keyfactor.com/Core/Current/Content/ReferenceGuide/Certificate%20Metadata.htm) to define these metadata fields in Command if you would like Command Issuer to populate these fields on certificates upon enrollment.
 
     | Field Name                          | Description                                                                                                     |
     |-------------------------------------|-----------------------------------------------------------------------------------------------------------------|
@@ -395,13 +346,3 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
     ```yaml
     metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
     ```
-
-
-
-## License
-
-Apache License 2.0, see [LICENSE](LICENSE).
-
-## Related Integrations
-
-See all [Keyfactor integrations](https://github.com/topics/keyfactor-integration).
