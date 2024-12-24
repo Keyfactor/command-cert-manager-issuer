@@ -256,9 +256,6 @@ func (s *SignConfig) validate() error {
 	if s.CertificateAuthorityLogicalName == "" {
 		return errors.New("certificateAuthorityLogicalName is required")
 	}
-	if s.CertificateAuthorityHostname == "" {
-		return errors.New("certificateAuthorityHostname is required")
-	}
 	return nil
 }
 

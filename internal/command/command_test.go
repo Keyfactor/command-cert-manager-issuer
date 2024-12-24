@@ -210,11 +210,6 @@ func TestSignConfigValidate(t *testing.T) {
 			wantErr: "certificateAuthorityLogicalName is required",
 		},
 		{
-			name:    "missing certificateAuthorityHostname",
-			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: ""},
-			wantErr: "certificateAuthorityHostname is required",
-		},
-		{
 			name:    "all valid fields",
 			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
