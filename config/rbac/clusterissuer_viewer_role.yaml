@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: clusterissuer-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: command-issuer
-    app.kubernetes.io/part-of: command-issuer
+    app.kubernetes.io/created-by: command-cert-manager-issuer
+    app.kubernetes.io/part-of: command-cert-manager-issuer
     app.kubernetes.io/managed-by: kustomize
   name: clusterissuer-viewer-role
 rules:

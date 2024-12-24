@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Keyfactor
+Copyright © 2024 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var (
+	_ IssuerLike = &ClusterIssuer{}
+)
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
@@ -31,6 +35,18 @@ type ClusterIssuer struct {
 
 	Spec   IssuerSpec   `json:"spec,omitempty"`
 	Status IssuerStatus `json:"status,omitempty"`
+}
+
+func (c *ClusterIssuer) GetStatus() *IssuerStatus {
+	return &c.Status
+}
+
+func (c *ClusterIssuer) GetSpec() *IssuerSpec {
+	return &c.Spec
+}
+
+func (c *ClusterIssuer) IsClusterScoped() bool {
+	return true
 }
 
 //+kubebuilder:object:root=true
