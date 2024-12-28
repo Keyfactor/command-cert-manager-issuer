@@ -13,11 +13,6 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Whether to enable and configure the kube-rbac-proxy sidecar for authorized and authenticated
-# use of the /metrics endpoint by Prometheus.
-secureMetrics:
-  enabled: false
-
 secretConfig:
   # If true, when using Issuer resources, the credential secret must be created in the same namespace as the
   # Issuer resource. This access is facilitated by granting the ServiceAccount [get, list, watch] for the secret
@@ -37,11 +32,15 @@ crd:
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
+  # Labels to add to the service account
+  labels: {}
   # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
+
+podLabels: {}
 
 podAnnotations: {}
 

@@ -75,16 +75,18 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	issuer, err := r.newIssuer()
 	if err != nil {
-		log.Error(err, "unrecognized issuer type")
+		log.Error(err, "Unrecognized issuer type")
 		return ctrl.Result{}, nil
 	}
 	if err := r.Get(ctx, req.NamespacedName, issuer); err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
 			return ctrl.Result{}, fmt.Errorf("unexpected get error: %v", err)
 		}
-		log.Info("Issuer not found. ignoring.")
+		log.Info(fmt.Sprintf("%s not found. Ignoring.", issuer.GetObjectKind().GroupVersionKind().Kind))
 		return ctrl.Result{}, nil
 	}
+
+	log.Info(fmt.Sprintf("Starting %s reconciliation run", issuer.GetObjectKind().GroupVersionKind().Kind))
 
 	// Always attempt to update the Ready condition
 	defer func() {
@@ -103,7 +105,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	case issuer.IsClusterScoped():
 		secretNamespace = r.ClusterResourceNamespace
 
-	case !issuer.IsClusterScoped():
+	default:
 		secretNamespace = req.Namespace
 	}
 
@@ -152,6 +154,7 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 	// The SecretName is optional since the user may elect to use ambient credentials for scenarios like Workload Identity.
 	if issuer.GetSpec().SecretName != "" {
 		var authSecret corev1.Secret
+		log.Info("Fetching commandSecret from ns", "name", issuer.GetSpec().SecretName, "namespace", secretNamespace)
 		err := c.Get(ctx, types.NamespacedName{
 			Name:      issuer.GetSpec().SecretName,
 			Namespace: secretNamespace,
@@ -188,7 +191,7 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 			if ok {
 				oauth.Audience = string(audience)
 			}
-			log.Info("found oauth client credentials in secret", "commandSecretName", issuer.GetSpec().SecretName, "type", authSecret.Type)
+			log.Info("Found oauth client credentials in secret", "commandSecretName", issuer.GetSpec().SecretName, "type", authSecret.Type)
 
 		case authSecret.Type == corev1.SecretTypeBasicAuth:
 			username, ok := authSecret.Data[corev1.BasicAuthUsernameKey]
@@ -204,12 +207,11 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 				Username: string(username),
 				Password: string(password),
 			}
-			log.Info("found basic auth credentials in secret", "commandSecretName", issuer.GetSpec().SecretName, "type", authSecret.Type)
+			log.Info("Found basic auth credentials in secret", "commandSecretName", issuer.GetSpec().SecretName, "type", authSecret.Type)
 
 		default:
 			return nil, fmt.Errorf("%w: %s", errGetAuthSecret, "found secret with unsupported type")
 		}
-
 	}
 
 	var caSecret corev1.Secret

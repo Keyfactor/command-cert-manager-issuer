@@ -237,7 +237,7 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 		}
 	}
 
-	log.Info("configuration was valid - successfully generated server config", "authMethod", server.AuthType, "hostname", server.Host, "apiPath", server.APIPath)
+	log.Info("Configuration was valid - Successfully generated server config", "authMethod", server.AuthType, "hostname", server.Host, "apiPath", server.APIPath)
 	return server, nil
 }
 
@@ -287,7 +287,7 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 		testConnection:       client.AuthClient.Authenticate,
 	}
 
-	log.Info("successfully generated Command client")
+	log.Info("Successfully generated Command client")
 	s.client = adapter
 
 	return s, nil

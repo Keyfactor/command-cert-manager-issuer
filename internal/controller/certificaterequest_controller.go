@@ -109,6 +109,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, nil
 	}
 
+	log.Info("Starting CertificateRequest reconciliation run")
+
 	// We now have a CertificateRequest that belongs to us so we are responsible
 	// for updating its Ready condition.
 
@@ -164,7 +166,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 	issuer, ok := issuerRO.(commandissuer.IssuerLike)
 	if !ok {
-		err := fmt.Errorf("unexpected type for issuer object: %T", issuerRO)
+		err := fmt.Errorf("%w: unexpected type for issuer object: %T", errIssuerRef, issuerRO)
 		log.Error(err, "Failed to cast to commandissuer.IssuerLike")
 		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
 		return ctrl.Result{}, nil
