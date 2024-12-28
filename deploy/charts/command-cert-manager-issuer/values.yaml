@@ -1,10 +1,10 @@
-# Default values for ejbca-cert-manager-issuer chart.
+# Default values for command-cert-manager-issuer chart.
 
-# The number of replica ejbca-cert-manager-issuers to run
+# The number of replica command-cert-manager-issuers to run
 replicaCount: 1
 
 image:
-  repository: ""
+  repository: "keyfactor/command-cert-manager-issuer"
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
@@ -12,11 +12,6 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
-
-# Whether to enable and configure the kube-rbac-proxy sidecar for authorized and authenticated
-# use of the /metrics endpoint by Prometheus.
-secureMetrics:
-  enabled: false
 
 secretConfig:
   # If true, when using Issuer resources, the credential secret must be created in the same namespace as the
@@ -37,11 +32,15 @@ crd:
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
+  # Labels to add to the service account
+  labels: {}
   # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
+
+podLabels: {}
 
 podAnnotations: {}
 
