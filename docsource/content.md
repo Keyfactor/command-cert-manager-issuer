@@ -1,36 +1,3 @@
-<h1 align="center" style="border-bottom: none">
-    Command Issuer
-</h1>
-
-<p align="center">
-  <!-- Badges -->
-<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
-<a href="https://github.com/Keyfactor/command-cert-manager-issuer/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Release" /></a>
-<img src="https://img.shields.io/github/issues/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Issues" />
-<img src="https://img.shields.io/github/downloads/Keyfactor/command-cert-manager-issuer/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
-</p>
-
-<p align="center">
-  <!-- TOC -->
-  <a href="#support">
-    <b>Support</b>
-  </a> 
-  ·
-  <a href="#license">
-    <b>License</b>
-  </a>
-  ·
-  <a href="https://github.com/topics/keyfactor-integration">
-    <b>Related Integrations</b>
-  </a>
-</p>
-
-## Support
-The Command Issuer is open source and community supported, meaning that there is **no SLA** applicable. 
-
-> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
-
-
 # Overview
 
 The Command Issuer for [cert-manager](https://cert-manager.io/) is a [CertificateRequest](https://cert-manager.io/docs/usage/certificaterequest/) controller that issues certificates using [Keyfactor Command](https://www.keyfactor.com/products/command/).
@@ -50,12 +17,6 @@ Before starting, ensure that the following requirements are met:
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
 - [Supported cert-manager release](https://cert-manager.io/docs/releases/) installed in your cluster. Please see the [cert-manager installation](https://cert-manager.io/docs/installation/) for details.
 - [Supported version of Helm](https://helm.sh/docs/topics/version_skew/) for your Kubernetes version
-
-# Badges
-
-<a href="https://github.com/keyfactor/command-cert-manager-issuer/releases/latest"><img src="https://img.shields.io/github/v/release/keyfactor/command-cert-manager-issuer?style=flat-square" alt="Latest Release"></a>
-<a href="https://goreportcard.com/report/github.com/keyfactor/command-cert-manager-issuer"><img src="https://goreportcard.com/badge/github.com/keyfactor/command-cert-manager-issuer" alt="Go Report Card"></a>
-<a href="https://img.shields.io/badge/License-Apache%202.0-blue.svg"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License Apache 2.0"></a>
 
 # Getting Started
 
@@ -174,6 +135,93 @@ kubectl -n command-issuer-system create secret generic command-secret \
 ```
 
 > Audience and Scopes are optional
+
+## Managed Identity Using Azure Entra ID Workload Identity (AKS)
+
+Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Command Issuer to exchange a Kubernetes ServiceAccount Token for an Azure Entra ID access token, which is then used to authenticate to Command.
+
+1. Reconfigure the AKS cluster to enable workload identity federation.
+
+    ```shell
+    az aks update \
+        --name ${CLUSTER} \
+        --enable-oidc-issuer \
+        --enable-workload-identity
+    ```
+
+    > The [Azure Workload Identity extension can be installed on non-AKS or self-managed clusters](https://azure.github.io/azure-workload-identity/docs/installation.html) if you're not using AKS.
+    >
+    > Refer to the [AKS documentation](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster) for more information on the `--enable-workload-identity` feature.
+
+2. Reconfigure or deploy Command Issuer with extra labels for the Azure Workload Identity webhook, which will result in the Command Issuer controller Pod having an extra volume containing a Kubernetes ServiceAccount token which it will exchange for a token from Azure.
+
+    ```shell
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+        --namespace command-issuer-system \
+        --create-namespace \
+        --set "fullnameOverride=$chart_name" \
+        --set-string "podLabels.azure\.workload\.identity/use=true" \
+        --set-string "serviceAccount.labels.azure\.workload\.identity/use=true"
+        # --set-string "serviceAccount.annotations.azure\.workload\.identity/client-id=<managed identity client ID>" # May be necessary, but is usually not.
+    ```
+
+    If successful, the Command Issuer Pod will have new environment variables and the Azure WI ServiceAccount token as a projected volume:
+
+    ```shell
+    kubectl -n command-issuer-system describe pod
+    ```
+
+    ```shell
+    Containers:
+      command-cert-manager-issuer:
+        ...
+        Environment:
+          AZURE_CLIENT_ID:             <GUID>
+          AZURE_TENANT_ID:             <GUID>
+          AZURE_FEDERATED_TOKEN_FILE:  /var/run/secrets/azure/tokens/azure-identity-token
+          AZURE_AUTHORITY_HOST:        https://login.microsoftonline.com/
+        Mounts:
+          /var/run/secrets/azure/tokens from azure-identity-token (ro)
+          /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-6rmzz (ro)
+    ...
+    Volumes:
+      ...
+      azure-identity-token:
+        Type:                    Projected (a volume that contains injected data from multiple sources)
+        TokenExpirationSeconds:  3600
+    ```
+
+    > Refer to [Azure Workload Identity docs](https://azure.github.io/azure-workload-identity/docs/installation/mutating-admission-webhook.html) more information on the role of the Mutating Admission Webhook.
+
+3. Create a User Assigned Managed Identity in Azure.
+
+    ```shell
+    export IDENTITY_NAME=command-issuer
+    az identity create --name "${IDENTITY_NAME}"
+    ```
+
+    > Read more about [the `az identity` command](https://learn.microsoft.com/en-us/cli/azure/identity?view=azure-cli-latest).
+
+4. Associate a Federated Identity Credential (FIC) with the User Assigned Managed Identity. The FIC allows Command Issuer to act on behalf of the Managed Identity by telling Azure to expect:
+    - The `iss` claim of the ServiceAccount token to match the cluster's OIDC Issuer. Azure will also use the Issuer URL to download the JWT signing certificate.
+    - The `sub` claim of the ServiceAccount token to match the ServiceAccount's name and namespace.
+
+    ```shell
+    export SERVICE_ACCOUNT_NAME=command-cert-manager-issuer # This is the default Kubernetes ServiceAccount used by the Command Issuer controller.
+    export SERVICE_ACCOUNT_NAMESPACE=command-issuer-system # This is the default namespace for Command Issuer used in this doc.
+    export SERVICE_ACCOUNT_ISSUER=$(az aks show --resource-group $AZURE_DEFAULTS_GROUP --name $CLUSTER --query "oidcIssuerProfile.issuerUrl" -o tsv)
+    az identity federated-credential create \
+        --name "command-issuer" \
+        --identity-name "${IDENTITY_NAME}" \
+        --issuer "${SERVICE_ACCOUNT_ISSUER}" \
+        --subject "system:serviceaccount:${SERVICE_ACCOUNT_NAMESPACE}:${SERVICE_ACCOUNT_NAME}"
+    ```
+
+    > Read more about [Workload Identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation) in the Entra ID documentation.
+    >
+    > Read more about [the `az identity federated-credential` command](https://learn.microsoft.com/en-us/cli/azure/identity/federated-credential?view=azure-cli-latest).
+
+5. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider), and [add the Managed Identity's Client ID as an `oid` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier. 
 
 # CA Bundle
 
@@ -379,13 +427,3 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
     ```yaml
     metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
     ```
-
-
-
-## License
-
-Apache License 2.0, see [LICENSE](LICENSE).
-
-## Related Integrations
-
-See all [Keyfactor integrations](https://github.com/topics/keyfactor-integration).
