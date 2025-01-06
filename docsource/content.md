@@ -4,7 +4,7 @@ The Command Issuer for [cert-manager](https://cert-manager.io/) is a [Certificat
 
 # Requirements
 
-Before starting, ensure that the following requirements are met:
+Before continuing, ensure that the following requirements are met:
 
 - [Keyfactor Command](https://www.keyfactor.com/products/command/) >= 10.5
     - Command must be properly configured according to the [product docs](https://software.keyfactor.com/Core-OnPrem/Current/Content/MasterTopics/Portal.htm). 
@@ -22,7 +22,7 @@ Before starting, ensure that the following requirements are met:
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting a POST request to the CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template suitable for your usecase. Additionally, you should ensure that the identity used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
+Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template suitable for your usecase. Additionally, you should ensure that the identity used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
 
 1. **Create or identify a Certificate Authority**
 
@@ -42,11 +42,11 @@ Command Issuer enrolls certificates by submitting a POST request to the CSR Enro
 
     You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template in Command.    
 
-    The same goes for **Subject DN Attributes** and **Other Subject Attributes** allowed by your Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template in Command.
+    The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template in Command.
 
 3. **Configure Command Security Roles and Claims**
 
-    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can dictate what actions the user or subject can perform and what parts of the system it can interact with.  
+    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.  
 
     - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
@@ -61,7 +61,7 @@ Command Issuer enrolls certificates by submitting a POST request to the CSR Enro
 
 Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
-1. Verify that at least one Kubernetes node is running 
+1. Verify that at least one Kubernetes node is running:
 
     ```shell
     kubectl get nodes
@@ -95,9 +95,9 @@ These credentials must be configured using a Kubernetes Secret. By default, the 
 
 > Command Issuer can read secrets in the Issuer namespace if `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag is set when installing the Helm chart.
 
-Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly.
+Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly. The following methods are supported:
 
-- Azure Workload Identity (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
+- Managed Identity Using Azure Entra ID Workload Identity (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
 
 ## Basic Auth
 
