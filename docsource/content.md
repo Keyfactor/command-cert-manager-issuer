@@ -1,43 +1,10 @@
-<h1 align="center" style="border-bottom: none">
-    Command Issuer
-</h1>
-
-<p align="center">
-  <!-- Badges -->
-<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
-<a href="https://github.com/Keyfactor/command-cert-manager-issuer/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Release" /></a>
-<img src="https://img.shields.io/github/issues/Keyfactor/command-cert-manager-issuer?style=flat-square" alt="Issues" />
-<img src="https://img.shields.io/github/downloads/Keyfactor/command-cert-manager-issuer/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
-</p>
-
-<p align="center">
-  <!-- TOC -->
-  <a href="#support">
-    <b>Support</b>
-  </a> 
-  ·
-  <a href="#license">
-    <b>License</b>
-  </a>
-  ·
-  <a href="https://github.com/topics/keyfactor-integration">
-    <b>Related Integrations</b>
-  </a>
-</p>
-
-## Support
-The Command Issuer is open source and community supported, meaning that there is **no SLA** applicable. 
-
-> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
-
-
 # Overview
 
 The Command Issuer for [cert-manager](https://cert-manager.io/) is a [CertificateRequest](https://cert-manager.io/docs/usage/certificaterequest/) controller that issues certificates using [Keyfactor Command](https://www.keyfactor.com/products/command/).
 
 # Requirements
 
-Before starting, ensure that the following requirements are met:
+Before continuing, ensure that the following requirements are met:
 
 - [Keyfactor Command](https://www.keyfactor.com/products/command/) >= 10.5
     - Command must be properly configured according to the [product docs](https://software.keyfactor.com/Core-OnPrem/Current/Content/MasterTopics/Portal.htm). 
@@ -55,7 +22,7 @@ Before starting, ensure that the following requirements are met:
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting a POST request to the CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template suitable for your usecase. Additionally, you should ensure that the identity used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
+Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template suitable for your usecase. Additionally, you should ensure that the identity used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
 
 1. **Create or identify a Certificate Authority**
 
@@ -75,11 +42,11 @@ Command Issuer enrolls certificates by submitting a POST request to the CSR Enro
 
     You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template in Command.    
 
-    The same goes for **Subject DN Attributes** and **Other Subject Attributes** allowed by your Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template in Command.
+    The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template in Command.
 
 3. **Configure Command Security Roles and Claims**
 
-    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can dictate what actions the user or subject can perform and what parts of the system it can interact with.  
+    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.  
 
     - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
@@ -94,7 +61,7 @@ Command Issuer enrolls certificates by submitting a POST request to the CSR Enro
 
 Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
 
-1. Verify that at least one Kubernetes node is running 
+1. Verify that at least one Kubernetes node is running:
 
     ```shell
     kubectl get nodes
@@ -128,9 +95,9 @@ These credentials must be configured using a Kubernetes Secret. By default, the 
 
 > Command Issuer can read secrets in the Issuer namespace if `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag is set when installing the Helm chart.
 
-Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly.
+Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly. The following methods are supported:
 
-- Azure Workload Identity (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
+- Managed Identity Using Azure Entra ID Workload Identity (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
 
 ## Basic Auth
 
@@ -254,7 +221,7 @@ Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Comman
     >
     > Read more about [the `az identity federated-credential` command](https://learn.microsoft.com/en-us/cli/azure/identity/federated-credential?view=azure-cli-latest).
 
-5. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider), and [add the Managed Identity's Client ID as an `oid` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
+5. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider), and [add the Managed Identity's Client ID as an `oid` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier. 
 
 # CA Bundle
 
@@ -460,13 +427,3 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
     ```yaml
     metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
     ```
-
-
-
-## License
-
-Apache License 2.0, see [LICENSE](LICENSE).
-
-## Related Integrations
-
-See all [Keyfactor integrations](https://github.com/topics/keyfactor-integration).

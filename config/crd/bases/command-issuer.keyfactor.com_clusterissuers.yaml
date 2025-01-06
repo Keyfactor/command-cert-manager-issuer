@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.1
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: clusterissuers.command-issuer.keyfactor.com
 spec:
   group: command-issuer.keyfactor.com
@@ -21,74 +20,98 @@ spec:
         description: ClusterIssuer is the Schema for the clusterissuers API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
             description: IssuerSpec defines the desired state of Issuer
             properties:
+              apiPath:
+                default: KeyfactorAPI
+                description: APIPath is the base path of the Command API. KeyfactorAPI
+                  by default
+                type: string
               caSecretName:
-                description: The name of the secret containing the CA bundle to use
-                  when verifying Command's server certificate. If specified, the CA
-                  bundle will be added to the client trust roots for the Command issuer.
+                description: |-
+                  The name of the secret containing the CA bundle to use when verifying
+                  Command's server certificate. If specified, the CA bundle will be added to
+                  the client trust roots for the Command issuer.
                 type: string
               certificateAuthorityHostname:
-                description: CertificateAuthorityHostname is the hostname associated
-                  with the Certificate Authority specified by CertificateAuthorityLogicalName
-                  E.g. "ca.example.com"
+                description: |-
+                  CertificateAuthorityHostname is the hostname associated with the Certificate Authority specified by
+                  CertificateAuthorityLogicalName E.g. "ca.example.com"
                 type: string
               certificateAuthorityLogicalName:
-                description: CertificateAuthorityLogicalName is the logical name of
-                  the certificate authority to use E.g. "Keyfactor Root CA" or "Intermediate
-                  CA"
+                description: |-
+                  CertificateAuthorityLogicalName is the logical name of the certificate authority to use
+                  E.g. "Keyfactor Root CA" or "Intermediate CA"
                 type: string
               certificateTemplate:
-                description: CertificateTemplate is the name of the certificate template
-                  to use. Refer to the Keyfactor Command documentation for more information.
+                description: |-
+                  CertificateTemplate is the name of the certificate template to use.
+                  Refer to the Keyfactor Command documentation for more information.
                 type: string
               commandSecretName:
-                description: A reference to a K8s kubernetes.io/basic-auth Secret
-                  containing basic auth credentials for the Command instance configured
-                  in Hostname. The secret must be in the same namespace as the referent.
-                  If the referent is a ClusterIssuer, the reference instead refers
-                  to the resource with the given name in the configured 'cluster resource
-                  namespace', which is set as a flag on the controller component (and
-                  defaults to the namespace that the controller runs in).
+                description: |-
+                  A reference to a K8s kubernetes.io/basic-auth Secret containing basic auth
+                  credentials for the Command instance configured in Hostname. The secret must
+                  be in the same namespace as the referent. If the
+                  referent is a ClusterIssuer, the reference instead refers to the resource
+                  with the given name in the configured 'cluster resource namespace', which
+                  is set as a flag on the controller component (and defaults to the
+                  namespace that the controller runs in).
                 type: string
               hostname:
                 description: Hostname is the hostname of a Keyfactor Command instance.
+                type: string
+              scopes:
+                description: |-
+                  A list of comma separated scopes used when requesting a Bearer token from an ambient token provider implied
+                  by the environment, rather than by commandSecretName. For example, could be set to
+                  api://{tenant ID}/.default when requesting an access token for Entra ID (DefaultAzureCredential). Has no
+                  effect on OAuth 2.0 Client Credential configuration - please specify the scopes for this method in an Opaque secret.
                 type: string
             type: object
           status:
             description: IssuerStatus defines the observed state of Issuer
             properties:
               conditions:
-                description: List of status conditions to indicate the status of a
-                  CertificateRequest. Known condition types are `Ready`.
+                description: |-
+                  List of status conditions to indicate the status of a CertificateRequest.
+                  Known condition types are `Ready`.
                 items:
                   description: IssuerCondition contains condition information for
                     an Issuer.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the timestamp corresponding
-                        to the last status change of this condition.
+                      description: |-
+                        LastTransitionTime is the timestamp corresponding to the last status
+                        change of this condition.
                       format: date-time
                       type: string
                     message:
-                      description: Message is a human readable description of the
-                        details of the last transition, complementing reason.
+                      description: |-
+                        Message is a human readable description of the details of the last
+                        transition, complementing reason.
                       type: string
                     reason:
-                      description: Reason is a brief machine readable explanation
-                        for the condition's last transition.
+                      description: |-
+                        Reason is a brief machine readable explanation for the condition's last
+                        transition.
                       type: string
                     status:
                       description: Status of the condition, one of ('True', 'False',

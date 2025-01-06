@@ -24,3 +24,19 @@ rules:
     verbs:
       - create
       - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ if .Values.secretConfig.useClusterRoleForSecretAccess }}ClusterRole{{ else }}Role{{ end }}
+metadata:
+  labels:
+    {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
+  name: {{ include "command-cert-manager-issuer.name" . }}-secret-reader-role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
