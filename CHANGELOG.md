@@ -18,3 +18,18 @@
 ## Fixes
 * fix(helm): Add configuration flag to configure chart to either grant cluster-scoped or namespace-scoped access to Secret and ConfigMap API
 * fix(controller): Add logic to read secret from reconciler namespace or Issuer namespace depending on Helm configuration.
+
+# v2.0.0
+
+## Features
+- Implement OAuth 2.0 Client Credentials grant as an authentication mechanism.
+- Implement Azure Workload Identity as an authentication mechanism.
+
+## Chores
+- Refactor Command signer module to remove tight dependency on Issuer/ClusterIssuer types.
+- Migrate Kubebuilder from go/v3 to go/v4:
+    - Upgrade kustomize version to v5.3.0.
+    - Upgrade controller-gen to v0.14.0.
+- Refactor unit tests to use fake Command API instead of requiring live Command server.
+- Write e2e integration test.
+
