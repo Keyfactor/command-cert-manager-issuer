@@ -4,13 +4,9 @@ metadata:
   labels:
     app.kubernetes.io/name: clusterissuer
     app.kubernetes.io/instance: clusterissuer-sample
-    app.kubernetes.io/part-of: command-issuer
-    app.kubernetes.io/created-by: command-issuer
+    app.kubernetes.io/part-of: command-cert-manager-issuer
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: command-cert-manager-issuer
   name: clusterissuer-sample
 spec:
-  hostname: ""
-  commandSecretName: ""
-  certificateTemplate: ""
-  certificateAuthorityLogicalName: ""
-  certificateAuthorityHostname: ""
-  caSecretName: ""
+  # TODO(user): Add fields here

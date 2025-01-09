@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Keyfactor
+Copyright © 2024 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,21 +17,46 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// +kubebuilder:object:generate=false
+type IssuerLike interface {
+	GetStatus() *IssuerStatus
+	GetSpec() *IssuerSpec
+	IsClusterScoped() bool
+	client.Object
+}
+
+var (
+	_ IssuerLike = &Issuer{}
 )
 
 // IssuerSpec defines the desired state of Issuer
 type IssuerSpec struct {
 	// Hostname is the hostname of a Keyfactor Command instance.
 	Hostname string `json:"hostname,omitempty"`
+
+	// APIPath is the base path of the Command API. KeyfactorAPI by default
+	// +kubebuilder:default:=KeyfactorAPI
+	APIPath string `json:"apiPath,omitempty"`
+
 	// CertificateTemplate is the name of the certificate template to use.
 	// Refer to the Keyfactor Command documentation for more information.
 	CertificateTemplate string `json:"certificateTemplate,omitempty"`
+
 	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
 	// E.g. "Keyfactor Root CA" or "Intermediate CA"
 	CertificateAuthorityLogicalName string `json:"certificateAuthorityLogicalName,omitempty"`
+
 	// CertificateAuthorityHostname is the hostname associated with the Certificate Authority specified by
 	// CertificateAuthorityLogicalName E.g. "ca.example.com"
+	// +optional
 	CertificateAuthorityHostname string `json:"certificateAuthorityHostname,omitempty"`
 
 	// A reference to a K8s kubernetes.io/basic-auth Secret containing basic auth
@@ -41,13 +66,33 @@ type IssuerSpec struct {
 	// with the given name in the configured 'cluster resource namespace', which
 	// is set as a flag on the controller component (and defaults to the
 	// namespace that the controller runs in).
+	// +optional
 	SecretName string `json:"commandSecretName,omitempty"`
 
 	// The name of the secret containing the CA bundle to use when verifying
 	// Command's server certificate. If specified, the CA bundle will be added to
 	// the client trust roots for the Command issuer.
 	// +optional
-	CaSecretName string `json:"caSecretName"`
+	CaSecretName string `json:"caSecretName,omitempty"`
+
+	// A list of comma separated scopes used when requesting a Bearer token from an ambient token provider implied
+	// by the environment, rather than by commandSecretName. For example, could be set to
+	// api://{tenant ID}/.default when requesting an access token for Entra ID (DefaultAzureCredential). Has no
+	// effect on OAuth 2.0 Client Credential configuration - please specify the scopes for this method in an Opaque secret.
+	// +optional
+	Scopes string `json:"scopes,omitempty"`
+}
+
+func (i *Issuer) GetStatus() *IssuerStatus {
+	return &i.Status
+}
+
+func (i *Issuer) GetSpec() *IssuerSpec {
+	return &i.Spec
+}
+
+func (i *Issuer) IsClusterScoped() bool {
+	return false
 }
 
 // IssuerStatus defines the observed state of Issuer
@@ -56,6 +101,56 @@ type IssuerStatus struct {
 	// Known condition types are `Ready`.
 	// +optional
 	Conditions []IssuerCondition `json:"conditions,omitempty"`
+}
+
+func (is *IssuerStatus) SetCondition(ctx context.Context, conditionType IssuerConditionType, state ConditionStatus, reason, message string) {
+	log := ctrl.LoggerFrom(ctx)
+	var condition *IssuerCondition
+
+	for i := range is.Conditions {
+		if is.Conditions[i].Type == conditionType {
+			condition = &is.Conditions[i]
+			break
+		}
+	}
+
+	// If the status object doesn't already have a conditionType, add it
+	if condition == nil {
+		condition = &IssuerCondition{
+			Type: conditionType,
+		}
+		is.Conditions = append(is.Conditions, *condition)
+		condition = &is.Conditions[len(is.Conditions)-1]
+	}
+
+	if condition.Status != state {
+		log.Info(fmt.Sprintf("Changing %s Condition from %q -> %q; %q", conditionType, condition.Status, state, message))
+
+		condition.Status = state
+		now := metav1.Now()
+		condition.LastTransitionTime = &now
+	}
+	condition.Reason = reason
+	condition.Message = message
+}
+
+func (is *IssuerStatus) HasCondition(conditionType IssuerConditionType, state ConditionStatus) bool {
+	for _, c := range is.Conditions {
+		if c.Type == conditionType && c.Status == state {
+			return true
+		}
+	}
+	return false
+}
+
+func (is *IssuerStatus) UnsetCondition(conditionType IssuerConditionType) {
+	conditions := is.Conditions
+	for i, c := range conditions {
+		if c.Type == conditionType {
+			is.Conditions = append(conditions[:i], conditions[i+1:]...)
+			return
+		}
+	}
 }
 
 //+kubebuilder:object:root=true
@@ -103,6 +198,14 @@ type IssuerCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
+const (
+	OAuthTokenURLKey     = "tokenUrl"
+	OAuthClientIDKey     = "clientId"
+	OAuthClientSecretKey = "clientSecret"
+	OAuthScopesKey       = "scopes"
+	OAuthAudienceKey     = "audience"
+)
+
 // IssuerConditionType represents an Issuer condition value.
 type IssuerConditionType string
 
@@ -112,6 +215,10 @@ const (
 	// If the `status` of this condition is `False`, CertificateRequest controllers
 	// should prevent attempts to sign certificates.
 	IssuerConditionReady IssuerConditionType = "Ready"
+
+	// IssuerConditionSupportsMetadata represents the fact that the connected Command platform supports
+	// the pre-defined metadata fields that Command Issuer populates.
+	IssuerConditionSupportsMetadata IssuerConditionType = "SupportsMetadata"
 )
 
 // ConditionStatus represents a condition's status.
