@@ -33,3 +33,7 @@
 - Refactor unit tests to use fake Command API instead of requiring live Command server.
 - Write e2e integration test.
 
+# v2.0.1
+
+## Fixes
+- Change Helm release trigger from `v*` to `release-*` to support Keyfactor Bootstrap Workflow
