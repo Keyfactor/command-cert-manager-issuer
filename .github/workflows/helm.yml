@@ -5,7 +5,7 @@ on:
       - '*'
   pull_request:
     branches:
-      - 'v*'
+      - 'release-*'
     types:
       # action should run when the pull request is closed
       # (regardless of whether it was merged or just closed)
