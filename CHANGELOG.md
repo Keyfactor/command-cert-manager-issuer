@@ -37,3 +37,8 @@
 
 ## Fixes
 - Change Helm release trigger from `v*` to `release-*` to support Keyfactor Bootstrap Workflow
+
+# v2.0.2
+
+## Fixes
+- Bug fix in Helm chart release action
