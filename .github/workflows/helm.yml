@@ -1,11 +1,8 @@
-name: Build and Release
+name: Build and Release Helm Chart
 on:
-  push:
-    branches:
-      - '*'
   pull_request:
     branches:
-      - 'v*'
+      - 'release-*'
     types:
       # action should run when the pull request is closed
       # (regardless of whether it was merged or just closed)
@@ -13,9 +10,6 @@ on:
       # Make sure the action runs every time new commits are
       # pushed to the pull request's branch
       - synchronize
-
-env:
-  REGISTRY: ghcr.io
 
 jobs:
   helm:
@@ -42,14 +36,14 @@ jobs:
       # Set version from DOCKER_METADATA_OUTPUT_VERSION as environment variable
       - name: Set Version
         run: |
-          echo "VERSION=${DOCKER_METADATA_OUTPUT_VERSION:1}" >> $GITHUB_ENV
+          echo "VERSION=${DOCKER_METADATA_OUTPUT_VERSION:8}.0" >> $GITHUB_ENV # Eventually will build this into Keyfactor bootstrap
 
       # Change version and appVersion in Chart.yaml to the tag in the closed PR
       - name: Update Helm App/Chart Version
         shell: bash
         run: |
           sed -i "s/^version: .*/version: ${{ env.VERSION }}/g" deploy/charts/command-cert-manager-issuer/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: \"${{ env.DOCKER_METADATA_OUTPUT_VERSION }}\"/g" deploy/charts/command-cert-manager-issuer/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"v${{ env.VERSION }}\"/g" deploy/charts/command-cert-manager-issuer/Chart.yaml
 
       # Setup Helm
       # https://github.com/Azure/setup-helm
@@ -72,3 +66,4 @@ jobs:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
           charts_dir: deploy/charts
+
