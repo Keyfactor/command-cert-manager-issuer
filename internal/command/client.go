@@ -139,7 +139,14 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
-		g.tokenSource = credentials.TokenSource
+
+		// Use credentials to generate a JWT (requires a service account)
+		jwtSource, err := google.JWTAccessTokenSourceWithScope(credentials.JSON, g.scopes...)
+		if err != nil {
+			return "", fmt.Errorf("%w: failed to generate GCP JWT Access Token Source: %w", errTokenFetchFailure, err)
+		}
+
+		g.tokenSource = jwtSource
 	}
 
 	// Retrieve the token from the token source.
