@@ -152,6 +152,7 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
 		}
 
+		// TODO: Remove this log statement before merging
 		log.FromContext(ctx).Info(fmt.Sprintf("token value from GCP: %s", token.AccessToken))
 
 		g.tokenSource = tokenSource
