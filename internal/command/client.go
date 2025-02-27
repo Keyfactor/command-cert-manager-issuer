@@ -26,6 +26,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/idtoken"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -141,12 +142,19 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		}
 
 		// Use credentials to generate a JWT (requires a service account)
-		jwtSource, err := google.JWTAccessTokenSourceWithScope(credentials.JSON, g.scopes...)
+		tokenSource, err := idtoken.NewTokenSource(ctx, "https://api.google.com/.default", idtoken.WithCredentialsJSON(credentials.JSON))
 		if err != nil {
-			return "", fmt.Errorf("%w: failed to generate GCP JWT Access Token Source: %w", errTokenFetchFailure, err)
+			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
 		}
 
-		g.tokenSource = jwtSource
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
+		}
+
+		log.FromContext(ctx).Info(fmt.Sprintf("token value from GCP: %s", token))
+
+		g.tokenSource = tokenSource
 	}
 
 	// Retrieve the token from the token source.
