@@ -164,38 +164,34 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	authConfig.WithCommandCACert(string(config.CaCertsBytes))
 
 	nonAmbientCredentialsConfigured := false
+	if config.BasicAuth != nil {
+		basicAuthConfig := auth_providers.NewBasicAuthAuthenticatorBuilder().
+			WithUsername(config.BasicAuth.Username).
+			WithPassword(config.BasicAuth.Password)
+		basicAuthConfig.CommandAuthConfig = authConfig
+		server = basicAuthConfig.GetServerConfig()
 
-	// TODO: Uncomment the below section
-	/*
-		if config.BasicAuth != nil {
-			basicAuthConfig := auth_providers.NewBasicAuthAuthenticatorBuilder().
-				WithUsername(config.BasicAuth.Username).
-				WithPassword(config.BasicAuth.Password)
-			basicAuthConfig.CommandAuthConfig = authConfig
-			server = basicAuthConfig.GetServerConfig()
+		nonAmbientCredentialsConfigured = true
+	}
 
-			nonAmbientCredentialsConfigured = true
+	if config.OAuth != nil {
+		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
+			WithTokenUrl(config.OAuth.TokenURL).
+			WithClientId(config.OAuth.ClientID).
+			WithClientSecret(config.OAuth.ClientSecret)
+
+		if len(config.OAuth.Scopes) > 0 {
+			oauthConfig.WithScopes(config.OAuth.Scopes)
+		}
+		if config.OAuth.Audience != "" {
+			oauthConfig.WithAudience(config.OAuth.Audience)
 		}
 
-		if config.OAuth != nil {
-			oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
-				WithTokenUrl(config.OAuth.TokenURL).
-				WithClientId(config.OAuth.ClientID).
-				WithClientSecret(config.OAuth.ClientSecret)
+		oauthConfig.CommandAuthConfig = authConfig
+		server = oauthConfig.GetServerConfig()
 
-			if len(config.OAuth.Scopes) > 0 {
-				oauthConfig.WithScopes(config.OAuth.Scopes)
-			}
-			if config.OAuth.Audience != "" {
-				oauthConfig.WithAudience(config.OAuth.Audience)
-			}
-
-			oauthConfig.CommandAuthConfig = authConfig
-			server = oauthConfig.GetServerConfig()
-
-			nonAmbientCredentialsConfigured = true
-		}
-	*/
+		nonAmbientCredentialsConfigured = true
+	}
 
 	// If direct basic-auth/OAuth credentials were configured, continue. Otherwise,
 	// we look for ambient credentials configured on the environment where we're running.
