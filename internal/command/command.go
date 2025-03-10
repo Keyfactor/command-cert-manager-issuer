@@ -197,6 +197,7 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	// If direct basic-auth/OAuth credentials were configured, continue. Otherwise,
 	// we look for ambient credentials configured on the environment where we're running.
 	if !nonAmbientCredentialsConfigured {
+		log.Info("Using ambient credentails!")
 		source := getAmbientTokenCredentialSource()
 		if source == nil {
 			log.Info("no direct credentials provided; attempting to use ambient credentials. trying Azure DefaultAzureCredential first")
