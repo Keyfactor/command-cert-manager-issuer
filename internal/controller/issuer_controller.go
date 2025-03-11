@@ -235,12 +235,13 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 	}
 
 	return &command.Config{
-		Hostname:                issuer.GetSpec().Hostname,
-		APIPath:                 issuer.GetSpec().APIPath,
-		CaCertsBytes:            caCertBytes,
-		BasicAuth:               basicAuth,
-		OAuth:                   oauth,
-		AmbientCredentialScopes: strings.Split(issuer.GetSpec().Scopes, ","),
+		Hostname:                  issuer.GetSpec().Hostname,
+		APIPath:                   issuer.GetSpec().APIPath,
+		CaCertsBytes:              caCertBytes,
+		BasicAuth:                 basicAuth,
+		OAuth:                     oauth,
+		AmbientCredentialScopes:   strings.Split(issuer.GetSpec().Scopes, ","),
+		AmbientCredentialAudience: issuer.GetSpec().Audience,
 	}, nil
 }
 
