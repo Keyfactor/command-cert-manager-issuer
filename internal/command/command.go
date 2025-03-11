@@ -75,12 +75,13 @@ type signer struct {
 }
 
 type Config struct {
-	Hostname                string
-	APIPath                 string
-	CaCertsBytes            []byte
-	BasicAuth               *BasicAuth
-	OAuth                   *OAuth
-	AmbientCredentialScopes []string
+	Hostname                  string
+	APIPath                   string
+	CaCertsBytes              []byte
+	BasicAuth                 *BasicAuth
+	OAuth                     *OAuth
+	AmbientCredentialScopes   []string
+	AmbientCredentialAudience string
 }
 
 func (c *Config) validate() error {
@@ -207,7 +208,7 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 				log.Info("couldn't obtain Azure DefaultAzureCredential. trying GCP ApplicationDefaultCredentials", "error", err)
 
 				var innerErr error
-				source, innerErr = newGCPDefaultCredentialSource(ctx, config.AmbientCredentialScopes)
+				source, innerErr = newGCPDefaultCredentialSource(ctx, config.AmbientCredentialAudience, config.AmbientCredentialScopes)
 				if innerErr != nil {
 					return nil, fmt.Errorf("%w: azure err: %w. gcp err: %w", errAmbientCredentialCreationFailure, err, innerErr)
 				}
