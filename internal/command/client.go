@@ -144,7 +144,7 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
 
-		log.Info(fmt.Sprintf("Generating a Google OIDC ID Token"))
+		log.Info(fmt.Sprintf("generating a Google OIDC ID token..."))
 
 		// Use credentials to generate a JWT (requires a service account)
 		tokenSource, err := idtoken.NewTokenSource(ctx, g.audience, idtoken.WithCredentialsJSON(credentials.JSON))
@@ -157,14 +157,13 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
 		}
 
-		// TODO: Remove the below log statements
-		log.Info(fmt.Sprintf("token value from GCP: %s", token.AccessToken))
+		log.Info(fmt.Sprintf("Google OIDC ID token successfully generated."))
 
 		payload, _ := idtoken.ParsePayload(token.AccessToken)
 
 		prettyPayload, _ := json.MarshalIndent(payload, "", "  ")
 
-		log.Info(fmt.Sprintf("JWT payload: %s", prettyPayload))
+		log.Info(fmt.Sprintf("Google OIDC ID token payload: %s", prettyPayload))
 
 		g.tokenSource = tokenSource
 	}
@@ -190,21 +189,4 @@ func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes 
 	}
 	tokenCredentialSource = source
 	return source, nil
-}
-
-// TODO: Remove this before merging
-func NewGCPDefaultCredentialSource(ctx context.Context, audience string, scopes []string) (*gcp, error) {
-	return newGCPDefaultCredentialSource(ctx, audience, scopes)
-}
-
-// TODO: Remove this before merging
-func ValidateToken(ctx context.Context, idToken string, expectedAudience string) bool {
-	_, err := idtoken.Validate(ctx, idToken, expectedAudience)
-	if err != nil {
-		return false
-	}
-
-	log.FromContext(ctx).Info("Token is valid")
-
-	return true
 }
