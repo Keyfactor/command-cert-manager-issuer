@@ -33,7 +33,7 @@ func main() {
 	}, funcr.Options{})
 	ctx := logr.NewContext(context.Background(), logger)
 	log := log.FromContext(ctx)
-	source, err := command.NewGCPDefaultCredentialSource(ctx, []string{"openid", "profile", "email", "https://www.googleapis.com/auth/cloud-platform"})
+	source, err := command.NewGCPDefaultCredentialSource(ctx, "https://example.com", []string{"openid", "profile", "email", "https://www.googleapis.com/auth/cloud-platform"})
 	if err != nil {
 		log.Error(err, fmt.Sprintf("Error getting credentials: %s", err))
 		return
@@ -44,9 +44,10 @@ func main() {
 		return
 	}
 	log.Info(fmt.Sprintf("source obtained: %s", token))
-	isValid := command.ValidateToken(ctx, token, "command")
+	isValid := command.ValidateToken(ctx, token, "https://example1.com")
 	if !isValid {
-		log.Info(fmt.Sprintf("Token not valid"))
+		log.Info(fmt.Sprintf("ERROR: Token not valid"))
+	} else {
+		log.Info(fmt.Sprintf("Success! Token successfully validated"))
 	}
-	log.Info(fmt.Sprintf("Token successfully validated"))
 }

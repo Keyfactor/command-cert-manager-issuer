@@ -131,6 +131,7 @@ var (
 type gcp struct {
 	tokenSource oauth2.TokenSource
 	scopes      []string
+	audience    string
 }
 
 // GetAccessToken implements TokenCredential.
@@ -146,7 +147,7 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		log.Info(fmt.Sprintf("Generating a Google OIDC ID Token"))
 
 		// Use credentials to generate a JWT (requires a service account)
-		tokenSource, err := idtoken.NewTokenSource(ctx, "command", idtoken.WithCredentialsJSON(credentials.JSON))
+		tokenSource, err := idtoken.NewTokenSource(ctx, g.audience, idtoken.WithCredentialsJSON(credentials.JSON))
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
 		}
@@ -178,9 +179,10 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 	return token.AccessToken, nil
 }
 
-func newGCPDefaultCredentialSource(ctx context.Context, scopes []string) (*gcp, error) {
+func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes []string) (*gcp, error) {
 	source := &gcp{
-		scopes: scopes,
+		scopes:   scopes,
+		audience: audience,
 	}
 	_, err := source.GetAccessToken(ctx)
 	if err != nil {
@@ -191,8 +193,8 @@ func newGCPDefaultCredentialSource(ctx context.Context, scopes []string) (*gcp, 
 }
 
 // TODO: Remove this before merging
-func NewGCPDefaultCredentialSource(ctx context.Context, scopes []string) (*gcp, error) {
-	return newGCPDefaultCredentialSource(ctx, scopes)
+func NewGCPDefaultCredentialSource(ctx context.Context, audience string, scopes []string) (*gcp, error) {
+	return newGCPDefaultCredentialSource(ctx, audience, scopes)
 }
 
 // TODO: Remove this before merging
