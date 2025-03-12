@@ -85,6 +85,14 @@ spec:
                   api://{tenant ID}/.default when requesting an access token for Entra ID (DefaultAzureCredential). Has no
                   effect on OAuth 2.0 Client Credential configuration - please specify the scopes for this method in an Opaque secret.
                 type: string
+              audience:
+                description: |-
+                  The audience value used when requesting a Bearer token from an ambient token provider implied
+                  by the environment, rather than by commandSecretName. For example, could be set to
+                  https://example.com when requesting an access token from Google's identity token provider. Ideally, this should be
+                  the URL of your Command environment. Has no effect on OAuth 2.0 Client Credential configuration - please specify 
+                  the audience for this method in an Opaque secret.
+                type: string
             type: object
           status:
             description: IssuerStatus defines the observed state of Issuer
