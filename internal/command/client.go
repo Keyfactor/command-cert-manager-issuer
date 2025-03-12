@@ -158,18 +158,10 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
 		}
 
-		token, err := tokenSource.Token()
+		_, err = tokenSource.Token()
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
 		}
-
-		log.Info(fmt.Sprintf("Google OIDC ID token successfully generated."))
-
-		payload, _ := idtoken.ParsePayload(token.AccessToken)
-
-		prettyPayload, _ := json.MarshalIndent(payload, "", "  ")
-
-		log.Info(fmt.Sprintf("Google OIDC ID token payload: %s", prettyPayload))
 
 		g.tokenSource = tokenSource
 	}
@@ -181,6 +173,13 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 	}
 
 	log.Info("fetched token using GCP ApplicationDefaultCredential")
+
+	payload, _ := idtoken.ParsePayload(token.AccessToken)
+
+	prettyPayload, _ := json.MarshalIndent(payload.Claims, "", "  ")
+
+	log.Info(fmt.Sprintf("Google OIDC ID token payload: %s", prettyPayload))
+
 	return token.AccessToken, nil
 }
 
