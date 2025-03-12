@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/idtoken"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -80,6 +82,13 @@ var (
 	_ TokenCredentialSource = &azure{}
 )
 
+func getValueOrDefault(configValue string, defaultValue string) string {
+	if configValue != "" {
+		return configValue
+	}
+	return defaultValue
+}
+
 type azure struct {
 	cred   azcore.TokenCredential
 	scopes []string
@@ -128,18 +137,33 @@ var (
 
 type gcp struct {
 	tokenSource oauth2.TokenSource
+	audience    string
 	scopes      []string
 }
 
 // GetAccessToken implements TokenCredential.
 func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 	// Lazily create the TokenSource if it's nil.
+	log := log.FromContext(ctx)
 	if g.tokenSource == nil {
 		credentials, err := google.FindDefaultCredentials(ctx, g.scopes...)
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
-		g.tokenSource = credentials.TokenSource
+		log.Info(fmt.Sprintf("generating a Google OIDC ID token..."))
+
+		// Use credentials to generate a JWT (requires a service account)
+		tokenSource, err := idtoken.NewTokenSource(ctx, getValueOrDefault(g.audience, "command"), idtoken.WithCredentialsJSON(credentials.JSON))
+		if err != nil {
+			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
+		}
+
+		_, err = tokenSource.Token()
+		if err != nil {
+			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
+		}
+
+		g.tokenSource = tokenSource
 	}
 
 	// Retrieve the token from the token source.
@@ -148,13 +172,21 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("%w: failed to fetch token from GCP ADC token source: %w", errTokenFetchFailure, err)
 	}
 
-	log.FromContext(ctx).Info("fetched token using GCP ApplicationDefaultCredential")
+	log.Info("fetched token using GCP ApplicationDefaultCredential")
+
+	payload, _ := idtoken.ParsePayload(token.AccessToken)
+
+	prettyPayload, _ := json.MarshalIndent(payload.Claims, "", "  ")
+
+	log.Info(fmt.Sprintf("Google OIDC ID token payload: %s", prettyPayload))
+
 	return token.AccessToken, nil
 }
 
-func newGCPDefaultCredentialSource(ctx context.Context, scopes []string) (*gcp, error) {
+func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes []string) (*gcp, error) {
 	source := &gcp{
-		scopes: scopes,
+		scopes:   scopes,
+		audience: audience,
 	}
 	_, err := source.GetAccessToken(ctx)
 	if err != nil {
