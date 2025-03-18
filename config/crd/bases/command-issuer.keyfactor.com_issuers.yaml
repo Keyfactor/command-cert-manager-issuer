@@ -44,6 +44,14 @@ spec:
                 description: APIPath is the base path of the Command API. KeyfactorAPI
                   by default
                 type: string
+              audience:
+                description: |-
+                  The audience value used when requesting a Bearer token from an ambient token provider implied
+                  by the environment, rather than by commandSecretName. For example, could be set to
+                  https://example.com when requesting an access token from Google's identity token provider. Ideally, this should be
+                  the URL of your Command environment.Has no effect on OAuth 2.0 Client Credential configuration - please specify
+                  the audience for this method in an Opaque secret.
+                type: string
               caSecretName:
                 description: |-
                   The name of the secret containing the CA bundle to use when verifying

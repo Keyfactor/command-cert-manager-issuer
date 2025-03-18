@@ -81,6 +81,14 @@ type IssuerSpec struct {
 	// effect on OAuth 2.0 Client Credential configuration - please specify the scopes for this method in an Opaque secret.
 	// +optional
 	Scopes string `json:"scopes,omitempty"`
+
+	// The audience value used when requesting a Bearer token from an ambient token provider implied
+	// by the environment, rather than by commandSecretName. For example, could be set to
+	// https://example.com when requesting an access token from Google's identity token provider. Ideally, this should be
+	// the URL of your Command environment.Has no effect on OAuth 2.0 Client Credential configuration - please specify
+	// the audience for this method in an Opaque secret.
+	// +optional
+	Audience string `json:"audience,omitempty"`
 }
 
 func (i *Issuer) GetStatus() *IssuerStatus {
