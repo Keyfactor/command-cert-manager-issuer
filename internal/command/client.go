@@ -17,7 +17,6 @@ limitations under the License.
 package command
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -173,12 +172,6 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 	}
 
 	log.Info("fetched token using GCP ApplicationDefaultCredential")
-
-	payload, _ := idtoken.ParsePayload(token.AccessToken)
-
-	prettyPayload, _ := json.MarshalIndent(payload.Claims, "", "  ")
-
-	log.Info(fmt.Sprintf("Google OIDC ID token payload: %s", prettyPayload))
 
 	return token.AccessToken, nil
 }
