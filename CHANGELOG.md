@@ -42,3 +42,9 @@
 
 ## Fixes
 - Bug fix in Helm chart release action
+
+# v2.1.0
+
+## Fixes
+- Updated library golang.org/x/crypto to version v0.33.0 to address authorization bypass vulnerability (https://github.com/advisories/GHSA-v778-237x-gjrc)
+- Bug fix for Google ambient credentials
