@@ -50,12 +50,14 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
     - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
-    If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules.
+    If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules:
 
-    | Global Permissions                    |
-    |-----------------------------------------|
-    | `CertificateMetadataTypes:Read` |
-    | `CertificateEnrollment:EnrollCSR`  |
+    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) |
+    |-----------------------------------------|---|---|
+    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` |
+    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  |
+
+    > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
 
 ## Installing Command Issuer
 
@@ -140,11 +142,18 @@ kubectl -n command-issuer-system create secret generic command-secret \
 
 Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Command Issuer to exchange a Kubernetes ServiceAccount Token for an Azure Entra ID access token, which is then used to authenticate to Command.
 
+At this time, Azure Kuberentes Services workload identity federation is best supported by [User Assigned Managed Identities](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-manage-user-assigned-managed-identities?pivots=identity-mi-methods-azp). Other identity solutions such as Azure AD Service Principals are not supported.
+
+Here is a guide on how to use Azure User Assigned Managed Identities to authenticate your AKS workload with your Keyfactor Command instance.
+
 1. Reconfigure the AKS cluster to enable workload identity federation.
 
     ```shell
+    export CLUSTER_NAME=<cluster-name>
+    export RESOURCE_GROUP=<resource-group>
     az aks update \
-        --name ${CLUSTER} \
+        --name ${CLUSTER_NAME} \
+        --resource-group ${RESOURCE_GROUP} \
         --enable-oidc-issuer \
         --enable-workload-identity
     ```
@@ -153,16 +162,28 @@ Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Comman
     >
     > Refer to the [AKS documentation](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster) for more information on the `--enable-workload-identity` feature.
 
-2. Reconfigure or deploy Command Issuer with extra labels for the Azure Workload Identity webhook, which will result in the Command Issuer controller Pod having an extra volume containing a Kubernetes ServiceAccount token which it will exchange for a token from Azure.
+2. Create a User Assigned Managed Identity in Azure.
 
     ```shell
+    export IDENTITY_NAME=command-issuer
+    az identity create --name "${IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}"
+    ```
+    > Read more about [the `az identity` command](https://learn.microsoft.com/en-us/cli/azure/identity?view=azure-cli-latest).
+
+3. Reconfigure or deploy Command Issuer with extra labels for the Azure Workload Identity webhook, which will result in the Command Issuer controller Pod having an extra volume containing a Kubernetes ServiceAccount token which it will exchange for a token from Azure.
+
+    ```shell
+    export UAMI_CLIENT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query clientId --output tsv)
+
+    echo "Identity Client ID: ${UAMI_CLIENT_ID}"
+
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
         --create-namespace \
-        --set "fullnameOverride=$chart_name" \
+        --set "fullnameOverride=command-cert-manager-issuer" \
         --set-string "podLabels.azure\.workload\.identity/use=true" \
-        --set-string "serviceAccount.labels.azure\.workload\.identity/use=true"
-        # --set-string "serviceAccount.annotations.azure\.workload\.identity/client-id=<managed identity client ID>" # May be necessary, but is usually not.
+        --set-string "serviceAccount.labels.azure\.workload\.identity/use=true" \
+        --set-string "serviceAccount.annotations.azure\.workload\.identity/client-id=${UAMI_CLIENT_ID}"
     ```
 
     If successful, the Command Issuer Pod will have new environment variables and the Azure WI ServiceAccount token as a projected volume:
@@ -176,7 +197,7 @@ Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Comman
       command-cert-manager-issuer:
         ...
         Environment:
-          AZURE_CLIENT_ID:             <GUID>
+          AZURE_CLIENT_ID:             <UAMI_CLIENT_ID>
           AZURE_TENANT_ID:             <GUID>
           AZURE_FEDERATED_TOKEN_FILE:  /var/run/secrets/azure/tokens/azure-identity-token
           AZURE_AUTHORITY_HOST:        https://login.microsoftonline.com/
@@ -193,15 +214,6 @@ Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Comman
 
     > Refer to [Azure Workload Identity docs](https://azure.github.io/azure-workload-identity/docs/installation/mutating-admission-webhook.html) more information on the role of the Mutating Admission Webhook.
 
-3. Create a User Assigned Managed Identity in Azure.
-
-    ```shell
-    export IDENTITY_NAME=command-issuer
-    az identity create --name "${IDENTITY_NAME}"
-    ```
-
-    > Read more about [the `az identity` command](https://learn.microsoft.com/en-us/cli/azure/identity?view=azure-cli-latest).
-
 4. Associate a Federated Identity Credential (FIC) with the User Assigned Managed Identity. The FIC allows Command Issuer to act on behalf of the Managed Identity by telling Azure to expect:
     - The `iss` claim of the ServiceAccount token to match the cluster's OIDC Issuer. Azure will also use the Issuer URL to download the JWT signing certificate.
     - The `sub` claim of the ServiceAccount token to match the ServiceAccount's name and namespace.
@@ -209,19 +221,36 @@ Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Comman
     ```shell
     export SERVICE_ACCOUNT_NAME=command-cert-manager-issuer # This is the default Kubernetes ServiceAccount used by the Command Issuer controller.
     export SERVICE_ACCOUNT_NAMESPACE=command-issuer-system # This is the default namespace for Command Issuer used in this doc.
-    export SERVICE_ACCOUNT_ISSUER=$(az aks show --resource-group $AZURE_DEFAULTS_GROUP --name $CLUSTER --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+    export SERVICE_ACCOUNT_ISSUER=$(az aks show --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --query "oidcIssuerProfile.issuerUrl" -o tsv)
     az identity federated-credential create \
-        --name "command-issuer" \
+        --name "${IDENTITY_NAME}-federated-credentials" \
         --identity-name "${IDENTITY_NAME}" \
+        --resource-group "${RESOURCE_GROUP}" \
         --issuer "${SERVICE_ACCOUNT_ISSUER}" \
-        --subject "system:serviceaccount:${SERVICE_ACCOUNT_NAMESPACE}:${SERVICE_ACCOUNT_NAME}"
+        --subject "system:serviceaccount:${SERVICE_ACCOUNT_NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
+        --audiences "api://AzureADTokenExchange"
     ```
 
     > Read more about [Workload Identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation) in the Entra ID documentation.
     >
     > Read more about [the `az identity federated-credential` command](https://learn.microsoft.com/en-us/cli/azure/identity/federated-credential?view=azure-cli-latest).
 
-5. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider), and [add the Managed Identity's Client ID as an `oid` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier. 
+5. Get the Managed Identity's Principal ID and Entra Identity Provider Information
+
+  ```shell
+  export UAMI_PRINCIPAL_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query principalId --output tsv)
+  export CURRENT_TENANT=$(az account show --query tenantId --output tsv)
+  echo "UAMI Principal ID: ${UAMI_PRINCIPAL_ID}"
+
+  echo "View then OIDC configuration for the Entra OIDC token issuer: https://login.microsoftonline.com/$CURRENT_TENANT/v2.0/.well-known/openid-configuration"
+  
+  echo "Authority: https://login.microsoftonline.com/$CURRENT_TENANT/v2.0"
+  ```
+
+  > **IMPORTANT NOTE**: The Microsoft Entra Identity Provider is associated with your Azure tenant ID. Multi-tenant Azure workloads will require a Command Identity Provider for each tenant. 
+
+6. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Managed Identity's Principal ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
 
 # CA Bundle
 
