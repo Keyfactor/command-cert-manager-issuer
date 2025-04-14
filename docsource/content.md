@@ -38,7 +38,7 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
     - If you don't have any suitable Certificate Templates, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm?Highlight=Certificate%20Template) or reach out to your Keyfactor support representative to learn more.
 
-    The Certificate Template that you shoose must be configured to allow CSR Enrollment.
+    The Certificate Template that you choose must be configured to allow CSR Enrollment.
 
     You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template in Command.    
 
@@ -46,7 +46,9 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
 3. **Configure Command Security Roles and Claims**
 
-    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.  
+    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.
+
+    The security role will need to be added as an Allowed Requester Security Role on the Certificate Authority and Certificate Template configured in the previous two steps.
 
     - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
@@ -58,6 +60,12 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
     | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  |
 
     > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
+
+![Permission Metadata Read](./images/security_permission_metadata_read.png)
+![Permission Certificate CSR Enrollment](./images/security_permission_enrollment_csr.png)
+![Certificate Authority Allowed Requester](./images/ca_allowed_requester.png)
+![Certificate Template Allowed Requester](./images/cert_template_allowed_requester.png)
+
 
 ## Installing Command Issuer
 
@@ -250,7 +258,47 @@ Here is a guide on how to use Azure User Assigned Managed Identities to authenti
 
   > **IMPORTANT NOTE**: The Microsoft Entra Identity Provider is associated with your Azure tenant ID. Multi-tenant Azure workloads will require a Command Identity Provider for each tenant. 
 
-6. Add Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Managed Identity's Principal ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
+6. Add the Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Managed Identity's Principal ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
+
+## Google Kubernetes Engine (GKE) Workload Identity
+
+Google Kuberentes Engine (GKE) supports the ability to authenticate your GKE workloads using workload identity. 
+
+By default, GKE clusters are assigned the [default service account](https://cloud.google.com/compute/docs/access/service-accounts#token) for your Google project. This service account is used to generate an ID token for your workload. However, you may opt to use [Workload Identity Federation](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#metadata-server) to your GKE cluster.
+
+1. Get the OAuth Client and Identity Provider for your GKE Cluster
+
+  Regardless if you are using the default service account or a custom service account, the following script will help you derive your GKE cluster's OAuth Client:
+
+  ```shell
+  export CLUSTER_NAME=<cluster-name>
+  export GCLOUD_REGION=<region>
+  export GCLOUD_PROJECT_ID=$(gcloud config get-value project) # populate with the current PROJECT_ID context
+  export GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT_ID --format="value(projectNumber)")
+    
+  export GCLOUD_SERVICE_ACCOUNT=$(gcloud container clusters describe $CLUSTER_NAME \
+  --zone $GCLOUD_REGION \
+  --format="value(nodeConfig.serviceAccount)")
+
+  if [[ "$GCLOUD_SERVICE_ACCOUNT" == "default" ]]; then
+    # Override service account with default compute service account
+    GCLOUD_SERVICE_ACCOUNT="$GCLOUD_PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+  fi
+  
+  echo "Service account: $GCLOUD_SERVICE_ACCOUNT"
+  
+  # Get OAuth2 Client ID of service account
+  export GCLOUD_SERVICE_ACCOUNT_CLIENT_ID=$(gcloud iam service-accounts describe $GCLOUD_SERVICE_ACCOUNT \
+  --format="value(oauth2ClientId)")
+  
+  echo "Service account OAuth2 client ID: $GCLOUD_SERVICE_ACCOUNT_CLIENT_ID"
+  
+  echo "View the OIDC configuration for Google's OIDC token issuer: https://accounts.google.com/.well-known/openid-configuration"
+  
+  echo "Authority: https://accounts.google.com"
+  ```
+
+2. Add Google as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Service Account's OAuth Client ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
 
 # CA Bundle
 
