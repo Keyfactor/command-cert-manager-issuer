@@ -85,10 +85,12 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
     If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules.
 
-    | Global Permissions                    |
-    |-----------------------------------------|
-    | `CertificateMetadataTypes:Read` |
-    | `CertificateEnrollment:EnrollCSR`  |
+    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) |
+    |-----------------------------------------|---|---|
+    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` |
+    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  |
+
+    > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
 
 ## Installing Command Issuer
 
@@ -172,6 +174,10 @@ kubectl -n command-issuer-system create secret generic command-secret \
 ## Managed Identity Using Azure Entra ID Workload Identity (AKS)
 
 Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Command Issuer to exchange a Kubernetes ServiceAccount Token for an Azure Entra ID access token, which is then used to authenticate to Command.
+
+At this time, Azure Kuberentes Services workload identity federation is best supported by [User Assigned Managed Identities](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-manage-user-assigned-managed-identities?pivots=identity-mi-methods-azp). Other identity solutions such as Azure AD Service Principals are not supported.
+
+Here is a guide on how to use Azure User Assigned Managed Identities to authenticate your AKS workload with your Keyfactor Command instance.
 
 1. Reconfigure the AKS cluster to enable workload identity federation.
 
