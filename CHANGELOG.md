@@ -48,3 +48,11 @@
 ## Fixes
 - Updated library golang.org/x/crypto to version v0.33.0 to address authorization bypass vulnerability (https://github.com/advisories/GHSA-v778-237x-gjrc)
 - Bug fix for Google ambient credentials
+
+# v2.1.1
+
+## Fixes
+- Update Helm chart deployment template to resolve Docker image metadata issue.
+
+## Chores
+- Update documentation for more clear instructions on deploying workloads to Azure Kubernetes Service and Google Kubernetes Engine, as well as permissions needed on Command Security Roles.
