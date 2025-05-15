@@ -171,7 +171,7 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 
 	// Lazily create the TokenSource if it's nil.
 	if g.tokenSource == nil {
-		log.Info(fmt.Sprintf("generating default Google credentials with scopes %s", strings.Join(g.scopes, " ")))
+		log.Info(fmt.Sprintf("generating default Google credentials with scopes: %s", strings.Join(g.scopes, " ")))
 
 		credentials, err := google.FindDefaultCredentials(ctx, g.scopes...)
 		if err != nil {
@@ -230,20 +230,20 @@ func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes 
 	return source, nil
 }
 
-func printClaims(log logr.Logger, token string, claimsToPrint []string) {
+func printClaims(log logr.Logger, token string, claimsToPrint []string) error {
 	tokenRaw, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
 		log.Error(err, "failed to parse JWT")
+		return fmt.Errorf("failed to parse JWT: %w", err)
 	}
 
-	claims, ok := tokenRaw.Claims.(jwt.MapClaims)
-	if !ok {
-		log.Info("Unable to get claims from token")
-	}
+	claims, _ := tokenRaw.Claims.(jwt.MapClaims)
 
 	for _, key := range claimsToPrint {
 		if value, ok := claims[key]; ok {
 			log.Info(fmt.Sprintf("	%s:	%s", key, value))
 		}
 	}
+
+	return nil
 }
