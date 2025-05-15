@@ -233,7 +233,7 @@ func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes 
 func printClaims(log logr.Logger, token string, claimsToPrint []string) {
 	tokenRaw, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
-		log.Info(fmt.Sprintf("failed to parse JWT: %w", err))
+		log.Error(err, "failed to parse JWT")
 	}
 
 	claims, ok := tokenRaw.Claims.(jwt.MapClaims)
