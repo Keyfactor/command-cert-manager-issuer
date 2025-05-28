@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4.2.0
+      - uses: actions/setup-go@v4.2.1
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Go 1.x
-        uses: actions/setup-go@4.2.0
+        uses: actions/setup-go@v4.2.1
         with:
           go-version-file: 'go.mod'
           cache: true
