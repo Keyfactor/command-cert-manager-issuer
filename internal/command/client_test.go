@@ -9,6 +9,7 @@ import (
 )
 
 func TestPrintClaims(t *testing.T) {
+	testLogger := testr.New(t)
 	t.Run("valid jwt returns no error", func(t *testing.T) {
 		// Sample JWT with dummy claims (no signature needed for ParseUnverified)
 		claims := jwt.MapClaims{
@@ -18,8 +19,28 @@ func TestPrintClaims(t *testing.T) {
 		}
 		token := createUnsignedJWT(t, claims)
 
-		// Use testr logger
-		testLogger := testr.New(t)
+		// Call the function
+		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
+		assert.NoError(t, err)
+	})
+
+	t.Run("jwt with no issuer does not error", func(t *testing.T) {
+		// Sample JWT with dummy claims (no signature needed for ParseUnverified)
+		claims := jwt.MapClaims{
+			"aud": "api://1234",
+			"sub": "user-id",
+		}
+		token := createUnsignedJWT(t, claims)
+
+		// Call the function
+		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
+		assert.NoError(t, err)
+	})
+
+	t.Run("jwt with empty claims does not error", func(t *testing.T) {
+		// Sample JWT with dummy claims (no signature needed for ParseUnverified)
+		claims := jwt.MapClaims{}
+		token := createUnsignedJWT(t, claims)
 
 		// Call the function
 		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
@@ -27,18 +48,12 @@ func TestPrintClaims(t *testing.T) {
 	})
 
 	t.Run("invalid jwt returns an error", func(t *testing.T) {
-		// Use testr logger
-		testLogger := testr.New(t)
-
 		// Call the function
 		err := printClaims(testLogger, "abcdefghijklmnop", []string{"aud", "iss", "sub"})
 		assert.Error(t, err)
 	})
 
-	t.Run("jwt with no claims returns error", func(t *testing.T) {
-		// Use testr logger
-		testLogger := testr.New(t)
-
+	t.Run("jwt with empty payload returns error", func(t *testing.T) {
 		// Call the function
 		err := printClaims(testLogger, "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0..", []string{"aud", "iss", "sub"})
 		assert.Error(t, err)

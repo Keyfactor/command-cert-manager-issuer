@@ -129,7 +129,7 @@ func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 
 		log.Info("==== BEGIN DEBUG: DefaultAzureCredential JWT ======")
 
-		printClaims(log, tokenString, []string{"aud", "azp", "iss", "sub", "oid"})
+		printClaims(log, tokenString, []string{"aud", "appid", "azp", "iss", "sub", "oid"})
 
 		log.Info("==== END DEBUG: DefaultAzureCredential JWT ======")
 	}
@@ -239,10 +239,15 @@ func printClaims(log logr.Logger, token string, claimsToPrint []string) error {
 
 	claims, _ := tokenRaw.Claims.(jwt.MapClaims)
 
+	// To assist with troubleshooting, only print access token claims relevant to Command configuration
 	for _, key := range claimsToPrint {
 		if value, ok := claims[key]; ok {
-			log.Info(fmt.Sprintf("	%s:	%s", key, value))
+			log.Info(fmt.Sprintf("\t%s:	%s", key, value))
 		}
+	}
+
+	if issuer, err := claims.GetIssuer(); err != nil {
+		log.Info(fmt.Sprintf("\nNOTE: If you are receiving a HTTP 401 on requests to Command, make sure an identity provider in Command is configured with '%s' as the authority.\nThe discovery endpoint for your issuer can be found at %s/.well-known/openid-configuration.", issuer, issuer))
 	}
 
 	return nil
