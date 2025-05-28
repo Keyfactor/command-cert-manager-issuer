@@ -389,7 +389,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
         spec:
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically
-          commandSecretName: "command-secret" # references the secret created above
+          commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
           caSecretName: "command-ca-secret" # references the secret created above
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
@@ -415,7 +415,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
         spec:
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically 
-          commandSecretName: "command-secret" # references the secret created above
+          commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
           caSecretName: "command-ca-secret" # references the secret created above
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
