@@ -167,6 +167,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	nonAmbientCredentialsConfigured := false
 
 	if config.BasicAuth != nil {
+		log.Info("Using basic auth credential source")
+
 		basicAuthConfig := auth_providers.NewBasicAuthAuthenticatorBuilder().
 			WithUsername(config.BasicAuth.Username).
 			WithPassword(config.BasicAuth.Password)
@@ -177,6 +179,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	}
 
 	if config.OAuth != nil {
+		log.Info("Using OAuth credential source")
+
 		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
 			WithTokenUrl(config.OAuth.TokenURL).
 			WithClientId(config.OAuth.ClientID).
