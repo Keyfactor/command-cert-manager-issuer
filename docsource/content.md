@@ -96,7 +96,7 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
     ```
 
     Optionally, set the Docker image tag of command-cert-manager-issuer to deploy ([available tags](https://hub.docker.com/r/keyfactor/command-cert-manager-issuer/tags))
-    
+
     ```shell
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
@@ -231,7 +231,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
           certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME"
-          # scopes: "openid email https://example.com/.default" # Uncomment if desired
+          # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
 
@@ -257,7 +257,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
           certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME"
-          # scopes: "openid email https://example.com/.default" # Uncomment if desired
+          # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
 
@@ -381,3 +381,27 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
     ```yaml
     metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
     ```
+
+# Troubleshooting
+
+## Failed to Authenticate, Received Status Code 401 from Keyfactor Command
+
+If you see this error, the identity provider that issued credentials to your command-cert-manager-issuer (using OAuth, Basic, or ambient credentials) is not a registered identity provider in your Keyfactor Command instance. Please see the [Configuring Command](#configuring-command) section for more information.
+
+```bash
+failed to create new Command API client: failed to authenticate, received status code 401 from Keyfactor Command
+```
+
+## Failed to Authenticate, Received Status Code 403 from Keyfactor Command
+
+If you see this error, the identity provider that issued credentials to your command-cert-manager-issuer (using OAuth, Basic, or ambient credentials) is configured in Keyfactor Command, however the identity associated to those credentials is not associated with any security roles. Make sure the identity is mapped to a security claim. See the **Configure Command Security Roles and Claims** section of the [Configuring Command](#configuring-command) section for more information.
+
+```bash
+failed to create new Command API client: failed to authenticate, received status code 403 from Keyfactor Command: {\"ErrorCode\":\"0xA0140002\",\"Message\":\"User <user-id> doesn\\u0027t have the required permission\"}
+```
+
+If you see this sort of error, the identity is mapped to one or more security roles in Keyfactor Command, but is missing the necessary permissions. See the **Configure Command Security Roles and Claims** section of the [Configuring Command](#configuring-command) section for the required permissions.
+
+```bash
+failed to fetch metadata fields from connected Command instance: User <user-id> does not have the required permissions: /metadata/types/read/.
+```
