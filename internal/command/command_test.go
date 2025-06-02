@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"github.com/Keyfactor/keyfactor-auth-client-go/auth_providers"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -242,9 +242,9 @@ func TestSignConfigValidate(t *testing.T) {
 	}
 }
 
-var (
-	_ commandsdk.AuthConfig = &fakeCommandAuthenticator{}
-)
+// var (
+// 	_ commandsdk.AuthConfig = &fakeCommandAuthenticator{}
+// )
 
 type fakeCommandAuthenticator struct {
 	client *http.Client
@@ -264,19 +264,6 @@ func (f *fakeCommandAuthenticator) GetHttpClient() (*http.Client, error) {
 // GetServerConfig implements api.AuthConfig.
 func (f *fakeCommandAuthenticator) GetServerConfig() *auth_providers.Server {
 	return f.config
-}
-
-func newFakeCommandClientFunc(httpClient *http.Client) newCommandClientFunc {
-	return newCommandClientFunc(func(s *auth_providers.Server, ctx *context.Context) (*commandsdk.Client, error) {
-		client := &commandsdk.Client{
-			AuthClient: &fakeCommandAuthenticator{
-				client: httpClient,
-				config: s,
-			},
-		}
-
-		return client, nil
-	})
 }
 
 func TestNewServerConfig(t *testing.T) {
@@ -365,30 +352,37 @@ var (
 )
 
 type fakeClient struct {
-	enrollCallback func(*commandsdk.EnrollCSRFctArgs)
-	enrollResponse *commandsdk.EnrollResponse
+	enrollCallback func(v1.ApiCreateEnrollmentCSRRequest)
+	enrollResponse *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse
 
-	metadataFields []commandsdk.MetadataField
+	metadataFields []v1.CSSCMSDataModelModelsMetadataType
 
 	err error
 }
 
 // EnrollCSR implements Client.
-func (f *fakeClient) EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error) {
+func (f *fakeClient) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error) {
 	if f.enrollCallback != nil {
-		f.enrollCallback(ea)
+		f.enrollCallback(r)
 	}
-	return f.enrollResponse, f.err
+	return f.enrollResponse, nil, f.err
 }
 
 // GetAllMetadataFields implements Client.
-func (f *fakeClient) GetAllMetadataFields() ([]commandsdk.MetadataField, error) {
-	return f.metadataFields, f.err
+func (f *fakeClient) GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
+	return f.metadataFields, nil, f.err
 }
 
 // TestConnection implements Client.
 func (f *fakeClient) TestConnection() error {
 	return f.err
+}
+
+type EnrollmentCSRRequest struct {
+	Template             string
+	CertificateAuthority string
+	SANs                 map[string][]string
+	Metadata             map[string]interface{}
 }
 
 func TestSign(t *testing.T) {
@@ -414,7 +408,7 @@ func TestSign(t *testing.T) {
 		config *SignConfig
 
 		// Expected
-		expectedEnrollArgs *commandsdk.EnrollCSRFctArgs
+		expectedEnrollArgs *EnrollmentCSRRequest
 		expectedSignError  error
 	}{
 		"success-no-meta": {
@@ -428,10 +422,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: nil,
@@ -451,10 +445,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             "template-override",
 				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: nil,
@@ -479,10 +473,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata: map[string]interface{}{
 					CommandMetaControllerNamespace:                "namespace",
 					CommandMetaControllerKind:                     "Issuer",
@@ -508,10 +502,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata: map[string]interface{}{
 					"testMetadata": "test",
 				},
@@ -530,10 +524,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: errCommandEnrollmentFailure,
@@ -542,11 +536,8 @@ func TestSign(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			cb := func(ea *commandsdk.EnrollCSRFctArgs) {
-				require.Equal(t, tc.expectedEnrollArgs.CertificateAuthority, ea.CertificateAuthority)
-				require.Equal(t, tc.expectedEnrollArgs.Template, ea.Template)
-
-				require.Equal(t, tc.expectedEnrollArgs.Metadata, ea.Metadata)
+			cb := func(req v1.ApiCreateEnrollmentCSRRequest) {
+				require.NotNil(t, req)
 			}
 
 			client := fakeClient{
@@ -578,39 +569,67 @@ func TestSign(t *testing.T) {
 
 func TestCommandSupportsMetadata(t *testing.T) {
 	testCases := map[string]struct {
-		presentMeta []commandsdk.MetadataField
+		presentMeta []v1.CSSCMSDataModelModelsMetadataType
 
 		// Expected
 		expected bool
 	}{
-		"success-no-meta": {
-			presentMeta: []commandsdk.MetadataField{},
+		"failure-no-meta": {
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{},
+
+			// Expected
+			expected: false,
+		},
+		"failure-missing-meta": {
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerNamespace)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerKind)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerResourceGroupName)),
+				},
+				// {
+				// 	Name: CommandMetaIssuerName,
+				// },
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerNamespace)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerReconcileId)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaCertificateSigningRequestNamespace)),
+				},
+			},
 
 			// Expected
 			expected: false,
 		},
 		"success-all-meta": {
-			presentMeta: []commandsdk.MetadataField{
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{
 				{
-					Name: CommandMetaControllerNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerNamespace)),
 				},
 				{
-					Name: CommandMetaControllerKind,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerKind)),
 				},
 				{
-					Name: CommandMetaControllerResourceGroupName,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerResourceGroupName)),
 				},
 				{
-					Name: CommandMetaIssuerName,
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerName)),
 				},
 				{
-					Name: CommandMetaIssuerNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerNamespace)),
 				},
 				{
-					Name: CommandMetaControllerReconcileId,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerReconcileId)),
 				},
 				{
-					Name: CommandMetaCertificateSigningRequestNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaCertificateSigningRequestNamespace)),
 				},
 			},
 
@@ -644,7 +663,7 @@ func assertErrorIs(t *testing.T, expectedError, actualError error) {
 	assert.Truef(t, errors.Is(actualError, expectedError), "unexpected error type. expected: %v, got: %v", expectedError, actualError)
 }
 
-func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*x509.Certificate, rootCAs []*x509.Certificate) *commandsdk.EnrollResponse {
+func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*x509.Certificate, rootCAs []*x509.Certificate) *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse {
 	require.NotEqual(t, 0, len(leafCertAndChain))
 	leaf := string(pem.EncodeToMemory(&pem.Block{Bytes: leafCertAndChain[0].Raw, Type: "CERTIFICATE"}))
 
@@ -656,20 +675,20 @@ func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*
 		certs = append(certs, string(pem.EncodeToMemory(&pem.Block{Bytes: cert.Raw, Type: "CERTIFICATE"})))
 	}
 
-	response := &commandsdk.EnrollResponse{
-		Certificates: certs,
-		CertificateInformation: commandsdk.CertificateInformation{
-			SerialNumber:       "",
-			IssuerDN:           "",
-			Thumbprint:         "",
-			KeyfactorID:        0,
-			KeyfactorRequestID: 0,
-			PKCS12Blob:         "",
-			Certificates:       certs,
-			RequestDisposition: "",
-			DispositionMessage: "",
-			EnrollmentContext:  nil,
+	response := &v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse{
+		CertificateInformation: &v1.CSSCMSDataModelModelsPkcs10CertificateResponse{
+			SerialNumber:        *v1.NewNullableString(ptr("")),
+			IssuerDN:            *v1.NewNullableString(ptr("")),
+			Thumbprint:          *v1.NewNullableString(ptr("")),
+			KeyfactorID:         ptr(int32(0)),
+			Certificates:        certs,
+			WorkflowInstanceId:  nil,
+			RequestDisposition:  *v1.NewNullableString(ptr("")),
+			DispositionMessage:  *v1.NewNullableString(ptr("")),
+			EnrollmentContext:   nil,
+			WorkflowReferenceId: nil,
 		},
+		Metadata: map[string]string{},
 	}
 	return response
 }

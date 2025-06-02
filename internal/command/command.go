@@ -26,7 +26,8 @@ import (
 	"time"
 
 	"github.com/Keyfactor/keyfactor-auth-client-go/auth_providers"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	commandsdk "github.com/Keyfactor/keyfactor-go-client-sdk/v25"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -68,7 +69,7 @@ type Signer interface {
 	Sign(context.Context, []byte, *SignConfig) ([]byte, []byte, error)
 }
 
-type newCommandClientFunc func(*auth_providers.Server, *context.Context) (*commandsdk.Client, error)
+type newCommandClientFunc func(*auth_providers.Server) (*commandsdk.APIClient, error)
 
 type signer struct {
 	client Client
@@ -167,6 +168,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	nonAmbientCredentialsConfigured := false
 
 	if config.BasicAuth != nil {
+		log.Info("Using basic auth credential source")
+
 		basicAuthConfig := auth_providers.NewBasicAuthAuthenticatorBuilder().
 			WithUsername(config.BasicAuth.Username).
 			WithPassword(config.BasicAuth.Password)
@@ -177,6 +180,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	}
 
 	if config.OAuth != nil {
+		log.Info("Using OAuth credential source")
+
 		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
 			WithTokenUrl(config.OAuth.TokenURL).
 			WithClientId(config.OAuth.ClientID).
@@ -277,15 +282,15 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 		return nil, err
 	}
 
-	client, err := newClientFunc(serverConfig, &ctx)
+	client, err := newClientFunc(serverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Command API client: %w", err)
 	}
 
 	adapter := &clientAdapter{
-		enrollCSR:            client.EnrollCSR,
-		getAllMetadataFields: client.GetAllMetadataFields,
-		testConnection:       client.AuthClient.Authenticate,
+		enrollCSR:            client.V1.EnrollmentApi.CreateEnrollmentCSRExecute,
+		getAllMetadataFields: client.V1.MetadataFieldApi.GetMetadataFieldsExecute,
+		testConnection:       client.V1.AuthClient.Authenticate,
 	}
 
 	log.Info("Successfully generated Command client")
@@ -295,11 +300,11 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 }
 
 func NewHealthChecker(ctx context.Context, config *Config) (HealthChecker, error) {
-	return newInternalSigner(ctx, config, commandsdk.NewKeyfactorClient)
+	return newInternalSigner(ctx, config, commandsdk.NewAPIClient)
 }
 
 func NewSignerBuilder(ctx context.Context, config *Config) (Signer, error) {
-	return newInternalSigner(ctx, config, commandsdk.NewKeyfactorClient)
+	return newInternalSigner(ctx, config, commandsdk.NewAPIClient)
 }
 
 // Check implements HealthChecker.
@@ -313,7 +318,7 @@ func (s *signer) Check(ctx context.Context) error {
 
 // CommandSupportsMetadata implements HealthChecker.
 func (s *signer) CommandSupportsMetadata() (bool, error) {
-	existingFields, err := s.client.GetAllMetadataFields()
+	existingFields, _, err := s.client.GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest{})
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch metadata fields from connected Command instance: %w", err)
 	}
@@ -331,13 +336,14 @@ func (s *signer) CommandSupportsMetadata() (bool, error) {
 	// Create a lookup map (set) of existing field names
 	existingFieldSet := make(map[string]struct{}, len(existingFields))
 	for _, field := range existingFields {
-		existingFieldSet[field.Name] = struct{}{}
+		name := field.Name.Get()
+		existingFieldSet[*name] = struct{}{}
 	}
 
 	// Check that every expected field is present
 	for _, expectedField := range expectedFieldsSlice {
 		if _, found := existingFieldSet[expectedField]; !found {
-			// As soon as one required field is missing, return false
+			// As soon as one recommended field is missing, return false
 			return false, nil
 		}
 	}
@@ -400,13 +406,15 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		k8sLog.Info(fmt.Sprintf("URI SAN: %s", uri.String()))
 	}
 
-	modelRequest := commandsdk.EnrollCSRFctArgs{
+	req := v1.ApiCreateEnrollmentCSRRequest{}
+	req = req.XCertificateformat(enrollmentPEMFormat)
+
+	modelRequest := v1.EnrollmentCSREnrollmentRequest{
 		CSR:          string(csrBytes),
-		Template:     config.CertificateTemplate,
-		CertFormat:   enrollmentPEMFormat,
-		Timestamp:    time.Now().Format(time.RFC3339),
-		IncludeChain: true,
-		SANs:         &commandsdk.SANs{},
+		Template:     *v1.NewNullableString(ptr(config.CertificateTemplate)),
+		Timestamp:    ptr(time.Now()),
+		IncludeChain: ptr(true),
+		SANs:         map[string][]string{},
 		Metadata:     map[string]interface{}{},
 	}
 
@@ -431,9 +439,13 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		caBuilder.WriteString("\\")
 	}
 	caBuilder.WriteString(config.CertificateAuthorityLogicalName)
-	modelRequest.CertificateAuthority = caBuilder.String()
+	modelRequest.CertificateAuthority = *v1.NewNullableString(ptr(caBuilder.String()))
 
-	commandCsrResponseObject, err := s.client.EnrollCSR(&modelRequest)
+	req = req.EnrollmentCSREnrollmentRequest(modelRequest)
+
+	k8sLog.Info(fmt.Sprintf("Enrolling certificate with Command using template %q and CA %q", config.CertificateTemplate, caBuilder.String()))
+
+	commandCsrResponseObject, _, err := s.client.EnrollCSR(req)
 	if err != nil {
 		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template %q exists and that the certificate authority %q (%s) is configured correctly", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
 
