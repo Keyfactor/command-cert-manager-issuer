@@ -18,12 +18,13 @@ package command
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	"github.com/go-logr/logr"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/net/context"
@@ -46,8 +47,8 @@ func setAmbientTokenCredentialSource(source TokenCredentialSource) {
 }
 
 type Client interface {
-	EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error)
-	GetAllMetadataFields() ([]commandsdk.MetadataField, error)
+	EnrollCSR(v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
+	GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
 	TestConnection() error
 }
 
@@ -56,19 +57,19 @@ var (
 )
 
 type clientAdapter struct {
-	enrollCSR            func(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error)
-	getAllMetadataFields func() ([]commandsdk.MetadataField, error)
+	enrollCSR            func(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
+	getAllMetadataFields func(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
 	testConnection       func() error
 }
 
 // EnrollCSR implements CertificateClient.
-func (c *clientAdapter) EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error) {
-	return c.enrollCSR(ea)
+func (c *clientAdapter) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error) {
+	return c.enrollCSR(r)
 }
 
 // GetAllMetadataFields implements Client.
-func (c *clientAdapter) GetAllMetadataFields() ([]commandsdk.MetadataField, error) {
-	return c.getAllMetadataFields()
+func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
+	return c.getAllMetadataFields(r)
 }
 
 // TestConnection implements CertificateClient.
