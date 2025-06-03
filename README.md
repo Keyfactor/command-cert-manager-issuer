@@ -45,6 +45,7 @@ Before continuing, ensure that the following requirements are met:
         - `/Status/Endpoints`
         - `/Enrollment/CSR`
         - `/MetadataFields`
+        - `/EnrollmentPatterns` (Keyfactor Command 25.1 and above)
 - Kubernetes >= v1.19
     - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), etc.
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
@@ -91,10 +92,11 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
     If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules:
 
-    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) |
-    |-----------------------------------------|---|---|
-    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` |
-    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  |
+    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) | Notes
+    |-----------------------------------------|---|---|--|
+    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` | |
+    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  | |
+    | Enrollment Patterns > Read (Optional) | `/enrollment_pattern/read/` | N/A  | Required if using `EnrollmentPatternName` |
 
     > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
 
@@ -206,10 +208,6 @@ kubectl -n command-issuer-system create secret generic command-secret \
 
 This section has moved. Please refer to [this link](./docs/ambient-providers/azure.md) for documentation on configuring ambient credentials with AKS.
 
-## Google Kubernetes Engine (GKE) Workload Identity
-
-This section has moved. Please refer to [this link](./docs/ambient-providers/google.md) for documentation on configuring ambient credentials with GKE.
-
 # CA Bundle
 
 If the Command API is configured to use a self-signed certificate or with a certificate whose issuer isn't widely trusted, the CA certificate must be provided as a Kubernetes secret.
@@ -232,6 +230,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     export COMMAND_CA_LOGICAL_NAME="<certificateAuthorityName>"
     export CERTIFICATE_TEMPLATE_SHORT_NAME="<certificateTemplateShortName>"
     export ENROLLMENT_PATTERN_NAME="<enrollmentPatternName>"
+    export ENROLLMENT_PATTERN_ID="<enrollmentPatternId>"
     ```
 
     The `spec` field of both the Issuer and ClusterIssuer resources use the following fields:
@@ -243,9 +242,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate. Required if the Command API uses a self-signed certificate or it was signed by a CA that is not widely trusted.      |
     | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
-    | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified template is not compatible with the enrollment pattern.                                                                        |
-    | enrollmentPatternName     | The Name of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified template is not compatible with the enrollment pattern.                                                                        |
-    | certificateTemplate     | The Short Name of the Certificate Template to use when this Issuer/ClusterIssuer enrolls CSRs. **Deprecated in favor of [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns.htm) as of Keyfactor Command 25.1**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. Enrollment will fail if the specified template is not compatible with the enrollment pattern.                                                                      |
+    | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
+    | enrollmentPatternName     | The Name of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern. If using `enrollmentPatternName`, your security role must have `/enrollment_pattern/read/` permission.                                                                       |
+    | certificateTemplate     | The Short Name of the Certificate Template to use when this Issuer/ClusterIssuer enrolls CSRs. **Deprecated in favor of [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns.htm) as of Keyfactor Command 25.1**. If `certificateTemplate` and either `enrollmentPatternName` or `enrollmentPatternId` are specified, the enrollment pattern parameter will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                      |
     | scopes     | (Optional) Required if using ambient credentials with Azure AKS. If using ambient credentials, these scopes will be put on the access token generated by the ambient credentials' token provider, if applicable.   |
      | audience     | (Optional) If using ambient credentials, this audience will be put on the access token generated by the ambient credentials' token provider, if applicable. Google's ambient credential token provider generates an OIDC ID Token. If this value is not provided, it will default to `command`.  |
 
@@ -272,8 +271,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
-          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment if required
+          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
@@ -299,8 +299,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
-          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment if required
+          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
@@ -349,7 +350,7 @@ spec:
   request: <csr>
 ```
 
-> All fields in Command Issuer and ClusterIssuer `spec` can be overridden by applying Kubernetes Annotations to Certificates _and_ CertificateRequests. See [runtime customization for more](docs/annotations.md) 
+> All fields in Command Issuer and ClusterIssuer `spec` can be overridden by applying Kubernetes Annotations to Certificates _and_ CertificateRequests. See [runtime customization for more](#overriding-the-issuerclusterissuer-spec-using-kubernetes-annotations-on-certificaterequest-resources) 
 
 ## Approving Certificate Requests
 
@@ -371,12 +372,13 @@ kubectl get secret command-certificate -o jsonpath='{.data.tls\.crt}' | base64 -
 
 ## Overriding the Issuer/ClusterIssuer `spec` using Kubernetes Annotations on CertificateRequest Resources
 
-Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, `certificateTemplate`, and `enrollmentPatternName` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
+Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, `certificateTemplate`, `enrollmentPatternName`, and `enrollmentPatternId` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
 
 - `command-issuer.keyfactor.com/certificateAuthorityHostname` overrides `certificateAuthorityHostname`
 - `command-issuer.keyfactor.com/certificateAuthorityLogicalName` overrides `certificateAuthorityLogicalName`
 - `command-issuer.keyfactor.com/certificateTemplate` overrides `certificateTemplate`
 - `command-issuer.keyfactor.com/enrollmentPatternName` overrides `enrollmentPatternName`
+- `command-issuer.keyfactor.com/enrollmentPatternId` overrides `enrollmentPatternId`. Needs to be in string format.
 
 > cert-manager copies Annotations set on Certificate resources to the corresponding CertificateRequest.
 
@@ -390,6 +392,7 @@ Command Issuer allows you to override the `certificateAuthorityHostname`, `certi
 > kind: Certificate
 > metadata:
 >   annotations:
+>     command-issuer.keyfactor.com/enrollmentPatternId: "1234"
 >     command-issuer.keyfactor.com/enrollmentPatternName: "Kubernetes Enrollment Pattern"
 >     command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
 >     command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
