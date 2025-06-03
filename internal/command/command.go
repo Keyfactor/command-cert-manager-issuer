@@ -22,6 +22,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -403,7 +404,7 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		config.EnrollmentPatternName = value
 	}
 
-	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s)", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname))
+	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s) and enrollment pattern ID %d and enrollment pattern name %s", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname, config.EnrollmentPatternId, config.EnrollmentPatternName))
 
 	csr, err := parseCSR(csrBytes)
 	if err != nil {
@@ -488,7 +489,13 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 
 	req = req.EnrollmentCSREnrollmentRequest(modelRequest)
 
-	k8sLog.Info(fmt.Sprintf("Enrolling certificate with Command using template %q and CA %q", config.CertificateTemplate, caBuilder.String()))
+	// Avoid nil pointer dereference in logs
+	loggedEnrollmentPatternId := int32(0)
+	if enrollmentPatternId != nil {
+		loggedEnrollmentPatternId = *enrollmentPatternId
+	}
+
+	k8sLog.Info(fmt.Sprintf("Enrolling certificate with Command using template %q and CA %q and enrollment pattern ID %d", config.CertificateTemplate, caBuilder.String(), loggedEnrollmentPatternId))
 
 	commandCsrResponseObject, _, err := s.client.EnrollCSR(req)
 	if err != nil {
@@ -571,11 +578,18 @@ func getEnrollmentPatternByName(ctx context.Context, log logr.Logger, s *signer,
 	pageNumber := 1
 
 	for model == nil {
-		patterns, _, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.
+		patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.
 			PageReturned(int32(pageNumber)))
 
 		if err != nil {
-			detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s", err)
+			// Capture the error message which should indicate the failure reason
+			msg := ""
+			if httpResp != nil && httpResp.Body != nil {
+				defer httpResp.Body.Close()
+				bodyBytes, _ := io.ReadAll(httpResp.Body)
+				msg += string(bodyBytes)
+			}
+			detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s. Details: %s", err, msg)
 			return nil, fmt.Errorf("%w: %s: %w", errEnrollmentPatternFailure, detail, err)
 		}
 
