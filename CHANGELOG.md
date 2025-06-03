@@ -1,3 +1,12 @@
+# v2.2.0
+## Features
+- Added support for enrolling CSRs with [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm), a new feature introduced in Keyfactor Command 25.1. [Release notes](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm)
+    - Usage of `CertificateTemplate` is still supported, but if using Keyfactor Command 25.1 and above, it is recommended to start using Enrollment Patterns in your issuer specification. You may use `EnrollmentPatternId` or `EnrollmentPatternName` in your specification.
+
+## Chores
+- Updated documentation for using ambient credentials with Azure Kuberentes Services.
+- Removed documentation for using ambient credentials with Google Kubernetes Engine. As of writing, Google is not a supported identity provider in Keyfactor Command.
+- Migrated from using [keyfactor-go-client](https://github.com/Keyfactor/keyfactor-go-client) to [keyfactor-go-client-sdk](https://github.com/keyfactor/keyfactor-go-client-sdk).
 
 # v2.1.1
 
