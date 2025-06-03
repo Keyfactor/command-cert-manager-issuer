@@ -18,11 +18,15 @@ package command
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
+	"github.com/go-logr/logr"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -43,8 +47,8 @@ func setAmbientTokenCredentialSource(source TokenCredentialSource) {
 }
 
 type Client interface {
-	EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error)
-	GetAllMetadataFields() ([]commandsdk.MetadataField, error)
+	EnrollCSR(v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
+	GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
 	TestConnection() error
 }
 
@@ -53,19 +57,19 @@ var (
 )
 
 type clientAdapter struct {
-	enrollCSR            func(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error)
-	getAllMetadataFields func() ([]commandsdk.MetadataField, error)
+	enrollCSR            func(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
+	getAllMetadataFields func(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
 	testConnection       func() error
 }
 
 // EnrollCSR implements CertificateClient.
-func (c *clientAdapter) EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error) {
-	return c.enrollCSR(ea)
+func (c *clientAdapter) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error) {
+	return c.enrollCSR(r)
 }
 
 // GetAllMetadataFields implements Client.
-func (c *clientAdapter) GetAllMetadataFields() ([]commandsdk.MetadataField, error) {
-	return c.getAllMetadataFields()
+func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
+	return c.getAllMetadataFields(r)
 }
 
 // TestConnection implements CertificateClient.
@@ -95,6 +99,11 @@ type azure struct {
 
 // GetAccessToken implements TokenCredential.
 func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
+	log := log.FromContext(ctx)
+
+	// To prevent clogging logs every time JWT is generated
+	initializing := a.cred == nil
+
 	// Lazily create the credential if needed
 	if a.cred == nil {
 		c, err := azidentity.NewDefaultAzureCredential(nil)
@@ -104,6 +113,8 @@ func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 		a.cred = c
 	}
 
+	log.Info(fmt.Sprintf("generating Default Azure Credentials with scopes %s", strings.Join(a.scopes, " ")))
+
 	// Request a token with the provided scopes
 	token, err := a.cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: a.scopes,
@@ -112,8 +123,20 @@ func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("%w: failed to fetch token: %w", errTokenFetchFailure, err)
 	}
 
-	log.FromContext(ctx).Info("fetched token using Azure DefaultAzureCredential")
-	return token.Token, nil
+	tokenString := token.Token
+
+	if initializing {
+		// Only want to output this once, don't want to output this every time the JWT is generated
+
+		log.Info("==== BEGIN DEBUG: DefaultAzureCredential JWT ======")
+
+		printClaims(log, tokenString, []string{"aud", "appid", "azp", "iss", "sub", "oid"})
+
+		log.Info("==== END DEBUG: DefaultAzureCredential JWT ======")
+	}
+
+	log.Info("fetched token using Azure DefaultAzureCredential")
+	return tokenString, nil
 }
 
 func newAzureDefaultCredentialSource(ctx context.Context, scopes []string) (*azure, error) {
@@ -142,17 +165,28 @@ type gcp struct {
 
 // GetAccessToken implements TokenCredential.
 func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
-	// Lazily create the TokenSource if it's nil.
 	log := log.FromContext(ctx)
+
+	// To prevent clogging logs every time JWT is generated
+	initializing := g.tokenSource == nil
+
+	// Lazily create the TokenSource if it's nil.
 	if g.tokenSource == nil {
+		log.Info(fmt.Sprintf("generating default Google credentials with scopes: %s", strings.Join(g.scopes, " ")))
+
 		credentials, err := google.FindDefaultCredentials(ctx, g.scopes...)
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
 		log.Info(fmt.Sprintf("generating a Google OIDC ID token..."))
 
+		// Default audience to "command" if not provided
+		aud := getValueOrDefault(g.audience, "command")
+
+		log.Info(fmt.Sprintf("generating Google id token with audience %s", aud))
+
 		// Use credentials to generate a JWT (requires a service account)
-		tokenSource, err := idtoken.NewTokenSource(ctx, getValueOrDefault(g.audience, "command"), idtoken.WithCredentialsJSON(credentials.JSON))
+		tokenSource, err := idtoken.NewTokenSource(ctx, aud, idtoken.WithCredentialsJSON(credentials.JSON))
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
 		}
@@ -171,6 +205,14 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("%w: failed to fetch token from GCP ADC token source: %w", errTokenFetchFailure, err)
 	}
 
+	if initializing {
+		// Only want to output this once, don't want to output this every time the JWT is generated
+
+		log.Info("==== BEGIN DEBUG: Default Google ID Token JWT ======")
+		printClaims(log, token.AccessToken, []string{"aud", "iss", "sub", "email"})
+		log.Info("==== END DEBUG:  Default Google ID Token JWT ======")
+	}
+
 	log.Info("fetched token using GCP ApplicationDefaultCredential")
 
 	return token.AccessToken, nil
@@ -187,4 +229,27 @@ func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes 
 	}
 	tokenCredentialSource = source
 	return source, nil
+}
+
+func printClaims(log logr.Logger, token string, claimsToPrint []string) error {
+	tokenRaw, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
+	if err != nil {
+		log.Error(err, "failed to parse JWT")
+		return fmt.Errorf("failed to parse JWT: %w", err)
+	}
+
+	claims, _ := tokenRaw.Claims.(jwt.MapClaims)
+
+	// To assist with troubleshooting, only print access token claims relevant to Command configuration
+	for _, key := range claimsToPrint {
+		if value, ok := claims[key]; ok {
+			log.Info(fmt.Sprintf("\t%s:	%s", key, value))
+		}
+	}
+
+	if issuer, err := claims.GetIssuer(); err != nil {
+		log.Info(fmt.Sprintf("\nNOTE: If you are receiving a HTTP 401 on requests to Command, make sure an identity provider in Command is configured with '%s' as the authority.\nThe discovery endpoint for your issuer can be found at %s/.well-known/openid-configuration.", issuer, issuer))
+	}
+
+	return nil
 }
