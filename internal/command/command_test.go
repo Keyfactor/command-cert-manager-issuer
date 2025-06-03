@@ -476,6 +476,7 @@ func TestSign(t *testing.T) {
 					Name: *v1.NewNullableString(&enrollmentPatternName),
 				},
 			},
+
 			// Request
 			config: &SignConfig{
 				EnrollmentPatternName:           enrollmentPatternName,
@@ -494,9 +495,64 @@ func TestSign(t *testing.T) {
 			},
 			expectedSignError: nil,
 		},
-		"success-annotation-config-override": {
+		"success-no-meta-enrollment-pattern-id-overwrites-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{}, // This would fail if enrollment pattern name was used
 			// Request
 			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-annotation-config-override-pattern-id": {
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             67890,
+				CertificateTemplate:             certificateTemplateName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateTemplate":             "template-override",
+					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "logicalname-override",
+					"command-issuer.keyfactor.com/certificateAuthorityHostname":    "hostname-override",
+					"command-issuer.keyfactor.com/enrollmentPatternId":             "12345",
+				},
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				Template:             "template-override",
+				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-annotation-config-override-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
+				v1.EnrollmentPatternsEnrollmentPatternResponse{
+					Id:   ptr(int32(12345)),
+					Name: *v1.NewNullableString(ptr("enrollment-pattern-override")),
+				},
+			},
+
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
 				CertificateTemplate:             certificateTemplateName,
 				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
 				CertificateAuthorityHostname:    certificateAuthorityHostname,
@@ -506,12 +562,12 @@ func TestSign(t *testing.T) {
 					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "logicalname-override",
 					"command-issuer.keyfactor.com/certificateAuthorityHostname":    "hostname-override",
 					"command-issuer.keyfactor.com/enrollmentPatternName":           "enrollment-pattern-override",
-					"command-issuer.keyfactor.com/enrollmentPatternId":             "12345",
 				},
 			},
 
 			// Expected
 			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
 				Template:             "template-override",
 				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
 				SANs:                 map[string][]string{},
