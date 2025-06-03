@@ -200,9 +200,9 @@ func TestSignConfigValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing certificateTemplate",
-			config:  &SignConfig{CertificateTemplate: "", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
-			wantErr: "certificateTemplate is required",
+			name:    "missing certificateTemplate and enrollmentPatternName and enrollmentPatternId",
+			config:  &SignConfig{CertificateTemplate: "", EnrollmentPatternName: "", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified",
 		},
 		{
 			name:    "missing certificateAuthorityLogicalName",
@@ -210,8 +210,23 @@ func TestSignConfigValidate(t *testing.T) {
 			wantErr: "certificateAuthorityLogicalName is required",
 		},
 		{
-			name:    "all valid fields",
+			name:    "all valid fields (both certificateTemplate and enrollmentPatternName specified)",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only certificateTemplate specified)",
 			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only enrollmentPatternName specified)",
+			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only enrollmentPatternId specified)",
+			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{
@@ -241,10 +256,6 @@ func TestSignConfigValidate(t *testing.T) {
 		})
 	}
 }
-
-// var (
-// 	_ commandsdk.AuthConfig = &fakeCommandAuthenticator{}
-// )
 
 type fakeCommandAuthenticator struct {
 	client *http.Client

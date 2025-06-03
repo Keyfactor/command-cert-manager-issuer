@@ -248,7 +248,9 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 }
 
 type SignConfig struct {
-	CertificateTemplate             string
+	CertificateTemplate             string // Deprecated, use EnrollmentPatternName or EnrollmentPatternId instead
+	EnrollmentPatternId             int32
+	EnrollmentPatternName           string
 	CertificateAuthorityLogicalName string
 	CertificateAuthorityHostname    string
 	Meta                            *K8sMetadata
@@ -256,8 +258,8 @@ type SignConfig struct {
 }
 
 func (s *SignConfig) validate() error {
-	if s.CertificateTemplate == "" {
-		return errors.New("certificateTemplate is required")
+	if s.CertificateTemplate == "" && s.EnrollmentPatternName == "" && s.EnrollmentPatternId == 0 {
+		return errors.New("either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified")
 	}
 	if s.CertificateAuthorityLogicalName == "" {
 		return errors.New("certificateAuthorityLogicalName is required")
