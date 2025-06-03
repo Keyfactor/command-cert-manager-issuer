@@ -8,6 +8,9 @@
 - Removed documentation for using ambient credentials with Google Kubernetes Engine. As of writing, Google is not a supported identity provider in Keyfactor Command.
 - Migrated from using [keyfactor-go-client](https://github.com/Keyfactor/keyfactor-go-client) to [keyfactor-go-client-sdk](https://github.com/keyfactor/keyfactor-go-client-sdk).
 
+## Fixes
+- Fix the Helm chart releaser job to not run into issues with overlapping Helm chart versions.
+
 # v2.1.1
 
 ## Fixes
