@@ -339,12 +339,13 @@ kubectl get secret command-certificate -o jsonpath='{.data.tls\.crt}' | base64 -
 
 ## Overriding the Issuer/ClusterIssuer `spec` using Kubernetes Annotations on CertificateRequest Resources
 
-Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, `certificateTemplate`, and `enrollmentPatternName` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
+Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, `certificateTemplate`, `enrollmentPatternName`, and `enrollmentPatternId` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
 
 - `command-issuer.keyfactor.com/certificateAuthorityHostname` overrides `certificateAuthorityHostname`
 - `command-issuer.keyfactor.com/certificateAuthorityLogicalName` overrides `certificateAuthorityLogicalName`
 - `command-issuer.keyfactor.com/certificateTemplate` overrides `certificateTemplate`
 - `command-issuer.keyfactor.com/enrollmentPatternName` overrides `enrollmentPatternName`
+- `command-issuer.keyfactor.com/enrollmentPatternId` overrides `enrollmentPatternId`
 
 > cert-manager copies Annotations set on Certificate resources to the corresponding CertificateRequest.
 
@@ -358,6 +359,7 @@ Command Issuer allows you to override the `certificateAuthorityHostname`, `certi
 > kind: Certificate
 > metadata:
 >   annotations:
+>     command-issuer.keyfactor.com/enrollmentPatternId: "1234"
 >     command-issuer.keyfactor.com/enrollmentPatternName: "Kubernetes Enrollment Pattern"
 >     command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
 >     command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"

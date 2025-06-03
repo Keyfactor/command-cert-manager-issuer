@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -366,7 +366,8 @@ type fakeClient struct {
 	enrollCallback func(v1.ApiCreateEnrollmentCSRRequest)
 	enrollResponse *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse
 
-	metadataFields []v1.CSSCMSDataModelModelsMetadataType
+	metadataFields     []v1.CSSCMSDataModelModelsMetadataType
+	enrollmentPatterns []v1.EnrollmentPatternsEnrollmentPatternResponse
 
 	err error
 }
@@ -384,12 +385,18 @@ func (f *fakeClient) GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.
 	return f.metadataFields, nil, f.err
 }
 
+// GetEnrollmentPatterns implements Client.
+func (f *fakeClient) GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error) {
+	return f.enrollmentPatterns, nil, f.err
+}
+
 // TestConnection implements Client.
 func (f *fakeClient) TestConnection() error {
 	return f.err
 }
 
 type EnrollmentCSRRequest struct {
+	EnrollmentPatternId  int32
 	Template             string
 	CertificateAuthority string
 	SANs                 map[string][]string
@@ -408,12 +415,14 @@ func TestSign(t *testing.T) {
 
 	expectedLeafAndChain := append([]*x509.Certificate{leafCert}, issuingCert)
 
+	enrollmentPatternName := "fake-enrollment-pattern"
 	certificateTemplateName := "fake-cert-template"
 	certificateAuthorityLogicalName := "fake-issuing-ca"
 	certificateAuthorityHostname := "pki.example.com"
 
 	testCases := map[string]struct {
 		enrollCSRFunctionError error
+		enrollmentPatterns     []v1.EnrollmentPatternsEnrollmentPatternResponse
 
 		// Request
 		config *SignConfig
@@ -422,7 +431,7 @@ func TestSign(t *testing.T) {
 		expectedEnrollArgs *EnrollmentCSRRequest
 		expectedSignError  error
 	}{
-		"success-no-meta": {
+		"success-no-meta-certificate-template": {
 			// Request
 			config: &SignConfig{
 				CertificateTemplate:             certificateTemplateName,
@@ -441,6 +450,50 @@ func TestSign(t *testing.T) {
 			},
 			expectedSignError: nil,
 		},
+		"success-no-meta-enrollment-pattern-id": {
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-no-meta-enrollment-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
+				v1.EnrollmentPatternsEnrollmentPatternResponse{
+					Id:   ptr(int32(12345)),
+					Name: *v1.NewNullableString(&enrollmentPatternName),
+				},
+			},
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
 		"success-annotation-config-override": {
 			// Request
 			config: &SignConfig{
@@ -452,6 +505,8 @@ func TestSign(t *testing.T) {
 					"command-issuer.keyfactor.com/certificateTemplate":             "template-override",
 					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "logicalname-override",
 					"command-issuer.keyfactor.com/certificateAuthorityHostname":    "hostname-override",
+					"command-issuer.keyfactor.com/enrollmentPatternName":           "enrollment-pattern-override",
+					"command-issuer.keyfactor.com/enrollmentPatternId":             "12345",
 				},
 			},
 
@@ -543,6 +598,28 @@ func TestSign(t *testing.T) {
 			},
 			expectedSignError: errCommandEnrollmentFailure,
 		},
+		"enroll-csr-err-enrollment-pattern-not-found": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{},
+
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				Template:             certificateTemplateName,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+
+			expectedSignError: errEnrollmentPatternFailure,
+		},
 	}
 
 	for name, tc := range testCases {
@@ -554,8 +631,9 @@ func TestSign(t *testing.T) {
 			client := fakeClient{
 				err: tc.enrollCSRFunctionError,
 
-				enrollResponse: certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
-				enrollCallback: cb,
+				enrollResponse:     certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
+				enrollmentPatterns: tc.enrollmentPatterns,
+				enrollCallback:     cb,
 			}
 			signer := signer{
 				client: &client,
@@ -671,6 +749,7 @@ func assertErrorIs(t *testing.T, expectedError, actualError error) {
 	if !assert.Error(t, actualError) {
 		return
 	}
+
 	assert.Truef(t, errors.Is(actualError, expectedError), "unexpected error type. expected: %v, got: %v", expectedError, actualError)
 }
 

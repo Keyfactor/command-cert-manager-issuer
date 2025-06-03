@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ func setAmbientTokenCredentialSource(source TokenCredentialSource) {
 type Client interface {
 	EnrollCSR(v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
 	GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
+	GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error)
 	TestConnection() error
 }
 
@@ -57,9 +58,10 @@ var (
 )
 
 type clientAdapter struct {
-	enrollCSR            func(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
-	getAllMetadataFields func(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
-	testConnection       func() error
+	enrollCSR             func(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
+	getAllMetadataFields  func(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
+	getEnrollmentPatterns func(r v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error)
+	testConnection        func() error
 }
 
 // EnrollCSR implements CertificateClient.
@@ -70,6 +72,10 @@ func (c *clientAdapter) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCM
 // GetAllMetadataFields implements Client.
 func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
 	return c.getAllMetadataFields(r)
+}
+
+func (c *clientAdapter) GetEnrollmentPatterns(r v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error) {
+	return c.getEnrollmentPatterns(r)
 }
 
 // TestConnection implements CertificateClient.

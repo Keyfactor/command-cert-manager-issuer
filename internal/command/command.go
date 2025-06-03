@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	commandsdk "github.com/Keyfactor/keyfactor-go-client-sdk/v25"
 	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -43,6 +45,7 @@ var (
 	errInvalidSignerConfig              = errors.New("invalid signer config")
 	errInvalidCSR                       = errors.New("csr is invalid")
 	errCommandEnrollmentFailure         = errors.New("command enrollment failure")
+	errEnrollmentPatternFailure         = errors.New("enrollment pattern failure")
 	errTokenFetchFailure                = errors.New("couldn't fetch bearer token")
 	errAmbientCredentialCreationFailure = errors.New("failed to obtain ambient credentials")
 )
@@ -290,9 +293,10 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 	}
 
 	adapter := &clientAdapter{
-		enrollCSR:            client.V1.EnrollmentApi.CreateEnrollmentCSRExecute,
-		getAllMetadataFields: client.V1.MetadataFieldApi.GetMetadataFieldsExecute,
-		testConnection:       client.V1.AuthClient.Authenticate,
+		enrollCSR:             client.V1.EnrollmentApi.CreateEnrollmentCSRExecute,
+		getAllMetadataFields:  client.V1.MetadataFieldApi.GetMetadataFieldsExecute,
+		getEnrollmentPatterns: client.V1.EnrollmentPatternApi.GetEnrollmentPatternsExecute,
+		testConnection:        client.V1.AuthClient.Authenticate,
 	}
 
 	log.Info("Successfully generated Command client")
@@ -375,13 +379,28 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 
 	// Override defaults from annotations
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateTemplate"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateTemplate %q from annotations", value))
 		config.CertificateTemplate = value
 	}
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateAuthorityLogicalName"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateAuthorityLogicalName %q from annotations", value))
 		config.CertificateAuthorityLogicalName = value
 	}
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateAuthorityHostname"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateAuthorityHostname %q from annotations", value))
 		config.CertificateAuthorityHostname = value
+	}
+	if value, exists := config.Annotations["command-issuer.keyfactor.com/enrollmentPatternId"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using enrollmentPatternId %q from annotations", value))
+		conv, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: failed to parse enrollmentPatternId from annotations: %s", errInvalidSignerConfig, err)
+		}
+		config.EnrollmentPatternId = int32(conv)
+	}
+	if value, exists := config.Annotations["command-issuer.keyfactor.com/enrollmentPatternName"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using enrollmentPatternName %q from annotations", value))
+		config.EnrollmentPatternName = value
 	}
 
 	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s)", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname))
@@ -411,13 +430,37 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 	req := v1.ApiCreateEnrollmentCSRRequest{}
 	req = req.XCertificateformat(enrollmentPEMFormat)
 
+	var template *string = nil
+	var enrollmentPatternId *int32 = nil
+
+	// Populate certificate template if defined
+	if config.CertificateTemplate != "" {
+		k8sLog.Info(fmt.Sprintf("Using certificate template from config. Name: %s", config.CertificateTemplate))
+		template = &config.CertificateTemplate
+	}
+
+	// Populate enrollment pattern ID or name if defined
+	if config.EnrollmentPatternId != 0 {
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID from config. ID: %d", config.EnrollmentPatternId))
+		enrollmentPatternId = &config.EnrollmentPatternId
+	} else if config.EnrollmentPatternName != "" {
+		pattern, err := getEnrollmentPatternByName(ctx, k8sLog, s, config.EnrollmentPatternName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		enrollmentPatternId = pattern.Id
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID: %d", *enrollmentPatternId))
+	}
+
 	modelRequest := v1.EnrollmentCSREnrollmentRequest{
-		CSR:          string(csrBytes),
-		Template:     *v1.NewNullableString(ptr(config.CertificateTemplate)),
-		Timestamp:    ptr(time.Now()),
-		IncludeChain: ptr(true),
-		SANs:         map[string][]string{},
-		Metadata:     map[string]interface{}{},
+		CSR:                 string(csrBytes),
+		EnrollmentPatternId: *v1.NewNullableInt32(enrollmentPatternId),
+		Template:            *v1.NewNullableString(template),
+		Timestamp:           ptr(time.Now()),
+		IncludeChain:        ptr(true),
+		SANs:                map[string][]string{},
+		Metadata:            map[string]interface{}{},
 	}
 
 	if config.Meta != nil {
@@ -449,7 +492,15 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 
 	commandCsrResponseObject, _, err := s.client.EnrollCSR(req)
 	if err != nil {
-		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template %q exists and that the certificate authority %q (%s) is configured correctly", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate authority %q (%s) is configured correctly", config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+
+		if template != nil {
+			detail += fmt.Sprintf(" and that the certificate template %q exists in Command", *template)
+		}
+
+		if enrollmentPatternId != nil {
+			detail += fmt.Sprintf(". Make sure enrollment pattern ID %d is configured to use certificate authority %q (%s) and the security role is configured to use this enrollment pattern.", *enrollmentPatternId, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		}
 
 		if len(extractMetadataFromAnnotations(config.Annotations)) > 0 {
 			detail += ". Also verify that the metadata fields provided exist in Command"
@@ -508,4 +559,42 @@ func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {
 // ptr returns a pointer to the provided value
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// getEnrollmentPatternByName retrieves an enrollment pattern by its name from Command.
+// It paginates through the results until it finds the pattern or exhausts all pages.
+func getEnrollmentPatternByName(ctx context.Context, log logr.Logger, s *signer, enrollmentPatternName string) (*v1.EnrollmentPatternsEnrollmentPatternResponse, error) {
+	log.Info(fmt.Sprintf("Looking up enrollment pattern %q in Command...", enrollmentPatternName))
+
+	var model *v1.EnrollmentPatternsEnrollmentPatternResponse
+
+	pageNumber := 1
+
+	for model == nil {
+		patterns, _, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.
+			PageReturned(int32(pageNumber)))
+
+		if err != nil {
+			detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s", err)
+			return nil, fmt.Errorf("%w: %s: %w", errEnrollmentPatternFailure, detail, err)
+		}
+
+		if len(patterns) == 0 {
+			detail := fmt.Sprintf("enrollment pattern not found: %s", enrollmentPatternName)
+			return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
+		}
+
+		pageNumber++
+
+		for _, pattern := range patterns {
+			if pattern.Name.Get() != nil && *pattern.Name.Get() == enrollmentPatternName {
+				model = &pattern
+				break
+			}
+		}
+	}
+
+	log.Info(fmt.Sprintf("Enrollment pattern %s found in Command", enrollmentPatternName))
+
+	return model, nil
 }
