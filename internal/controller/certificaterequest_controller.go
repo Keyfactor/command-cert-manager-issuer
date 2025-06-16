@@ -233,6 +233,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	signConfig := &command.SignConfig{
 		CertificateTemplate:             issuer.GetSpec().CertificateTemplate,
+		EnrollmentPatternId:             issuer.GetSpec().EnrollmentPatternId,
+		EnrollmentPatternName:           issuer.GetSpec().EnrollmentPatternName,
 		CertificateAuthorityLogicalName: issuer.GetSpec().CertificateAuthorityLogicalName,
 		CertificateAuthorityHostname:    issuer.GetSpec().CertificateAuthorityHostname,
 		Annotations:                     certificateRequest.GetAnnotations(),
