@@ -232,19 +232,12 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 			return nil, err
 		}
 
-		server = &auth_providers.Server{
-			Host:          config.Hostname,
-			APIPath:       config.APIPath,
-			AccessToken:   token,
-			AuthType:      "oauth",
-			ClientID:      "",
-			ClientSecret:  "",
-			OAuthTokenUrl: "",
-			Scopes:        nil,
-			Audience:      "",
-			SkipTLSVerify: false,
-			CACertPath:    "",
-		}
+		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
+			WithAccessToken(token).
+			WithCaCertificatePath("")
+		oauthConfig.CommandAuthConfig = authConfig
+
+		server = oauthConfig.GetServerConfig()
 	}
 
 	log.Info("Configuration was valid - Successfully generated server config", "authMethod", server.AuthType, "hostname", server.Host, "apiPath", server.APIPath)
