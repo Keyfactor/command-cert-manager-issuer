@@ -562,44 +562,37 @@ func ptr[T any](v T) *T {
 }
 
 // getEnrollmentPatternByName retrieves an enrollment pattern by its name from Command.
-// It paginates through the results until it finds the pattern or exhausts all pages.
 func getEnrollmentPatternByName(ctx context.Context, log logr.Logger, s *signer, enrollmentPatternName string) (*v1.EnrollmentPatternsEnrollmentPatternResponse, error) {
 	log.Info(fmt.Sprintf("Looking up enrollment pattern %q in Command...", enrollmentPatternName))
 
 	var model *v1.EnrollmentPatternsEnrollmentPatternResponse
 
-	pageNumber := 1
+	queryString := fmt.Sprintf("Name -eq \"%s\"", enrollmentPatternName)
+	patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.QueryString(queryString))
 
-	for model == nil {
-		patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.
-			PageReturned(int32(pageNumber)))
-
-		if err != nil {
-			// Capture the error message which should indicate the failure reason
-			msg := ""
-			if httpResp != nil && httpResp.Body != nil {
-				defer httpResp.Body.Close()
-				bodyBytes, _ := io.ReadAll(httpResp.Body)
-				msg += string(bodyBytes)
-			}
-			detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s. Details: %s", err, msg)
-			return nil, fmt.Errorf("%w: %s: %w", errEnrollmentPatternFailure, detail, err)
+	if err != nil {
+		// Capture the error message which should indicate the failure reason
+		msg := ""
+		if httpResp != nil && httpResp.Body != nil {
+			defer httpResp.Body.Close()
+			bodyBytes, _ := io.ReadAll(httpResp.Body)
+			msg += string(bodyBytes)
 		}
-
-		if len(patterns) == 0 {
-			detail := fmt.Sprintf("enrollment pattern not found: %s", enrollmentPatternName)
-			return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
-		}
-
-		pageNumber++
-
-		for _, pattern := range patterns {
-			if pattern.Name.Get() != nil && *pattern.Name.Get() == enrollmentPatternName {
-				model = &pattern
-				break
-			}
-		}
+		detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s. Details: %s", err, msg)
+		return nil, fmt.Errorf("%w: %s: %w", errEnrollmentPatternFailure, detail, err)
 	}
+
+	if len(patterns) == 0 {
+		detail := fmt.Sprintf("enrollment pattern not found: %s", enrollmentPatternName)
+		return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
+	}
+
+	if len(patterns) > 1 {
+		detail := fmt.Sprintf("multiple enrollment patterns found: %s", enrollmentPatternName)
+		return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
+	}
+
+	model = &patterns[0]
 
 	log.Info(fmt.Sprintf("Enrollment pattern %s found in Command", enrollmentPatternName))
 
