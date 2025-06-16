@@ -56,6 +56,7 @@ HELM_CHART_NAME="command-cert-manager-issuer"
 HELM_CHART_VERSION="local" # Uncomment if you want to use the local Helm chart
 
 IS_LOCAL_DEPLOYMENT=$([ "$IMAGE_TAG" = "local" ] && echo "true" || echo "false")
+IS_LOCAL_HELM=$([ "$HELM_CHART_VERSION" = "local" ] && echo "true" || echo "false")
 
 # TODO: Handle both in the e2e tests
 ISSUER_TYPE="Issuer"
@@ -179,7 +180,7 @@ install_cert_manager_issuer() {
     echo "📦 Installing instance of $IMAGE_NAME with tag $IMAGE_TAG..."
     
     
-    if [[ "$HELM_CHART_VERSION" == "local" ]]; then
+    if [[ "$IS_LOCAL_HELM" == "true" ]]; then
         CHART_PATH=$CHART_PATH
 
         # Checking if chart path exists
@@ -431,6 +432,12 @@ check_env
 cd ..
 
 echo "⚙️ Local image deployment: ${IS_LOCAL_DEPLOYMENT}"
+echo "⚙️ Local Helm chart: ${IS_LOCAL_HELM}"
+
+if ! minikube status &> /dev/null; then
+    echo "Error: Minikube is not running. Please start it with 'minikube start'"
+    exit 1
+fi
 
 kubectl config use-context minikube
 echo "Connected to Kubernetes context: $(kubectl config current-context)..."

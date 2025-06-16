@@ -2,6 +2,7 @@
 ## Features
 - Added support for enrolling CSRs with [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm), a new feature introduced in Keyfactor Command 25.1. [Release notes](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm)
     - Usage of `CertificateTemplate` is still supported, but if using Keyfactor Command 25.1 and above, it is recommended to start using Enrollment Patterns in your issuer specification. You may use `EnrollmentPatternId` or `EnrollmentPatternName` in your specification.
+- When using ambient credentials, some relevant token claims (subject, issuer, object ID, etc.) are logged for easier debugging and setup for security roles and identity providers.
 
 ## Chores
 - Updated documentation for using ambient credentials with Azure Kuberentes Services.

@@ -4,7 +4,7 @@ go 1.23.4
 
 require (
 	github.com/Keyfactor/keyfactor-auth-client-go v1.2.0
-	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.0-rc.5
+	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.0
 	github.com/cert-manager/cert-manager v1.16.2
 	github.com/go-logr/logr v1.4.2
 	github.com/stretchr/testify v1.10.0
