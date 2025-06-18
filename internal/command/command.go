@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,12 +22,16 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Keyfactor/keyfactor-auth-client-go/auth_providers"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	commandsdk "github.com/Keyfactor/keyfactor-go-client-sdk/v25"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -42,6 +46,7 @@ var (
 	errInvalidSignerConfig              = errors.New("invalid signer config")
 	errInvalidCSR                       = errors.New("csr is invalid")
 	errCommandEnrollmentFailure         = errors.New("command enrollment failure")
+	errEnrollmentPatternFailure         = errors.New("enrollment pattern failure")
 	errTokenFetchFailure                = errors.New("couldn't fetch bearer token")
 	errAmbientCredentialCreationFailure = errors.New("failed to obtain ambient credentials")
 )
@@ -68,7 +73,7 @@ type Signer interface {
 	Sign(context.Context, []byte, *SignConfig) ([]byte, []byte, error)
 }
 
-type newCommandClientFunc func(*auth_providers.Server, *context.Context) (*commandsdk.Client, error)
+type newCommandClientFunc func(*auth_providers.Server) (*commandsdk.APIClient, error)
 
 type signer struct {
 	client Client
@@ -167,6 +172,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	nonAmbientCredentialsConfigured := false
 
 	if config.BasicAuth != nil {
+		log.Info("Using basic auth credential source")
+
 		basicAuthConfig := auth_providers.NewBasicAuthAuthenticatorBuilder().
 			WithUsername(config.BasicAuth.Username).
 			WithPassword(config.BasicAuth.Password)
@@ -177,6 +184,8 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	}
 
 	if config.OAuth != nil {
+		log.Info("Using OAuth credential source")
+
 		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
 			WithTokenUrl(config.OAuth.TokenURL).
 			WithClientId(config.OAuth.ClientID).
@@ -223,19 +232,12 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 			return nil, err
 		}
 
-		server = &auth_providers.Server{
-			Host:          config.Hostname,
-			APIPath:       config.APIPath,
-			AccessToken:   token,
-			AuthType:      "oauth",
-			ClientID:      "",
-			ClientSecret:  "",
-			OAuthTokenUrl: "",
-			Scopes:        nil,
-			Audience:      "",
-			SkipTLSVerify: false,
-			CACertPath:    "",
-		}
+		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
+			WithAccessToken(token).
+			WithCaCertificatePath("")
+		oauthConfig.CommandAuthConfig = authConfig
+
+		server = oauthConfig.GetServerConfig()
 	}
 
 	log.Info("Configuration was valid - Successfully generated server config", "authMethod", server.AuthType, "hostname", server.Host, "apiPath", server.APIPath)
@@ -243,7 +245,9 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 }
 
 type SignConfig struct {
-	CertificateTemplate             string
+	CertificateTemplate             string // Deprecated, use EnrollmentPatternName or EnrollmentPatternId instead
+	EnrollmentPatternId             int32
+	EnrollmentPatternName           string
 	CertificateAuthorityLogicalName string
 	CertificateAuthorityHostname    string
 	Meta                            *K8sMetadata
@@ -251,8 +255,8 @@ type SignConfig struct {
 }
 
 func (s *SignConfig) validate() error {
-	if s.CertificateTemplate == "" {
-		return errors.New("certificateTemplate is required")
+	if s.CertificateTemplate == "" && s.EnrollmentPatternName == "" && s.EnrollmentPatternId == 0 {
+		return errors.New("either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified")
 	}
 	if s.CertificateAuthorityLogicalName == "" {
 		return errors.New("certificateAuthorityLogicalName is required")
@@ -277,15 +281,16 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 		return nil, err
 	}
 
-	client, err := newClientFunc(serverConfig, &ctx)
+	client, err := newClientFunc(serverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Command API client: %w", err)
 	}
 
 	adapter := &clientAdapter{
-		enrollCSR:            client.EnrollCSR,
-		getAllMetadataFields: client.GetAllMetadataFields,
-		testConnection:       client.AuthClient.Authenticate,
+		enrollCSR:             client.V1.EnrollmentApi.CreateEnrollmentCSRExecute,
+		getAllMetadataFields:  client.V1.MetadataFieldApi.GetMetadataFieldsExecute,
+		getEnrollmentPatterns: client.V1.EnrollmentPatternApi.GetEnrollmentPatternsExecute,
+		testConnection:        client.V1.AuthClient.Authenticate,
 	}
 
 	log.Info("Successfully generated Command client")
@@ -295,11 +300,11 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 }
 
 func NewHealthChecker(ctx context.Context, config *Config) (HealthChecker, error) {
-	return newInternalSigner(ctx, config, commandsdk.NewKeyfactorClient)
+	return newInternalSigner(ctx, config, commandsdk.NewAPIClient)
 }
 
 func NewSignerBuilder(ctx context.Context, config *Config) (Signer, error) {
-	return newInternalSigner(ctx, config, commandsdk.NewKeyfactorClient)
+	return newInternalSigner(ctx, config, commandsdk.NewAPIClient)
 }
 
 // Check implements HealthChecker.
@@ -313,7 +318,7 @@ func (s *signer) Check(ctx context.Context) error {
 
 // CommandSupportsMetadata implements HealthChecker.
 func (s *signer) CommandSupportsMetadata() (bool, error) {
-	existingFields, err := s.client.GetAllMetadataFields()
+	existingFields, _, err := s.client.GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest{})
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch metadata fields from connected Command instance: %w", err)
 	}
@@ -331,13 +336,14 @@ func (s *signer) CommandSupportsMetadata() (bool, error) {
 	// Create a lookup map (set) of existing field names
 	existingFieldSet := make(map[string]struct{}, len(existingFields))
 	for _, field := range existingFields {
-		existingFieldSet[field.Name] = struct{}{}
+		name := field.Name.Get()
+		existingFieldSet[*name] = struct{}{}
 	}
 
 	// Check that every expected field is present
 	for _, expectedField := range expectedFieldsSlice {
 		if _, found := existingFieldSet[expectedField]; !found {
-			// As soon as one required field is missing, return false
+			// As soon as one recommended field is missing, return false
 			return false, nil
 		}
 	}
@@ -367,16 +373,31 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 
 	// Override defaults from annotations
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateTemplate"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateTemplate %q from annotations", value))
 		config.CertificateTemplate = value
 	}
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateAuthorityLogicalName"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateAuthorityLogicalName %q from annotations", value))
 		config.CertificateAuthorityLogicalName = value
 	}
 	if value, exists := config.Annotations["command-issuer.keyfactor.com/certificateAuthorityHostname"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using certificateAuthorityHostname %q from annotations", value))
 		config.CertificateAuthorityHostname = value
 	}
+	if value, exists := config.Annotations["command-issuer.keyfactor.com/enrollmentPatternId"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using enrollmentPatternId %q from annotations", value))
+		conv, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: failed to parse enrollmentPatternId from annotations: %s", errInvalidSignerConfig, err)
+		}
+		config.EnrollmentPatternId = int32(conv)
+	}
+	if value, exists := config.Annotations["command-issuer.keyfactor.com/enrollmentPatternName"]; exists {
+		k8sLog.Info(fmt.Sprintf("Using enrollmentPatternName %q from annotations", value))
+		config.EnrollmentPatternName = value
+	}
 
-	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s)", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname))
+	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s) and enrollment pattern ID %d and enrollment pattern name %s", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname, config.EnrollmentPatternId, config.EnrollmentPatternName))
 
 	csr, err := parseCSR(csrBytes)
 	if err != nil {
@@ -400,14 +421,40 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		k8sLog.Info(fmt.Sprintf("URI SAN: %s", uri.String()))
 	}
 
-	modelRequest := commandsdk.EnrollCSRFctArgs{
-		CSR:          string(csrBytes),
-		Template:     config.CertificateTemplate,
-		CertFormat:   enrollmentPEMFormat,
-		Timestamp:    time.Now().Format(time.RFC3339),
-		IncludeChain: true,
-		SANs:         &commandsdk.SANs{},
-		Metadata:     map[string]interface{}{},
+	req := v1.ApiCreateEnrollmentCSRRequest{}
+	req = req.XCertificateformat(enrollmentPEMFormat)
+
+	var template *string = nil
+	var enrollmentPatternId *int32 = nil
+
+	// Populate certificate template if defined
+	if config.CertificateTemplate != "" {
+		k8sLog.Info(fmt.Sprintf("Using certificate template from config. Name: %s", config.CertificateTemplate))
+		template = &config.CertificateTemplate
+	}
+
+	// Populate enrollment pattern ID or name if defined
+	if config.EnrollmentPatternId != 0 {
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID from config. ID: %d", config.EnrollmentPatternId))
+		enrollmentPatternId = &config.EnrollmentPatternId
+	} else if config.EnrollmentPatternName != "" {
+		pattern, err := getEnrollmentPatternByName(ctx, k8sLog, s, config.EnrollmentPatternName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		enrollmentPatternId = pattern.Id
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID: %d", *enrollmentPatternId))
+	}
+
+	modelRequest := v1.EnrollmentCSREnrollmentRequest{
+		CSR:                 string(csrBytes),
+		EnrollmentPatternId: *v1.NewNullableInt32(enrollmentPatternId),
+		Template:            *v1.NewNullableString(template),
+		Timestamp:           ptr(time.Now()),
+		IncludeChain:        ptr(true),
+		SANs:                map[string][]string{},
+		Metadata:            map[string]interface{}{},
 	}
 
 	if config.Meta != nil {
@@ -431,11 +478,29 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		caBuilder.WriteString("\\")
 	}
 	caBuilder.WriteString(config.CertificateAuthorityLogicalName)
-	modelRequest.CertificateAuthority = caBuilder.String()
+	modelRequest.CertificateAuthority = *v1.NewNullableString(ptr(caBuilder.String()))
 
-	commandCsrResponseObject, err := s.client.EnrollCSR(&modelRequest)
+	req = req.EnrollmentCSREnrollmentRequest(modelRequest)
+
+	// Avoid nil pointer dereference in logs
+	loggedEnrollmentPatternId := int32(0)
+	if enrollmentPatternId != nil {
+		loggedEnrollmentPatternId = *enrollmentPatternId
+	}
+
+	k8sLog.Info(fmt.Sprintf("Enrolling certificate with Command using template %q and CA %q and enrollment pattern ID %d", config.CertificateTemplate, caBuilder.String(), loggedEnrollmentPatternId))
+
+	commandCsrResponseObject, _, err := s.client.EnrollCSR(req)
 	if err != nil {
-		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate template %q exists and that the certificate authority %q (%s) is configured correctly", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate authority %q (%s) is configured correctly", config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+
+		if template != nil {
+			detail += fmt.Sprintf(" and that the certificate template %q exists in Command", *template)
+		}
+
+		if enrollmentPatternId != nil {
+			detail += fmt.Sprintf(". Make sure enrollment pattern ID %d is configured to use certificate authority %q (%s) and the security role is configured to use this enrollment pattern.", *enrollmentPatternId, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		}
 
 		if len(extractMetadataFromAnnotations(config.Annotations)) > 0 {
 			detail += ". Also verify that the metadata fields provided exist in Command"
@@ -494,4 +559,42 @@ func parseCSR(pemBytes []byte) (*x509.CertificateRequest, error) {
 // ptr returns a pointer to the provided value
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// getEnrollmentPatternByName retrieves an enrollment pattern by its name from Command.
+func getEnrollmentPatternByName(ctx context.Context, log logr.Logger, s *signer, enrollmentPatternName string) (*v1.EnrollmentPatternsEnrollmentPatternResponse, error) {
+	log.Info(fmt.Sprintf("Looking up enrollment pattern %q in Command...", enrollmentPatternName))
+
+	var model *v1.EnrollmentPatternsEnrollmentPatternResponse
+
+	queryString := fmt.Sprintf("Name -eq \"%s\"", enrollmentPatternName)
+	patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.QueryString(queryString))
+
+	if err != nil {
+		// Capture the error message which should indicate the failure reason
+		msg := ""
+		if httpResp != nil && httpResp.Body != nil {
+			defer httpResp.Body.Close()
+			bodyBytes, _ := io.ReadAll(httpResp.Body)
+			msg += string(bodyBytes)
+		}
+		detail := fmt.Sprintf("error fetching enrollment patterns from Command: %s. Details: %s", err, msg)
+		return nil, fmt.Errorf("%w: %s: %w", errEnrollmentPatternFailure, detail, err)
+	}
+
+	if len(patterns) == 0 {
+		detail := fmt.Sprintf("enrollment pattern not found: %s", enrollmentPatternName)
+		return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
+	}
+
+	if len(patterns) > 1 {
+		detail := fmt.Sprintf("multiple enrollment patterns found: %s", enrollmentPatternName)
+		return nil, fmt.Errorf("%w: %s", errEnrollmentPatternFailure, detail)
+	}
+
+	model = &patterns[0]
+
+	log.Info(fmt.Sprintf("Enrollment pattern %s found in Command", enrollmentPatternName))
+
+	return model, nil
 }

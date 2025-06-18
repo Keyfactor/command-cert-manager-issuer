@@ -45,6 +45,7 @@ Before continuing, ensure that the following requirements are met:
         - `/Status/Endpoints`
         - `/Enrollment/CSR`
         - `/MetadataFields`
+        - `/EnrollmentPatterns` (Keyfactor Command 25.1 and above)
 - Kubernetes >= v1.19
     - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), etc.
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
@@ -55,7 +56,7 @@ Before continuing, ensure that the following requirements are met:
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template suitable for your usecase. Additionally, you should ensure that the identity used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
+Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template / Enrollment Pattern suitable for your use case. Additionally, you should ensure that the [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
 
 1. **Create or identify a Certificate Authority**
 
@@ -65,32 +66,37 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
     The CA that you choose must be configured to allow CSR Enrollment.
 
-2. **Identify a Certificate Template**
+2. **Identify a Certificate Template / Enrollment Pattern**
+
+    Keyfactor Command 25.1 introduces support for [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm#Highlights), which allow an easy way to share certificate configuration without requiring multiple certificate templates. Certificate Template configuration has been moved to the Enrollment Patterns screen. Certificate Templates will still be supported in Issuer / ClusterIssuer configuration, but it is recommended to start using Enrollment Patterns for Keyfactor Command versions 25.1 and above.
+
+    - If you don't have any suitable Enrollment Patterns, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) or reach out to your Keyfactor support representative to learn more.
 
     Certificate Templates in Command define properties and constraints of the certificates being issued. This includes settings like key usage, extended key usage, validity period, allowed key algorithms, and signature algorithms. They also control the type of information that end entities must provide and how that information is validated before issuing certificates.
 
     - If you don't have any suitable Certificate Templates, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm?Highlight=Certificate%20Template) or reach out to your Keyfactor support representative to learn more.
 
-    The Certificate Template that you choose must be configured to allow CSR Enrollment.
+    The Certificate Template / Enrollment Pattern that you choose must be configured to allow CSR Enrollment.
 
-    You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template in Command.    
+    You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template / Enrollment Pattern in Command.    
 
-    The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template in Command.
+    The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template / Enrollment Pattern in Command.
 
 3. **Configure Command Security Roles and Claims**
 
     In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.
 
-    The security role will need to be added as an Allowed Requester Security Role on the Certificate Authority and Certificate Template configured in the previous two steps.
+    The security role will need to be added as an **Allowed Requester Security Role** on the Certificate Authority and Certificate Template / Enrollment Pattern configured in the previous two steps.
 
     - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
     If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules:
 
-    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) |
-    |-----------------------------------------|---|---|
-    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` |
-    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  |
+    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) | Notes
+    |-----------------------------------------|---|---|--|
+    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` | |
+    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  | |
+    | Enrollment Patterns > Read (Optional) | `/enrollment_pattern/read/` | N/A  | Required if using `EnrollmentPatternName` |
 
     > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
 
@@ -101,6 +107,8 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 ![Certificate Authority Allowed Requester](./docsource/images/ca_allowed_requester.png)
 
 ![Certificate Template Allowed Requester](./docsource/images/cert_template_allowed_requester.png)
+
+![Enrollment Pattern Allowed Requester](./docsource/images/enrollment_pattern_allowed_requester.png)
 
 ## Installing Command Issuer
 
@@ -127,22 +135,37 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
         --create-namespace 
     ```
 
+    Optionally, set the Docker image tag of command-cert-manager-issuer to deploy ([available tags](https://hub.docker.com/r/keyfactor/command-cert-manager-issuer/tags))
+
+    ```shell
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+        --namespace command-issuer-system \
+        --set "image.tag=latest" \
+        --create-namespace 
+    ```
+
 > The Helm chart installs the Command Issuer CRDs by default. The CRDs can be installed manually with the `make install` target.
 
 # Authentication
 
-Command Issuer supports authentication to Command using one of the following methods:
+## Explicit Credentials
 
-- Basic Authentication (username and password)
-- OAuth 2.0 "client credentials" token flow (sometimes called two-legged OAuth 2.0)
+Command Issuer supports explicit credentials authentication to Command using one of the following methods:
+
+- [Basic Authentication](#basic-auth) (username and password)
+- [OAuth 2.0 "client credentials" token flow](#oauth) (sometimes called two-legged OAuth 2.0)
 
 These credentials must be configured using a Kubernetes Secret. By default, the secret is expected to exist in the same namespace as the issuer controller (`command-issuer-system` by default). 
 
 > Command Issuer can read secrets in the Issuer namespace if `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag is set when installing the Helm chart.
 
+## Ambient Credentials
+
 Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly. The following methods are supported:
 
-- Managed Identity Using Azure Entra ID Workload Identity (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
+- [Managed Identity Using Azure Entra ID Workload Identity](./docs/ambient-providers/azure.md) (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
+
+If you are running your Kubernetes workload in a cloud provider not listed above, you can use workload identity federation with [Azure AD](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation).
 
 ## Basic Auth
 
@@ -183,157 +206,7 @@ kubectl -n command-issuer-system create secret generic command-secret \
 
 ## Managed Identity Using Azure Entra ID Workload Identity (AKS)
 
-Azure Entra ID workload identity in Azure Kubernetes Service (AKS) allows Command Issuer to exchange a Kubernetes ServiceAccount Token for an Azure Entra ID access token, which is then used to authenticate to Command.
-
-At this time, Azure Kuberentes Services workload identity federation is best supported by [User Assigned Managed Identities](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-manage-user-assigned-managed-identities?pivots=identity-mi-methods-azp). Other identity solutions such as Azure AD Service Principals are not supported.
-
-Here is a guide on how to use Azure User Assigned Managed Identities to authenticate your AKS workload with your Keyfactor Command instance.
-
-1. Reconfigure the AKS cluster to enable workload identity federation.
-
-    ```shell
-    export CLUSTER_NAME=<cluster-name>
-    export RESOURCE_GROUP=<resource-group>
-    az aks update \
-        --name ${CLUSTER_NAME} \
-        --resource-group ${RESOURCE_GROUP} \
-        --enable-oidc-issuer \
-        --enable-workload-identity
-    ```
-
-    > The [Azure Workload Identity extension can be installed on non-AKS or self-managed clusters](https://azure.github.io/azure-workload-identity/docs/installation.html) if you're not using AKS.
-    >
-    > Refer to the [AKS documentation](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster) for more information on the `--enable-workload-identity` feature.
-
-2. Create a User Assigned Managed Identity in Azure.
-
-    ```shell
-    export IDENTITY_NAME=command-issuer
-    az identity create --name "${IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}"
-    ```
-    > Read more about [the `az identity` command](https://learn.microsoft.com/en-us/cli/azure/identity?view=azure-cli-latest).
-
-3. Reconfigure or deploy Command Issuer with extra labels for the Azure Workload Identity webhook, which will result in the Command Issuer controller Pod having an extra volume containing a Kubernetes ServiceAccount token which it will exchange for a token from Azure.
-
-    ```shell
-    export UAMI_CLIENT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query clientId --output tsv)
-
-    echo "Identity Client ID: ${UAMI_CLIENT_ID}"
-
-    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
-        --namespace command-issuer-system \
-        --create-namespace \
-        --set "fullnameOverride=command-cert-manager-issuer" \
-        --set-string "podLabels.azure\.workload\.identity/use=true" \
-        --set-string "serviceAccount.labels.azure\.workload\.identity/use=true" \
-        --set-string "serviceAccount.annotations.azure\.workload\.identity/client-id=${UAMI_CLIENT_ID}"
-    ```
-
-    If successful, the Command Issuer Pod will have new environment variables and the Azure WI ServiceAccount token as a projected volume:
-
-    ```shell
-    kubectl -n command-issuer-system describe pod
-    ```
-
-    ```shell
-    Containers:
-      command-cert-manager-issuer:
-        ...
-        Environment:
-          AZURE_CLIENT_ID:             <UAMI_CLIENT_ID>
-          AZURE_TENANT_ID:             <GUID>
-          AZURE_FEDERATED_TOKEN_FILE:  /var/run/secrets/azure/tokens/azure-identity-token
-          AZURE_AUTHORITY_HOST:        https://login.microsoftonline.com/
-        Mounts:
-          /var/run/secrets/azure/tokens from azure-identity-token (ro)
-          /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-6rmzz (ro)
-    ...
-    Volumes:
-      ...
-      azure-identity-token:
-        Type:                    Projected (a volume that contains injected data from multiple sources)
-        TokenExpirationSeconds:  3600
-    ```
-
-    > Refer to [Azure Workload Identity docs](https://azure.github.io/azure-workload-identity/docs/installation/mutating-admission-webhook.html) more information on the role of the Mutating Admission Webhook.
-
-4. Associate a Federated Identity Credential (FIC) with the User Assigned Managed Identity. The FIC allows Command Issuer to act on behalf of the Managed Identity by telling Azure to expect:
-    - The `iss` claim of the ServiceAccount token to match the cluster's OIDC Issuer. Azure will also use the Issuer URL to download the JWT signing certificate.
-    - The `sub` claim of the ServiceAccount token to match the ServiceAccount's name and namespace.
-
-    ```shell
-    export SERVICE_ACCOUNT_NAME=command-cert-manager-issuer # This is the default Kubernetes ServiceAccount used by the Command Issuer controller.
-    export SERVICE_ACCOUNT_NAMESPACE=command-issuer-system # This is the default namespace for Command Issuer used in this doc.
-
-    export SERVICE_ACCOUNT_ISSUER=$(az aks show --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --query "oidcIssuerProfile.issuerUrl" -o tsv)
-    az identity federated-credential create \
-        --name "${IDENTITY_NAME}-federated-credentials" \
-        --identity-name "${IDENTITY_NAME}" \
-        --resource-group "${RESOURCE_GROUP}" \
-        --issuer "${SERVICE_ACCOUNT_ISSUER}" \
-        --subject "system:serviceaccount:${SERVICE_ACCOUNT_NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
-        --audiences "api://AzureADTokenExchange"
-    ```
-
-    > Read more about [Workload Identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation) in the Entra ID documentation.
-    >
-    > Read more about [the `az identity federated-credential` command](https://learn.microsoft.com/en-us/cli/azure/identity/federated-credential?view=azure-cli-latest).
-
-5. Get the Managed Identity's Principal ID and Entra Identity Provider Information
-
-  ```shell
-  export UAMI_PRINCIPAL_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query principalId --output tsv)
-  export CURRENT_TENANT=$(az account show --query tenantId --output tsv)
-  echo "UAMI Principal ID: ${UAMI_PRINCIPAL_ID}"
-
-  echo "View then OIDC configuration for the Entra OIDC token issuer: https://login.microsoftonline.com/$CURRENT_TENANT/v2.0/.well-known/openid-configuration"
-  
-  echo "Authority: https://login.microsoftonline.com/$CURRENT_TENANT/v2.0"
-  ```
-
-  > **IMPORTANT NOTE**: The Microsoft Entra Identity Provider is associated with your Azure tenant ID. Multi-tenant Azure workloads will require a Command Identity Provider for each tenant. 
-
-6. Add the Microsoft Entra ID as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Managed Identity's Principal ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
-
-## Google Kubernetes Engine (GKE) Workload Identity
-
-Google Kuberentes Engine (GKE) supports the ability to authenticate your GKE workloads using workload identity. 
-
-By default, GKE clusters are assigned the [default service account](https://cloud.google.com/compute/docs/access/service-accounts#token) for your Google project. This service account is used to generate an ID token for your workload. However, you may opt to use [Workload Identity Federation](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#metadata-server) to your GKE cluster.
-
-1. Get the OAuth Client and Identity Provider for your GKE Cluster
-
-  Regardless if you are using the default service account or a custom service account, the following script will help you derive your GKE cluster's OAuth Client:
-
-  ```shell
-  export CLUSTER_NAME=<cluster-name>
-  export GCLOUD_REGION=<region>
-  export GCLOUD_PROJECT_ID=$(gcloud config get-value project) # populate with the current PROJECT_ID context
-  export GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT_ID --format="value(projectNumber)")
-    
-  export GCLOUD_SERVICE_ACCOUNT=$(gcloud container clusters describe $CLUSTER_NAME \
-  --zone $GCLOUD_REGION \
-  --format="value(nodeConfig.serviceAccount)")
-
-  if [[ "$GCLOUD_SERVICE_ACCOUNT" == "default" ]]; then
-    # Override service account with default compute service account
-    GCLOUD_SERVICE_ACCOUNT="$GCLOUD_PROJECT_NUMBER-compute@developer.gserviceaccount.com"
-  fi
-  
-  echo "Service account: $GCLOUD_SERVICE_ACCOUNT"
-  
-  # Get OAuth2 Client ID of service account
-  export GCLOUD_SERVICE_ACCOUNT_CLIENT_ID=$(gcloud iam service-accounts describe $GCLOUD_SERVICE_ACCOUNT \
-  --format="value(oauth2ClientId)")
-  
-  echo "Service account OAuth2 client ID: $GCLOUD_SERVICE_ACCOUNT_CLIENT_ID"
-  
-  echo "View the OIDC configuration for Google's OIDC token issuer: https://accounts.google.com/.well-known/openid-configuration"
-  
-  echo "Authority: https://accounts.google.com"
-  ```
-
-2. Add Google as an [Identity Provider in Command](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/IdentityProviders.htm?Highlight=identity%20provider) using the identity provider information from the previous step, and [add the Service Account's OAuth Client ID as an `OAuth Subject` claim to the Security Role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) created/identified earlier.
+This section has moved. Please refer to [this link](./docs/ambient-providers/azure.md) for documentation on configuring ambient credentials with AKS.
 
 # CA Bundle
 
@@ -356,6 +229,8 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     export COMMAND_CA_HOSTNAME="<certificateAuthorityName>" # Only required for non-HTTPS CA types
     export COMMAND_CA_LOGICAL_NAME="<certificateAuthorityName>"
     export CERTIFICATE_TEMPLATE_SHORT_NAME="<certificateTemplateShortName>"
+    export ENROLLMENT_PATTERN_NAME="<enrollmentPatternName>"
+    export ENROLLMENT_PATTERN_ID="<enrollmentPatternId>"
     ```
 
     The `spec` field of both the Issuer and ClusterIssuer resources use the following fields:
@@ -363,12 +238,14 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     |--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
     | hostname                 | The hostname of the Command API Server.                                                                                                           |
     | apiPath                 | (optional) The base path of the Command REST API. Defaults to `KeyfactorAPI`.                                                                                                           |
-    | commandSecretName          | The name of the Kubernetes secret containing basic auth credentials or OAuth 2.0 credentials                                          |
+    | commandSecretName          | (optional) The name of the Kubernetes secret containing basic auth credentials or OAuth 2.0 credentials. Omit if using ambient credentials.                                         |
     | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate. Required if the Command API uses a self-signed certificate or it was signed by a CA that is not widely trusted.      |
     | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
-    | certificateTemplate     | The Short Name of the Certificate Template to use when this Issuer/ClusterIssuer enrolls CSRs.                                                                        |
-    | scopes     | (Optional) If using ambient credentials, these scopes will be put on the access token generated by the ambient credentials' token provider, if applicable.   |
+    | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
+    | enrollmentPatternName     | The Name of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern. If using `enrollmentPatternName`, your security role must have `/enrollment_pattern/read/` permission.                                                                       |
+    | certificateTemplate     | The Short Name of the Certificate Template to use when this Issuer/ClusterIssuer enrolls CSRs. **Deprecated in favor of [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns.htm) as of Keyfactor Command 25.1**. If `certificateTemplate` and either `enrollmentPatternName` or `enrollmentPatternId` are specified, the enrollment pattern parameter will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                      |
+    | scopes     | (Optional) Required if using ambient credentials with Azure AKS. If using ambient credentials, these scopes will be put on the access token generated by the ambient credentials' token provider, if applicable.   |
      | audience     | (Optional) If using ambient credentials, this audience will be put on the access token generated by the ambient credentials' token provider, if applicable. Google's ambient credential token provider generates an OIDC ID Token. If this value is not provided, it will default to `command`.  |
 
     > If a different combination of hostname/certificate authority/certificate template is required, a new Issuer or ClusterIssuer resource must be created. Each resource instantiation represents a single configuration.
@@ -389,13 +266,15 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
         spec:
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically
-          commandSecretName: "command-secret" # references the secret created above
+          commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
           caSecretName: "command-ca-secret" # references the secret created above
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME"
-          # scopes: "openid email https://example.com/.default" # Uncomment if desired
+          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
 
@@ -415,13 +294,15 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
         spec:
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically 
-          commandSecretName: "command-secret" # references the secret created above
+          commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
           caSecretName: "command-ca-secret" # references the secret created above
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME"
-          # scopes: "openid email https://example.com/.default" # Uncomment if desired
+          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # scopes: "openid email https://example.com/.default" # Uncomment if required
           # audience: "https://your-command-url.com" # Uncomment if desired
         EOF
 
@@ -469,7 +350,7 @@ spec:
   request: <csr>
 ```
 
-> All fields in Command Issuer and ClusterIssuer `spec` can be overridden by applying Kubernetes Annotations to Certificates _and_ CertificateRequests. See [runtime customization for more](docs/annotations.md) 
+> All fields in Command Issuer and ClusterIssuer `spec` can be overridden by applying Kubernetes Annotations to Certificates _and_ CertificateRequests. See [runtime customization for more](#overriding-the-issuerclusterissuer-spec-using-kubernetes-annotations-on-certificaterequest-resources) 
 
 ## Approving Certificate Requests
 
@@ -491,11 +372,13 @@ kubectl get secret command-certificate -o jsonpath='{.data.tls\.crt}' | base64 -
 
 ## Overriding the Issuer/ClusterIssuer `spec` using Kubernetes Annotations on CertificateRequest Resources
 
-Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, and `certificateTemplate` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
+Command Issuer allows you to override the `certificateAuthorityHostname`, `certificateAuthorityLogicalName`, `certificateTemplate`, `enrollmentPatternName`, and `enrollmentPatternId` by setting Kubernetes Annotations on CertificateRequest resources. This may be useful if certain enrollment scenarios require a different Certificate Authority or Certificate Template, but you don't want to create a new Issuer/ClusterIssuer.
 
 - `command-issuer.keyfactor.com/certificateAuthorityHostname` overrides `certificateAuthorityHostname`
 - `command-issuer.keyfactor.com/certificateAuthorityLogicalName` overrides `certificateAuthorityLogicalName`
 - `command-issuer.keyfactor.com/certificateTemplate` overrides `certificateTemplate`
+- `command-issuer.keyfactor.com/enrollmentPatternName` overrides `enrollmentPatternName`
+- `command-issuer.keyfactor.com/enrollmentPatternId` overrides `enrollmentPatternId`. Needs to be in string format.
 
 > cert-manager copies Annotations set on Certificate resources to the corresponding CertificateRequest.
 
@@ -509,6 +392,8 @@ Command Issuer allows you to override the `certificateAuthorityHostname`, `certi
 > kind: Certificate
 > metadata:
 >   annotations:
+>     command-issuer.keyfactor.com/enrollmentPatternId: "1234"
+>     command-issuer.keyfactor.com/enrollmentPatternName: "Kubernetes Enrollment Pattern"
 >     command-issuer.keyfactor.com/certificateTemplate: "Ephemeral2day"
 >     command-issuer.keyfactor.com/certificateAuthorityLogicalName: "InternalIssuingCA1"
 >     metadata.command-issuer.keyfactor.com/ResponsibleTeam: "theResponsibleTeam@example.com"
@@ -545,6 +430,30 @@ Keyfactor Command allows users to [attach custom metadata to certificates](https
     ```yaml
     metadata.command-issuer.keyfactor.com/<metadata-field-name>: <metadata-value>
     ```
+
+# Troubleshooting
+
+## Failed to Authenticate, Received Status Code 401 from Keyfactor Command
+
+If you see this error, the identity provider that issued credentials to your command-cert-manager-issuer (using OAuth, Basic, or ambient credentials) is not a registered identity provider in your Keyfactor Command instance. Please see the [Configuring Command](#configuring-command) section for more information.
+
+```bash
+failed to create new Command API client: failed to authenticate, received status code 401 from Keyfactor Command
+```
+
+## Failed to Authenticate, Received Status Code 403 from Keyfactor Command
+
+If you see this error, the identity provider that issued credentials to your command-cert-manager-issuer (using OAuth, Basic, or ambient credentials) is configured in Keyfactor Command, however the identity associated to those credentials is not associated with any security roles. Make sure the identity is mapped to a security claim. See the **Configure Command Security Roles and Claims** section of the [Configuring Command](#configuring-command) section for more information.
+
+```bash
+failed to create new Command API client: failed to authenticate, received status code 403 from Keyfactor Command: {\"ErrorCode\":\"0xA0140002\",\"Message\":\"User <user-id> doesn\\u0027t have the required permission\"}
+```
+
+If you see this sort of error, the identity is mapped to one or more security roles in Keyfactor Command, but is missing the necessary permissions. See the **Configure Command Security Roles and Claims** section of the [Configuring Command](#configuring-command) section for the required permissions.
+
+```bash
+failed to fetch metadata fields from connected Command instance: User <user-id> does not have the required permissions: /metadata/types/read/.
+```
 
 
 
