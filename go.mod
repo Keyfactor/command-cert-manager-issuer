@@ -6,7 +6,7 @@ toolchain go1.24.0
 
 require (
 	github.com/Keyfactor/keyfactor-auth-client-go v1.3.0
-	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.0-rc.7
+	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.1
 	github.com/cert-manager/cert-manager v1.16.2
 	github.com/go-logr/logr v1.4.2
 	github.com/stretchr/testify v1.10.0
