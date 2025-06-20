@@ -85,6 +85,21 @@ spec:
                   Enrollment will fail if the specified template is not compatible with the enrollment pattern.
                   Refer to the Keyfactor Command documentation for more information.
                 type: string
+              ownerRoleId:
+                description: |-
+                  OwnerRoleId is the ID of the security role assigned as the certificate owner.
+                  The specified security role must be assigned to the authorized identity context.
+                  If OwnerRoleId and OwnerRoleName are both specified, OwnerRoleId will take precedence.
+                  This field is required if the enrollment pattern, certificate template, or system-wide settings has been configured as Required.
+                type: integer
+                format: int32
+              ownerRoleName:
+                description: |-
+                  OwnerRoleName is the name of the security role assigned as the certificate owner. This name must match the existing name of the security role.
+                  The specified security role must be assigned to the authorized identity context.
+                  If OwnerRoleId and OwnerRoleName are both specified, OwnerRoleId will take precedence.
+                  This field is required if the enrollment pattern, certificate template, or system-wide settings has been configured as Required.
+                type: string
               certificateTemplate:
                 description: |-
                   CertificateTemplate is the name of the certificate template to use. Deprecated in favor of EnrollmentPattern as of Keyfactor Command 25.1.

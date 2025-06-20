@@ -66,6 +66,20 @@ type IssuerSpec struct {
 	// Refer to the Keyfactor Command documentation for more information.
 	CertificateTemplate string `json:"certificateTemplate,omitempty"`
 
+	// OwnerRoleId is the ID of the security role assigned as the certificate owner.
+	// The specified security role must be assigned to the authorized identity context.
+	// If OwnerRoleId and OwnerRoleName are both specified, OwnerRoleId will take precedence.
+	// This field is required if the enrollment pattern, certificate template, or system-wide settings has been configured as Required.
+	// + optional
+	OwnerRoleId int32 `json:"ownerRoleId,omitempty"`
+
+	// OwnerRoleName is the name of the security role assigned as the certificate owner. This name must match the existing name of the security role.
+	// The specified security role must be assigned to the authorized identity context.
+	// If OwnerRoleId and OwnerRoleName are both specified, OwnerRoleId will take precedence.
+	// This field is required if the enrollment pattern, certificate template, or system-wide settings has been configured as Required.
+	// + optional
+	OwnerRoleName string `json:"ownerRoleName,omitempty"`
+
 	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
 	// E.g. "Keyfactor Root CA" or "Intermediate CA"
 	CertificateAuthorityLogicalName string `json:"certificateAuthorityLogicalName,omitempty"`

@@ -37,6 +37,7 @@ import (
 
 	"github.com/Keyfactor/keyfactor-auth-client-go/auth_providers"
 	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -235,6 +236,8 @@ func TestSignConfigValidate(t *testing.T) {
 				CertificateTemplate:             "myTemplate",
 				CertificateAuthorityLogicalName: "ca-logical",
 				CertificateAuthorityHostname:    "ca.example.com",
+				OwnerRoleName:                   "TestRole",
+				OwnerRoleId:                     1,
 				Annotations:                     map[string]string{"environment": "prod"},
 			},
 			wantErr: "",
@@ -396,6 +399,8 @@ func (f *fakeClient) TestConnection() error {
 }
 
 type EnrollmentCSRRequest struct {
+	OwnerRoleId          int32
+	OwnerRoleName        string
 	EnrollmentPatternId  int32
 	Template             string
 	CertificateAuthority string
@@ -570,6 +575,48 @@ func TestSign(t *testing.T) {
 				EnrollmentPatternId:  12345,
 				Template:             "template-override",
 				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-no-meta-owner-role-id": {
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				OwnerRoleId:                     1,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				OwnerRoleId:          1,
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-no-meta-owner-role-name": {
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				OwnerRoleName:                   "Administrator",
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				OwnerRoleName:        "Administrator",
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
 				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
@@ -797,6 +844,327 @@ func TestCommandSupportsMetadata(t *testing.T) {
 			supported, err := signer.CommandSupportsMetadata()
 			assert.NoError(t, err)
 			require.Equal(t, tc.expected, supported)
+		})
+	}
+}
+
+func TestUpdateConfigWithOverrides(t *testing.T) {
+	testCases := map[string]struct {
+		config      SignConfig
+		expected    SignConfig
+		expectError bool
+	}{
+		"certificate-template-no-annotation": {
+			config: SignConfig{
+				CertificateTemplate: "Template",
+			},
+			expected: SignConfig{
+				CertificateTemplate: "Template",
+			},
+			expectError: false,
+		},
+		"certificate-template-with-annotation": {
+			config: SignConfig{
+				CertificateTemplate: "Template",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateTemplate": "Updated",
+				},
+			},
+			expected: SignConfig{
+				CertificateTemplate: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateTemplate": "Updated",
+				},
+			},
+			expectError: false,
+		},
+		"certificate-authority-logical-name-no-annotation": {
+			config: SignConfig{
+				CertificateAuthorityLogicalName: "LogicalName",
+				Annotations:                     map[string]string{},
+			},
+			expected: SignConfig{
+				CertificateAuthorityLogicalName: "LogicalName",
+				Annotations:                     map[string]string{},
+			},
+			expectError: false,
+		},
+		"certificate-authority-logical-name-with-annotation": {
+			config: SignConfig{
+				CertificateAuthorityLogicalName: "LogicalName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "Updated",
+				},
+			},
+			expected: SignConfig{
+				CertificateAuthorityLogicalName: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "Updated",
+				},
+			},
+			expectError: false,
+		},
+		"certificate-authority-host-name-no-annotation": {
+			config: SignConfig{
+				CertificateAuthorityHostname: "Hostname",
+				Annotations:                  map[string]string{},
+			},
+			expected: SignConfig{
+				CertificateAuthorityHostname: "Hostname",
+				Annotations:                  map[string]string{},
+			},
+			expectError: false,
+		},
+		"certificate-authority-host-name-with-annotation": {
+			config: SignConfig{
+				CertificateAuthorityHostname: "Hostname",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityHostname": "Updated",
+				},
+			},
+			expected: SignConfig{
+				CertificateAuthorityHostname: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityHostname": "Updated",
+				},
+			},
+			expectError: false,
+		},
+		"enrollment-pattern-id-no-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations:         map[string]string{},
+			},
+			expected: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations:         map[string]string{},
+			},
+			expectError: false,
+		},
+		"enrollment-pattern-id-with-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "456",
+				},
+			},
+			expected: SignConfig{
+				EnrollmentPatternId: 456,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "456",
+				},
+			},
+			expectError: false,
+		},
+		"enrollment-pattern-id-with-bad-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
+				},
+			},
+			expected: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
+				},
+			},
+			expectError: true,
+		},
+		"enrollment-pattern-name-no-annotation": {
+			config: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations:           map[string]string{},
+			},
+			expected: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations:           map[string]string{},
+			},
+			expectError: false,
+		},
+		"enrollment-pattern-name-with-annotation": {
+			config: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
+				},
+			},
+			expected: SignConfig{
+				EnrollmentPatternName: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
+				},
+			},
+			expectError: false,
+		},
+		"owner-role-id-no-annotation": {
+			config: SignConfig{
+				OwnerRoleId: 456,
+				Annotations: map[string]string{},
+			},
+			expected: SignConfig{
+				OwnerRoleId: 456,
+				Annotations: map[string]string{},
+			},
+			expectError: false,
+		},
+		"owner-role-id-with-annotation": {
+			config: SignConfig{
+				OwnerRoleId: 456,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleId": "890",
+				},
+			},
+			expected: SignConfig{
+				OwnerRoleId: 890,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleId": "890",
+				},
+			},
+			expectError: false,
+		},
+		"owner-role-name-no-annotation": {
+			config: SignConfig{
+				OwnerRoleName: "OwnerRoleName",
+				Annotations:   map[string]string{},
+			},
+			expected: SignConfig{
+				OwnerRoleName: "OwnerRoleName",
+				Annotations:   map[string]string{},
+			},
+			expectError: false,
+		},
+		"owner-role-name-with-annotation": {
+			config: SignConfig{
+				OwnerRoleName: "OwnerRoleName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleName": "Updated",
+				},
+			},
+			expected: SignConfig{
+				OwnerRoleName: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleName": "Updated",
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := updateConfigWithOverrides(&tc.config, logger)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, tc.config)
+		})
+	}
+
+}
+
+func TestGetMetadataOverrideOrCurrentValue(t *testing.T) {
+	type testCase[T any] struct {
+		currentValue  T
+		annotations   map[string]string
+		key           string
+		expectedValue T
+		expectError   bool
+	}
+
+	int32Cases := map[string]testCase[int32]{
+		"int32-mapping-not-found-returns-current-value": {
+			currentValue:  1,
+			annotations:   map[string]string{},
+			key:           "fizzbuzz",
+			expectedValue: 1,
+		},
+		"int32-mapping-found-returns-annotated-value": {
+			currentValue: 1,
+			annotations: map[string]string{
+				"command-issuer.keyfactor.com/fizzbuzz": "2",
+			},
+			key:           "fizzbuzz",
+			expectedValue: 2,
+		},
+		"int32-mapping-found-invalid-format-returns-error": {
+			currentValue: 1,
+			annotations: map[string]string{
+				"command-issuer.keyfactor.com/fizzbuzz": "oops",
+			},
+			key:         "fizzbuzz",
+			expectError: true,
+		},
+	}
+
+	stringCases := map[string]testCase[string]{
+		"string-mapping-not-found-returns-current-value": {
+			currentValue:  "foo",
+			annotations:   map[string]string{},
+			key:           "fizzbuzz",
+			expectedValue: "foo",
+		},
+		"string-mapping-found-returns-annotated-value": {
+			currentValue: "foo",
+			annotations: map[string]string{
+				"command-issuer.keyfactor.com/fizzbuzz": "bar",
+			},
+			key:           "fizzbuzz",
+			expectedValue: "bar",
+		},
+		"string-mapping-int-format-not-found-returns-current-value": {
+			currentValue:  "1",
+			annotations:   map[string]string{},
+			key:           "fizzbuzz",
+			expectedValue: "1",
+		},
+		"string-mapping-int-format-found-returns-annotated-value": {
+			currentValue: "1",
+			annotations: map[string]string{
+				"command-issuer.keyfactor.com/fizzbuzz": "2",
+			},
+			key:           "fizzbuzz",
+			expectedValue: "2",
+		},
+	}
+
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	// Run int32 test cases
+	for name, tc := range int32Cases {
+		t.Run("[int32] "+name, func(t *testing.T) {
+			val, err := getMetadataOverrideOrCurrentValue[int32](tc.currentValue, tc.annotations, tc.key, logger)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, int32(0), val)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, val)
+				assert.Equal(t, tc.expectedValue, val)
+			}
+		})
+	}
+
+	// Run string test cases
+	for name, tc := range stringCases {
+		t.Run("[string] "+name, func(t *testing.T) {
+			val, err := getMetadataOverrideOrCurrentValue[string](tc.currentValue, tc.annotations, tc.key, logger)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, "", val)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, val)
+				assert.Equal(t, tc.expectedValue, val)
+			}
 		})
 	}
 }
