@@ -433,8 +433,7 @@ func TestSign(t *testing.T) {
 		config *SignConfig
 
 		// Expected
-		expectedEnrollArgs *EnrollmentCSRRequest
-		expectedSignError  error
+		expectedSignError error
 	}{
 		"success-no-meta-certificate-template": {
 			// Request
@@ -446,13 +445,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				Template:             certificateTemplateName,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-id": {
@@ -465,13 +457,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				EnrollmentPatternId:  12345,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-name": {
@@ -491,13 +476,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				EnrollmentPatternId:  12345,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-id-overwrites-pattern-name": {
@@ -512,13 +490,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				EnrollmentPatternId:  12345,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-annotation-config-override-pattern-id": {
@@ -537,14 +508,6 @@ func TestSign(t *testing.T) {
 				},
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				EnrollmentPatternId:  12345,
-				Template:             "template-override",
-				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-annotation-config-override-pattern-name": {
@@ -570,14 +533,6 @@ func TestSign(t *testing.T) {
 				},
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				EnrollmentPatternId:  12345,
-				Template:             "template-override",
-				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-no-meta-owner-role-id": {
@@ -591,14 +546,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				OwnerRoleId:          1,
-				EnrollmentPatternId:  12345,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-no-meta-owner-role-name": {
@@ -612,14 +559,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				OwnerRoleName:        "Administrator",
-				EnrollmentPatternId:  12345,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: nil,
 		},
 		"success-predefined-meta": {
@@ -641,21 +580,6 @@ func TestSign(t *testing.T) {
 				Annotations: nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				Template:             certificateTemplateName,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata: map[string]interface{}{
-					CommandMetaControllerNamespace:                "namespace",
-					CommandMetaControllerKind:                     "Issuer",
-					CommandMetaControllerResourceGroupName:        "rg.test.com",
-					CommandMetaIssuerName:                         "test",
-					CommandMetaIssuerNamespace:                    "ns",
-					CommandMetaControllerReconcileId:              "alksdfjlasdljkf",
-					CommandMetaCertificateSigningRequestNamespace: "other-namespace",
-				},
-			},
 			expectedSignError: nil,
 		},
 		"success-custom-meta": {
@@ -670,15 +594,6 @@ func TestSign(t *testing.T) {
 				},
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				Template:             certificateTemplateName,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata: map[string]interface{}{
-					"testMetadata": "test",
-				},
-			},
 			expectedSignError: nil,
 		},
 		"enroll-csr-err": {
@@ -692,13 +607,6 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				Template:             certificateTemplateName,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
-			},
 			expectedSignError: errCommandEnrollmentFailure,
 		},
 		"enroll-csr-err-enrollment-pattern-not-found": {
@@ -711,14 +619,6 @@ func TestSign(t *testing.T) {
 				CertificateAuthorityHostname:    certificateAuthorityHostname,
 				Meta:                            nil,
 				Annotations:                     nil,
-			},
-
-			// Expected
-			expectedEnrollArgs: &EnrollmentCSRRequest{
-				Template:             certificateTemplateName,
-				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 map[string][]string{},
-				Metadata:             map[string]interface{}{},
 			},
 
 			expectedSignError: errEnrollmentPatternFailure,
@@ -848,227 +748,6 @@ func TestCommandSupportsMetadata(t *testing.T) {
 	}
 }
 
-func TestUpdateConfigWithOverrides(t *testing.T) {
-	testCases := map[string]struct {
-		config      SignConfig
-		expected    SignConfig
-		expectError bool
-	}{
-		"certificate-template-no-annotation": {
-			config: SignConfig{
-				CertificateTemplate: "Template",
-			},
-			expected: SignConfig{
-				CertificateTemplate: "Template",
-			},
-			expectError: false,
-		},
-		"certificate-template-with-annotation": {
-			config: SignConfig{
-				CertificateTemplate: "Template",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateTemplate": "Updated",
-				},
-			},
-			expected: SignConfig{
-				CertificateTemplate: "Updated",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateTemplate": "Updated",
-				},
-			},
-			expectError: false,
-		},
-		"certificate-authority-logical-name-no-annotation": {
-			config: SignConfig{
-				CertificateAuthorityLogicalName: "LogicalName",
-				Annotations:                     map[string]string{},
-			},
-			expected: SignConfig{
-				CertificateAuthorityLogicalName: "LogicalName",
-				Annotations:                     map[string]string{},
-			},
-			expectError: false,
-		},
-		"certificate-authority-logical-name-with-annotation": {
-			config: SignConfig{
-				CertificateAuthorityLogicalName: "LogicalName",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "Updated",
-				},
-			},
-			expected: SignConfig{
-				CertificateAuthorityLogicalName: "Updated",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "Updated",
-				},
-			},
-			expectError: false,
-		},
-		"certificate-authority-host-name-no-annotation": {
-			config: SignConfig{
-				CertificateAuthorityHostname: "Hostname",
-				Annotations:                  map[string]string{},
-			},
-			expected: SignConfig{
-				CertificateAuthorityHostname: "Hostname",
-				Annotations:                  map[string]string{},
-			},
-			expectError: false,
-		},
-		"certificate-authority-host-name-with-annotation": {
-			config: SignConfig{
-				CertificateAuthorityHostname: "Hostname",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateAuthorityHostname": "Updated",
-				},
-			},
-			expected: SignConfig{
-				CertificateAuthorityHostname: "Updated",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/certificateAuthorityHostname": "Updated",
-				},
-			},
-			expectError: false,
-		},
-		"enrollment-pattern-id-no-annotation": {
-			config: SignConfig{
-				EnrollmentPatternId: 123,
-				Annotations:         map[string]string{},
-			},
-			expected: SignConfig{
-				EnrollmentPatternId: 123,
-				Annotations:         map[string]string{},
-			},
-			expectError: false,
-		},
-		"enrollment-pattern-id-with-annotation": {
-			config: SignConfig{
-				EnrollmentPatternId: 123,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternId": "456",
-				},
-			},
-			expected: SignConfig{
-				EnrollmentPatternId: 456,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternId": "456",
-				},
-			},
-			expectError: false,
-		},
-		"enrollment-pattern-id-with-bad-annotation": {
-			config: SignConfig{
-				EnrollmentPatternId: 123,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
-				},
-			},
-			expected: SignConfig{
-				EnrollmentPatternId: 123,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
-				},
-			},
-			expectError: true,
-		},
-		"enrollment-pattern-name-no-annotation": {
-			config: SignConfig{
-				EnrollmentPatternName: "EnrollmentPatternName",
-				Annotations:           map[string]string{},
-			},
-			expected: SignConfig{
-				EnrollmentPatternName: "EnrollmentPatternName",
-				Annotations:           map[string]string{},
-			},
-			expectError: false,
-		},
-		"enrollment-pattern-name-with-annotation": {
-			config: SignConfig{
-				EnrollmentPatternName: "EnrollmentPatternName",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
-				},
-			},
-			expected: SignConfig{
-				EnrollmentPatternName: "Updated",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
-				},
-			},
-			expectError: false,
-		},
-		"owner-role-id-no-annotation": {
-			config: SignConfig{
-				OwnerRoleId: 456,
-				Annotations: map[string]string{},
-			},
-			expected: SignConfig{
-				OwnerRoleId: 456,
-				Annotations: map[string]string{},
-			},
-			expectError: false,
-		},
-		"owner-role-id-with-annotation": {
-			config: SignConfig{
-				OwnerRoleId: 456,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/ownerRoleId": "890",
-				},
-			},
-			expected: SignConfig{
-				OwnerRoleId: 890,
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/ownerRoleId": "890",
-				},
-			},
-			expectError: false,
-		},
-		"owner-role-name-no-annotation": {
-			config: SignConfig{
-				OwnerRoleName: "OwnerRoleName",
-				Annotations:   map[string]string{},
-			},
-			expected: SignConfig{
-				OwnerRoleName: "OwnerRoleName",
-				Annotations:   map[string]string{},
-			},
-			expectError: false,
-		},
-		"owner-role-name-with-annotation": {
-			config: SignConfig{
-				OwnerRoleName: "OwnerRoleName",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/ownerRoleName": "Updated",
-				},
-			},
-			expected: SignConfig{
-				OwnerRoleName: "Updated",
-				Annotations: map[string]string{
-					"command-issuer.keyfactor.com/ownerRoleName": "Updated",
-				},
-			},
-			expectError: false,
-		},
-	}
-
-	logger := logr.FromContextOrDiscard(context.Background())
-
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			err := updateConfigWithOverrides(&tc.config, logger)
-
-			if tc.expectError {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expected, tc.config)
-		})
-	}
-
-}
-
 func TestGetMetadataOverrideOrCurrentValue(t *testing.T) {
 	type testCase[T any] struct {
 		currentValue  T
@@ -1167,6 +846,596 @@ func TestGetMetadataOverrideOrCurrentValue(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildCsrEnrollRequest_Success(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	now := time.Now()
+
+	config := &SignConfig{
+		CertificateTemplate:             "TestTemplate",
+		CertificateAuthorityLogicalName: "TestCA",
+		CertificateAuthorityHostname:    "ca.example.com",
+		EnrollmentPatternId:             123,
+		EnrollmentPatternName:           "",
+		OwnerRoleId:                     456,
+		OwnerRoleName:                   "",
+		Annotations:                     map[string]string{},
+		Meta: &K8sMetadata{
+			ControllerNamespace:                "test-namespace",
+			ControllerKind:                     "Certificate",
+			ControllerResourceGroupName:        "cert-manager.io",
+			IssuerName:                         "test-issuer",
+			IssuerNamespace:                    "test-namespace",
+			ControllerReconcileId:              "reconcile-123",
+			CertificateSigningRequestNamespace: "csr-namespace",
+		},
+	}
+
+	req, result, caBuilder, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+
+	assert.NotNil(t, result)
+	assert.NotNil(t, req)
+	assert.NotNil(t, caBuilder)
+
+	assert.Equal(t, string(csrPem), result.CSR)
+	assert.Equal(t, int32(123), *result.EnrollmentPatternId.Get())
+	assert.Equal(t, int32(456), *result.OwnerRoleId.Get())
+	assert.Equal(t, "TestTemplate", *result.Template.Get())
+	assert.Equal(t, "ca.example.com\\TestCA", *result.CertificateAuthority.Get())
+	assert.True(t, *result.IncludeChain)
+	assert.NotNil(t, result.Timestamp)
+	assert.GreaterOrEqual(t, *result.Timestamp, now)
+
+	// Check metadata
+	assert.Equal(t, "test-namespace", result.Metadata[CommandMetaControllerNamespace])
+	assert.Equal(t, "Certificate", result.Metadata[CommandMetaControllerKind])
+	assert.Equal(t, "cert-manager.io", result.Metadata[CommandMetaControllerResourceGroupName])
+	assert.Equal(t, "test-issuer", result.Metadata[CommandMetaIssuerName])
+	assert.Equal(t, "test-namespace", result.Metadata[CommandMetaIssuerNamespace])
+	assert.Equal(t, "reconcile-123", result.Metadata[CommandMetaControllerReconcileId])
+	assert.Equal(t, "csr-namespace", result.Metadata[CommandMetaCertificateSigningRequestNamespace])
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_CertificateTemplate(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"certificate-template-no-annotation": {
+			config: SignConfig{
+				CertificateTemplate: "Template",
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				Template: *v1.NewNullableString(ptr("Template")),
+			},
+		},
+		"certificate-template-with-annotation": {
+			config: SignConfig{
+				CertificateTemplate: "Template",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateTemplate": "Updated",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				Template: *v1.NewNullableString(ptr("Updated")),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.Template.Get(), *result.Template.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityLogicalName(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"certificate-authority-logical-name-no-annotation": {
+			config: SignConfig{
+				CertificateAuthorityLogicalName: "LogicalName",
+				Annotations:                     map[string]string{},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				CertificateAuthority: *v1.NewNullableString(ptr("LogicalName")),
+			},
+		},
+		"certificate-authority-logical-name-with-annotation": {
+			config: SignConfig{
+				CertificateAuthorityLogicalName: "LogicalName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "Updated",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				CertificateAuthority: *v1.NewNullableString(ptr("Updated")),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.CertificateAuthority.Get(), *result.CertificateAuthority.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityHostname(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"certificate-authority-host-name-no-annotation": {
+			config: SignConfig{
+				CertificateAuthorityHostname: "Hostname",
+				Annotations:                  map[string]string{},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				CertificateAuthority: *v1.NewNullableString(ptr("Hostname\\")),
+			},
+		},
+		"certificate-authority-host-name-with-annotation": {
+			config: SignConfig{
+				CertificateAuthorityHostname: "Hostname",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateAuthorityHostname": "Updated",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				CertificateAuthority: *v1.NewNullableString(ptr("Updated\\")),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.CertificateAuthority.Get(), *result.CertificateAuthority.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_EnrollmentPatternId(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"enrollment-pattern-id-no-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations:         map[string]string{},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				EnrollmentPatternId: *v1.NewNullableInt32(ptr(int32(123))),
+			},
+		},
+		"enrollment-pattern-id-with-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "456",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				EnrollmentPatternId: *v1.NewNullableInt32(ptr(int32(456))),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.EnrollmentPatternId.Get(), *result.EnrollmentPatternId.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleId(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"owner-role-id-no-annotation": {
+			config: SignConfig{
+				OwnerRoleId: 456,
+				Annotations: map[string]string{},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				OwnerRoleId: *v1.NewNullableInt32(ptr(int32(456))),
+			},
+		},
+		"owner-role-id-with-annotation": {
+			config: SignConfig{
+				OwnerRoleId: 456,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleId": "890",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				OwnerRoleId: *v1.NewNullableInt32(ptr(int32(890))),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.OwnerRoleId.Get(), *result.OwnerRoleId.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleName(t *testing.T) {
+	testCases := map[string]struct {
+		config   SignConfig
+		expected v1.EnrollmentCSREnrollmentRequest
+	}{
+		"owner-role-name-no-annotation": {
+			config: SignConfig{
+				OwnerRoleName: "OwnerRoleName",
+				Annotations:   map[string]string{},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				OwnerRoleName: *v1.NewNullableString(ptr("OwnerRoleName")),
+			},
+		},
+		"owner-role-name-with-annotation": {
+			config: SignConfig{
+				OwnerRoleName: "OwnerRoleName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/ownerRoleName": "Updated",
+				},
+			},
+			expected: v1.EnrollmentCSREnrollmentRequest{
+				OwnerRoleName: *v1.NewNullableString(ptr("Updated")),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expected.OwnerRoleName.Get(), *result.OwnerRoleName.Get())
+		})
+	}
+}
+
+func TestBuildCsrEnrollRequest_NoCertificateTemplate_TemplatePropertyIsNil(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		CertificateTemplate: "",
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Nil(t, result.Template.Get())
+}
+
+func TestBuildCsrEnrollRequest_EnrollmentPatternNameAndEnrollmentPatternIdPopulated_UsesEnrollmentPatternIdValue(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		EnrollmentPatternId:   123,
+		EnrollmentPatternName: "TestEnrollmentPatternId",
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int32(123), *result.EnrollmentPatternId.Get())
+}
+
+func TestBuildCsrEnrollRequest_EnrollmentPatternNameIsPopulated_GetsEnrollmentPatternFromClient(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{
+		enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
+			v1.EnrollmentPatternsEnrollmentPatternResponse{
+				Id: ptr(int32(123)),
+			},
+		},
+	}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		EnrollmentPatternName: "TestEnrollmentPatternId",
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int32(123), *result.EnrollmentPatternId.Get())
+}
+
+func TestBuildCsrEnrollRequest_OwnerRoleIdIsPopulated_UsesOwnerRoleIdValue(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		OwnerRoleId: 123,
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int32(123), *result.OwnerRoleId.Get())
+}
+
+func TestBuildCsrEnrollRequest_OwnerRoleNameIsPopulated_UsesOwnerRoleNameValue(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		OwnerRoleName: "TestOwnerRole",
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "TestOwnerRole", *result.OwnerRoleName.Get())
+}
+
+func TestBuildCsrEnrollRequest_OwnerRoleIdAndNameArePopulated_UsesOwnerRoleIdValue(t *testing.T) {
+	ctx := context.Background()
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	client := fakeClient{}
+	signer := signer{
+		client: &client,
+	}
+
+	// Create test CSR
+	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	require.NoError(t, err)
+	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+	config := &SignConfig{
+		OwnerRoleId:   123,
+		OwnerRoleName: "TestOwnerRole",
+	}
+
+	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int32(123), *result.OwnerRoleId.Get())
+	assert.Nil(t, result.OwnerRoleName.Get())
+}
+
+func TestUpdateConfigWithOverrides(t *testing.T) {
+	// Tackling the edge cases that can't be tested directly with the
+	// TestBuildCsrEnrollRequest test fixtures
+	testCases := map[string]struct {
+		config      SignConfig
+		expected    SignConfig
+		expectError bool
+	}{
+		"enrollment-pattern-id-with-bad-annotation": {
+			config: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
+				},
+			},
+			expected: SignConfig{
+				EnrollmentPatternId: 123,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternId": "foobar!",
+				},
+			},
+			expectError: true,
+		},
+		"enrollment-pattern-name-no-annotation": {
+			config: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations:           map[string]string{},
+			},
+			expected: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations:           map[string]string{},
+			},
+			expectError: false,
+		},
+		"enrollment-pattern-name-with-annotation": {
+			config: SignConfig{
+				EnrollmentPatternName: "EnrollmentPatternName",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
+				},
+			},
+			expected: SignConfig{
+				EnrollmentPatternName: "Updated",
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/enrollmentPatternName": "Updated",
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	logger := logr.FromContextOrDiscard(context.Background())
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := updateConfigWithOverrides(&tc.config, logger)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, tc.config)
+		})
+	}
+
 }
 
 func assertErrorIs(t *testing.T, expectedError, actualError error) {

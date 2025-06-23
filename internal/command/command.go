@@ -373,105 +373,18 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		return nil, nil, err
 	}
 
-	// Override defaults from annotations
-	if err = updateConfigWithOverrides(config, k8sLog); err != nil {
-		return nil, nil, err
-	}
-
-	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s) and enrollment pattern ID %d and enrollment pattern name %s", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname, config.EnrollmentPatternId, config.EnrollmentPatternName))
-
-	csr, err := parseCSR(csrBytes)
+	request, model, caBuilder, err := s.buildCsrEnrollRequest(ctx, config, k8sLog, csrBytes)
 	if err != nil {
-		k8sLog.Error(err, "failed to parse CSR")
 		return nil, nil, err
 	}
 
-	// Log the common metadata of the CSR
-	k8sLog.Info(fmt.Sprintf("CSR has Common Name %q with %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
+	req := *request
+	modelRequest := *model
 
-	// Print the SANs
-	for _, dnsName := range csr.DNSNames {
-		k8sLog.Info(fmt.Sprintf("DNS SAN: %s", dnsName))
-	}
-
-	for _, ipAddress := range csr.IPAddresses {
-		k8sLog.Info(fmt.Sprintf("IP SAN: %s", ipAddress.String()))
-	}
-
-	for _, uri := range csr.URIs {
-		k8sLog.Info(fmt.Sprintf("URI SAN: %s", uri.String()))
-	}
-
-	req := v1.ApiCreateEnrollmentCSRRequest{}
-	req = req.XCertificateformat(enrollmentPEMFormat)
-
-	var template *string = nil
-	var enrollmentPatternId *int32 = nil
-	var certificateOwnerId *int32 = nil
-	var certificateOwnerName *string = nil
-
-	// Populate certificate template if defined
-	if config.CertificateTemplate != "" {
-		k8sLog.Info(fmt.Sprintf("Using certificate template from config. Name: %s", config.CertificateTemplate))
-		template = &config.CertificateTemplate
-	}
-
-	// Populate enrollment pattern ID or name if defined
-	if config.EnrollmentPatternId != 0 {
-		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID from config. ID: %d", config.EnrollmentPatternId))
-		enrollmentPatternId = &config.EnrollmentPatternId
-	} else if config.EnrollmentPatternName != "" {
-		pattern, err := getEnrollmentPatternByName(ctx, k8sLog, s, config.EnrollmentPatternName)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		enrollmentPatternId = pattern.Id
-		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID: %d", *enrollmentPatternId))
-	}
-
-	if config.OwnerRoleId != 0 {
-		k8sLog.Info(fmt.Sprintf("Using owner role ID from config. ID: %d", config.OwnerRoleId))
-		certificateOwnerId = &config.OwnerRoleId
-	} else if config.OwnerRoleName != "" {
-		k8sLog.Info(fmt.Sprintf("Using owner role name from config. Name: %s", config.OwnerRoleName))
-		certificateOwnerName = &config.OwnerRoleName
-	}
-
-	modelRequest := v1.EnrollmentCSREnrollmentRequest{
-		CSR:                 string(csrBytes),
-		EnrollmentPatternId: *v1.NewNullableInt32(enrollmentPatternId),
-		OwnerRoleId:         *v1.NewNullableInt32(certificateOwnerId),
-		OwnerRoleName:       *v1.NewNullableString(certificateOwnerName),
-		Template:            *v1.NewNullableString(template),
-		Timestamp:           ptr(time.Now()),
-		IncludeChain:        ptr(true),
-		SANs:                map[string][]string{},
-		Metadata:            map[string]interface{}{},
-	}
-
-	if config.Meta != nil {
-		modelRequest.Metadata[CommandMetaControllerNamespace] = config.Meta.ControllerNamespace
-		modelRequest.Metadata[CommandMetaControllerKind] = config.Meta.ControllerKind
-		modelRequest.Metadata[CommandMetaControllerResourceGroupName] = config.Meta.ControllerResourceGroupName
-		modelRequest.Metadata[CommandMetaIssuerName] = config.Meta.IssuerName
-		modelRequest.Metadata[CommandMetaIssuerNamespace] = config.Meta.IssuerNamespace
-		modelRequest.Metadata[CommandMetaControllerReconcileId] = config.Meta.ControllerReconcileId
-		modelRequest.Metadata[CommandMetaCertificateSigningRequestNamespace] = config.Meta.CertificateSigningRequestNamespace
-	}
-
-	for metaName, value := range extractMetadataFromAnnotations(config.Annotations) {
-		k8sLog.Info(fmt.Sprintf("Adding metadata %q with value %q", metaName, value))
-		modelRequest.Metadata[metaName] = value
-	}
-
-	var caBuilder strings.Builder
-	if config.CertificateAuthorityHostname != "" {
-		caBuilder.WriteString(config.CertificateAuthorityHostname)
-		caBuilder.WriteString("\\")
-	}
-	caBuilder.WriteString(config.CertificateAuthorityLogicalName)
-	modelRequest.CertificateAuthority = *v1.NewNullableString(ptr(caBuilder.String()))
+	enrollmentPatternId := model.EnrollmentPatternId.Get()
+	template := model.Template.Get()
+	certificateOwnerName := model.OwnerRoleName.Get()
+	certificateOwnerId := model.OwnerRoleId.Get()
 
 	req = req.EnrollmentCSREnrollmentRequest(modelRequest)
 
@@ -552,6 +465,111 @@ func extractMetadataFromAnnotations(annotations map[string]string) map[string]in
 	}
 
 	return metadata
+}
+
+// Builds the CSR Enrollment request we will send to the /Enroll/CSR endpoint
+func (s *signer) buildCsrEnrollRequest(ctx context.Context, config *SignConfig, k8sLog logr.Logger, csrBytes []byte) (*v1.ApiCreateEnrollmentCSRRequest, *v1.EnrollmentCSREnrollmentRequest, *strings.Builder, error) {
+	// Override defaults from annotations
+	if err := updateConfigWithOverrides(config, k8sLog); err != nil {
+		return nil, nil, nil, err
+	}
+
+	k8sLog.Info(fmt.Sprintf("Using certificate template %q and certificate authority %q (%s) and enrollment pattern ID %d and enrollment pattern name %s", config.CertificateTemplate, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname, config.EnrollmentPatternId, config.EnrollmentPatternName))
+
+	csr, err := parseCSR(csrBytes)
+	if err != nil {
+		k8sLog.Error(err, "failed to parse CSR")
+		return nil, nil, nil, err
+	}
+
+	// Log the common metadata of the CSR
+	k8sLog.Info(fmt.Sprintf("CSR has Common Name %q with %d DNS SANs, %d IP SANs, and %d URI SANs", csr.Subject.CommonName, len(csr.DNSNames), len(csr.IPAddresses), len(csr.URIs)))
+
+	// Print the SANs
+	for _, dnsName := range csr.DNSNames {
+		k8sLog.Info(fmt.Sprintf("DNS SAN: %s", dnsName))
+	}
+
+	for _, ipAddress := range csr.IPAddresses {
+		k8sLog.Info(fmt.Sprintf("IP SAN: %s", ipAddress.String()))
+	}
+
+	for _, uri := range csr.URIs {
+		k8sLog.Info(fmt.Sprintf("URI SAN: %s", uri.String()))
+	}
+
+	req := v1.ApiCreateEnrollmentCSRRequest{}
+	req = req.XCertificateformat(enrollmentPEMFormat)
+
+	var template *string = nil
+	var enrollmentPatternId *int32 = nil
+	var certificateOwnerId *int32 = nil
+	var certificateOwnerName *string = nil
+
+	// Populate certificate template if defined
+	if config.CertificateTemplate != "" {
+		k8sLog.Info(fmt.Sprintf("Using certificate template from config. Name: %s", config.CertificateTemplate))
+		template = &config.CertificateTemplate
+	}
+
+	// Populate enrollment pattern ID or name if defined
+	if config.EnrollmentPatternId != 0 {
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID from config. ID: %d", config.EnrollmentPatternId))
+		enrollmentPatternId = &config.EnrollmentPatternId
+	} else if config.EnrollmentPatternName != "" {
+		pattern, err := getEnrollmentPatternByName(ctx, k8sLog, s, config.EnrollmentPatternName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		enrollmentPatternId = pattern.Id
+		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID: %d", *enrollmentPatternId))
+	}
+
+	if config.OwnerRoleId != 0 {
+		k8sLog.Info(fmt.Sprintf("Using owner role ID from config. ID: %d", config.OwnerRoleId))
+		certificateOwnerId = &config.OwnerRoleId
+	} else if config.OwnerRoleName != "" {
+		k8sLog.Info(fmt.Sprintf("Using owner role name from config. Name: %s", config.OwnerRoleName))
+		certificateOwnerName = &config.OwnerRoleName
+	}
+
+	modelRequest := v1.EnrollmentCSREnrollmentRequest{
+		CSR:                 string(csrBytes),
+		EnrollmentPatternId: *v1.NewNullableInt32(enrollmentPatternId),
+		OwnerRoleId:         *v1.NewNullableInt32(certificateOwnerId),
+		OwnerRoleName:       *v1.NewNullableString(certificateOwnerName),
+		Template:            *v1.NewNullableString(template),
+		Timestamp:           ptr(time.Now()),
+		IncludeChain:        ptr(true),
+		SANs:                map[string][]string{},
+		Metadata:            map[string]interface{}{},
+	}
+
+	if config.Meta != nil {
+		modelRequest.Metadata[CommandMetaControllerNamespace] = config.Meta.ControllerNamespace
+		modelRequest.Metadata[CommandMetaControllerKind] = config.Meta.ControllerKind
+		modelRequest.Metadata[CommandMetaControllerResourceGroupName] = config.Meta.ControllerResourceGroupName
+		modelRequest.Metadata[CommandMetaIssuerName] = config.Meta.IssuerName
+		modelRequest.Metadata[CommandMetaIssuerNamespace] = config.Meta.IssuerNamespace
+		modelRequest.Metadata[CommandMetaControllerReconcileId] = config.Meta.ControllerReconcileId
+		modelRequest.Metadata[CommandMetaCertificateSigningRequestNamespace] = config.Meta.CertificateSigningRequestNamespace
+	}
+
+	for metaName, value := range extractMetadataFromAnnotations(config.Annotations) {
+		k8sLog.Info(fmt.Sprintf("Adding metadata %q with value %q", metaName, value))
+		modelRequest.Metadata[metaName] = value
+	}
+
+	var caBuilder strings.Builder
+	if config.CertificateAuthorityHostname != "" {
+		caBuilder.WriteString(config.CertificateAuthorityHostname)
+		caBuilder.WriteString("\\")
+	}
+	caBuilder.WriteString(config.CertificateAuthorityLogicalName)
+	modelRequest.CertificateAuthority = *v1.NewNullableString(ptr(caBuilder.String()))
+
+	return &req, &modelRequest, &caBuilder, nil
 }
 
 func updateConfigWithOverrides(config *SignConfig, k8sLog logr.Logger) error {
