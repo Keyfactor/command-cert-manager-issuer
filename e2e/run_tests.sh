@@ -71,6 +71,9 @@ CLUSTER_ISSUER_CRD_FQTN="clusterissuers.command-issuer.keyfactor.com"
 ENROLLMENT_PATTERN_ID=1
 ENROLLMENT_PATTERN_NAME="Test Enrollment Pattern"
 
+OWNER_ROLE_ID=2
+OWNER_ROLE_NAME="InstanceOwner"
+
 CHART_PATH="./deploy/charts/command-cert-manager-issuer"
 
 CERT_MANAGER_VERSION="v1.17.0"
@@ -218,7 +221,7 @@ install_cert_manager_issuer() {
 }
 
 create_issuer() {
-    echo "🔐 Creating issuer resources..."
+    echo "🔐 Creating issuer resource..."
 
     secretJson='{}'
     secretJson=$(echo "$secretJson" | jq --arg version "v1" '.apiVersion = $version')
@@ -241,7 +244,47 @@ create_issuer() {
 
     kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
 apiVersion: command-issuer.keyfactor.com/v1alpha1
-kind: $ISSUER_OR_CLUSTER_ISSUER
+kind: Issuer
+metadata:
+  name: "$ISSUER_CR_NAME"
+spec:
+  hostname: "$HOSTNAME"
+  apiPath: "$API_PATH"
+  commandSecretName: "$SIGNER_SECRET_NAME"
+  certificateTemplate: "$CERTIFICATE_TEMPLATE"
+  certificateAuthorityLogicalName: "$CERTIFICATE_AUTHORITY_LOGICAL_NAME"
+  certificateAuthorityHostname: "$CERTIFICATE_AUTHORITY_HOSTNAME"
+EOF
+
+
+    echo "✅ Issuer resources created successfully"
+}
+
+create_cluster_issuer() {
+    echo "🔐 Creating cluster issuer resource..."
+
+    secretJson='{}'
+    secretJson=$(echo "$secretJson" | jq --arg version "v1" '.apiVersion = $version')
+    secretJson=$(echo "$secretJson" | jq --arg kind "Secret" '.kind = $kind')
+    secretJson=$(echo "$secretJson" | jq --arg name "$SIGNER_SECRET_NAME" '.metadata.name = $name')
+
+    # OAuth credentials
+    secretJson=$(echo "$secretJson" | jq --arg type "Opaque" '.type = $type')
+    secretJson=$(echo "$secretJson" | jq --arg val "$OAUTH_TOKEN_URL" '.stringData.tokenUrl = $val')
+    secretJson=$(echo "$secretJson" | jq --arg val "$OAUTH_CLIENT_ID" '.stringData.clientId = $val')
+    secretJson=$(echo "$secretJson" | jq --arg val "$OAUTH_CLIENT_SECRET" '.stringData.clientSecret = $val')
+    secretJson=$(echo "$secretJson" | jq --arg val "$OAUTH_AUDIENCE" '.stringData.audience = $val')
+    secretJson=$(echo "$secretJson" | jq --arg val "$OAUTH_SCOPES" '.stringData.scopes = $val')
+
+    echo "Creating secret called $SIGNER_SECRET_NAME in namespace $MANAGER_NAMESPACE"
+    if ! echo "$secretJson" | yq -P | kubectl -n "$MANAGER_NAMESPACE" apply -f -; then
+        echo "Failed to create $SIGNER_SECRET_NAME"
+        return 1
+    fi
+
+    kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
+apiVersion: command-issuer.keyfactor.com/v1alpha1
+kind: ClusterIssuer
 metadata:
   name: "$ISSUER_CR_NAME"
 spec:
@@ -283,14 +326,16 @@ delete_issuers() {
 create_certificate_request() {
     local issuer_type=$1
 
-    echo "Generating a certificate request for issuer type: $issuer_type"
+    local cn=$(openssl rand -hex 12)
+
+    echo "Generating a certificate request for issuer type: $issuer_type. CN: $cn"
 
     openssl req -new \
                 -newkey rsa:2048 \
                 -nodes \
                 -keyout random.key \
                 -out random.csr \
-                -subj "/CN=$(openssl rand -hex 12)" > /dev/null 2>&1
+                -subj "/CN=$cn" > /dev/null 2>&1
 
     kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
 apiVersion: cert-manager.io/v1
@@ -363,10 +408,16 @@ check_certificate_request_status() {
 
 delete_issuer_specification_field() {
     local field_name=$1
+    local issuer_or_cluster_issuer=$2
 
-    echo "Deleting issuer specification field: $field_name"
+    local target=$ISSUER_CRD_FQTN
+    if [[ $issuer_or_cluster_issuer == "ClusterIssuer" ]]; then
+        target=$CLUSTER_ISSUER_CRD_FQTN
+    fi
 
-    kubectl -n "$ISSUER_NAMESPACE" patch $ISSUER_CRD_FQTN $ISSUER_CR_NAME --type='json' -p="[{\"op\": \"remove\", \"path\": \"/spec/$field_name\"}]"
+    echo "Deleting $target specification field: $field_name"
+
+    kubectl -n "$ISSUER_NAMESPACE" patch $target $ISSUER_CR_NAME --type='json' -p="[{\"op\": \"remove\", \"path\": \"/spec/$field_name\"}]"
 
     if [ $? -ne 0 ]; then
         echo "⚠️ Failed to delete issuer specification field: $field_name"
@@ -379,18 +430,26 @@ delete_issuer_specification_field() {
 add_issuer_specification_field() {
     local field_name=$1
     local field_value=$2
-
-    echo "Adding issuer specification field: $field_name with value: $field_value"
+    local issuer_or_cluster_issuer=$3
 
     resolved_value=""
 
+    # if field is strictly numeric, add the field as numeric. Otherwise, treat as string
     if [[ $field_value =~ ^[0-9]+$ ]]; then
         resolved_value=$field_value
     else
         resolved_value="\"$field_value\""
     fi
 
-    kubectl -n "$ISSUER_NAMESPACE" patch $ISSUER_CRD_FQTN $ISSUER_CR_NAME --type='json' -p="[{\"op\": \"add\", \"path\": \"/spec/$field_name\", \"value\": $field_value}]"
+    local target=$ISSUER_CRD_FQTN
+    if [[ $issuer_or_cluster_issuer == "ClusterIssuer" ]]; then
+        target=$CLUSTER_ISSUER_CRD_FQTN
+    fi
+
+    echo "Adding $target specification field: $field_name with value: $field_value"
+
+
+    kubectl -n "$ISSUER_NAMESPACE" patch $target $ISSUER_CR_NAME --type='json' -p="[{\"op\": \"add\", \"path\": \"/spec/$field_name\", \"value\": $field_value}]"
 
     echo "✅ Issuer specification field added successfully."
 }
@@ -420,6 +479,17 @@ regenerate_issuer() {
     echo "🔍 Checking issuer health..."
     kubectl -n ${ISSUER_NAMESPACE} wait --for=condition=Ready $ISSUER_CRD_FQTN/$ISSUER_CR_NAME --timeout=60s
     echo "✅ Issuer is healthy and ready for requests."
+}
+
+regenerate_cluster_issuer() {
+    echo "🔄 Regenerating cluster issuer..."
+    delete_issuers
+    create_cluster_issuer
+
+    # Run health check on issuer
+    echo "🔍 Checking cluster issuer health..."
+    kubectl -n ${ISSUER_NAMESPACE} wait --for=condition=Ready $CLUSTER_ISSUER_CRD_FQTN/$ISSUER_CR_NAME --timeout=60s
+    echo "✅ ClusterIssuer is healthy and ready for requests."
 }
 
 
@@ -538,6 +608,8 @@ echo "✅ Resource deployment completed. Ready to start running tests!"
 echo "🚀 Running E2E tests..."
 echo ""
 
+## ===================  BEGIN: Issuer & ClusterIssuer Tests    ============================
+
 echo "🧪💬 Test 1: A generated certificate request should be successfully issued by Issuer."
 regenerate_issuer
 regenerate_certificate_request Issuer
@@ -546,59 +618,159 @@ check_certificate_request_status
 echo "🧪✅ Test 1 completed successfully."
 echo ""
 
+echo "🧪💬 Test 1a: A generated certificate request should be successfully issued by ClusterIssuer."
+regenerate_cluster_issuer
+regenerate_certificate_request ClusterIssuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 1a completed successfully."
+echo ""
+
 echo "🧪💬 Test 2: Add EnrollmentPatternId to Issuer resource"
 regenerate_issuer
-delete_issuer_specification_field certificateTemplate
-add_issuer_specification_field enrollmentPatternId $ENROLLMENT_PATTERN_ID
+delete_issuer_specification_field certificateTemplate Issuer
+add_issuer_specification_field enrollmentPatternId $ENROLLMENT_PATTERN_ID Issuer
 regenerate_certificate_request Issuer
 approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 2 completed successfully."
 echo ""
 
+echo "🧪💬 Test 2a: Add EnrollmentPatternId to ClusterIssuer resource"
+regenerate_cluster_issuer
+delete_issuer_specification_field certificateTemplate ClusterIssuer
+add_issuer_specification_field enrollmentPatternId $ENROLLMENT_PATTERN_ID ClusterIssuer
+regenerate_certificate_request ClusterIssuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 2a completed successfully."
+echo ""
+
 echo "🧪💬 Test 3: Add EnrollmentPatternName to Issuer resource"
 regenerate_issuer
-delete_issuer_specification_field certificateTemplate
-add_issuer_specification_field enrollmentPatternName "$ENROLLMENT_PATTERN_NAME"
+delete_issuer_specification_field certificateTemplate Issuer
+add_issuer_specification_field enrollmentPatternName "$ENROLLMENT_PATTERN_NAME" Issuer
 regenerate_certificate_request Issuer
 approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 3 completed successfully."
 echo ""
 
-echo "🧪💬 Test 4: Annotate CertificateRequest with certificateTemplate"
+echo "🧪💬 Test 3a: Add EnrollmentPatternName to ClusterIssuer resource"
+regenerate_cluster_issuer
+delete_issuer_specification_field certificateTemplate ClusterIssuer
+add_issuer_specification_field enrollmentPatternName "$ENROLLMENT_PATTERN_NAME" ClusterIssuer
+regenerate_certificate_request ClusterIssuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 3a completed successfully."
+echo ""
+
+echo "🧪💬 Test 4: Add OwnerRoleId to Issuer resource"
 regenerate_issuer
-delete_issuer_specification_field certificateTemplate
-add_issuer_specification_field certificateTemplate "SomeDefaultTemplate" # This is a placeholder, will be overridden by annotation
+add_issuer_specification_field ownerRoleId "$OWNER_ROLE_ID" Issuer
 regenerate_certificate_request Issuer
-annotate_certificate_request "command-issuer.keyfactor.com/certificateTemplate" "$CERTIFICATE_TEMPLATE"
 approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 4 completed successfully."
 echo ""
 
-echo "🧪💬 Test 5: Annotate CertificateRequest with enrollmentPatternId"
+echo "🧪💬 Test 4a: Add OwnerRoleId to ClusterIssuer resource"
+regenerate_cluster_issuer
+add_issuer_specification_field ownerRoleId "$OWNER_ROLE_ID" ClusterIssuer
+regenerate_certificate_request ClusterIssuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 4a completed successfully."
+echo ""
+
+echo "🧪💬 Test 5: Add OwnerRoleName to Issuer resource"
 regenerate_issuer
-delete_issuer_specification_field certificateTemplate
-add_issuer_specification_field enrollmentPatternId 12345678 # This is a placeholder, will be overridden by annotation
+add_issuer_specification_field ownerRoleName "$OWNER_ROLE_NAME" Issuer
 regenerate_certificate_request Issuer
-annotate_certificate_request "command-issuer.keyfactor.com/enrollmentPatternId" "$ENROLLMENT_PATTERN_ID"
 approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 5 completed successfully."
 echo ""
 
-echo "🧪💬 Test 6: Annotate CertificateRequest with enrollmentPatternName"
+echo "🧪💬 Test 5a: Add OwnerRoleName to ClusterIssuer resource"
+regenerate_cluster_issuer
+add_issuer_specification_field ownerRoleName "$OWNER_ROLE_NAME" ClusterIssuer
+regenerate_certificate_request ClusterIssuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 5a completed successfully."
+echo ""
+
+echo "🧪💬 Test 6: Adding OwnerRoleId and OwnerRoleName to Issuer will have OwnerRoleId take precedence"
 regenerate_issuer
-delete_issuer_specification_field certificateTemplate
-add_issuer_specification_field enrollmentPatternName "SomeDefaultPattern" # This is a placeholder, will be overridden by annotation
+add_issuer_specification_field ownerRoleId "$OWNER_ROLE_ID" Issuer
+add_issuer_specification_field ownerRoleName "SomeRandomRoleName" Issuer
 regenerate_certificate_request Issuer
-annotate_certificate_request "command-issuer.keyfactor.com/enrollmentPatternName" "$ENROLLMENT_PATTERN_NAME"
 approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 6 completed successfully."
 echo ""
 
+## ===================  END: Issuer & ClusterIssuer Tests    ============================
+
+## ===================  BEGIN: Annotation Tests    ============================
+
+echo "🧪💬 Test 100: Annotate CertificateRequest with certificateTemplate"
+regenerate_issuer
+delete_issuer_specification_field certificateTemplate Issuer
+add_issuer_specification_field certificateTemplate "SomeDefaultTemplate" Issuer # This is a placeholder, will be overridden by annotation
+regenerate_certificate_request Issuer
+annotate_certificate_request "command-issuer.keyfactor.com/certificateTemplate" "$CERTIFICATE_TEMPLATE"
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 100 completed successfully."
+echo ""
+
+echo "🧪💬 Test 101: Annotate CertificateRequest with enrollmentPatternId"
+regenerate_issuer
+delete_issuer_specification_field certificateTemplate Issuer
+add_issuer_specification_field enrollmentPatternId 12345678 Issuer # This is a placeholder, will be overridden by annotation
+regenerate_certificate_request Issuer
+annotate_certificate_request "command-issuer.keyfactor.com/enrollmentPatternId" "$ENROLLMENT_PATTERN_ID"
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 101 completed successfully."
+echo ""
+
+echo "🧪💬 Test 102: Annotate CertificateRequest with enrollmentPatternName"
+regenerate_issuer
+delete_issuer_specification_field certificateTemplate Issuer
+add_issuer_specification_field enrollmentPatternName "SomeDefaultPattern" Issuer # This is a placeholder, will be overridden by annotation
+regenerate_certificate_request Issuer
+annotate_certificate_request "command-issuer.keyfactor.com/enrollmentPatternName" "$ENROLLMENT_PATTERN_NAME"
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 102 completed successfully."
+echo ""
+
+echo "🧪💬 Test 103: Annotate CertificateRequest with ownerRoleId"
+regenerate_issuer
+add_issuer_specification_field ownerRoleId 12345678 Issuer # This is a placeholder, will be overridden by annotation
+regenerate_certificate_request Issuer
+annotate_certificate_request "command-issuer.keyfactor.com/ownerRoleId" "$OWNER_ROLE_ID"
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 103 completed successfully."
+echo ""
+
+echo "🧪💬 Test 104: Annotate CertificateRequest with ownerRoleName"
+regenerate_issuer
+add_issuer_specification_field ownerRoleName "SomeDefaultName" Issuer # This is a placeholder, will be overridden by annotation
+regenerate_certificate_request Issuer
+annotate_certificate_request "command-issuer.keyfactor.com/ownerRoleName" "$OWNER_ROLE_NAME"
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 104 completed successfully."
+echo ""
+
 echo "🎉🎉🎉 Tests have completed successfully!"
+
+## ===================  END: Annotation Tests    ============================
 
 # ================= END: Test Execution ========================

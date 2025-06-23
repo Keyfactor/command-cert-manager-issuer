@@ -235,6 +235,8 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		CertificateTemplate:             issuer.GetSpec().CertificateTemplate,
 		EnrollmentPatternId:             issuer.GetSpec().EnrollmentPatternId,
 		EnrollmentPatternName:           issuer.GetSpec().EnrollmentPatternName,
+		OwnerRoleName:                   issuer.GetSpec().OwnerRoleName,
+		OwnerRoleId:                     issuer.GetSpec().OwnerRoleId,
 		CertificateAuthorityLogicalName: issuer.GetSpec().CertificateAuthorityLogicalName,
 		CertificateAuthorityHostname:    issuer.GetSpec().CertificateAuthorityHostname,
 		Annotations:                     certificateRequest.GetAnnotations(),
