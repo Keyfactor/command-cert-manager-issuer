@@ -2,6 +2,10 @@
 ## Features
 - Added support for `OwnerRoleName` and `OwnerRoleId` to Issuer specification, which will specify the owner of the enrolling certificate.
 
+## Chores
+- Update e2e tests to test ClusterIssuer resource
+- Refactor code for better unit testability
+
 # v2.2.0
 ## Features
 - Added support for enrolling CSRs with [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm), a new feature introduced in Keyfactor Command 25.1. [Release notes](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm)
