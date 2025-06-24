@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"github.com/Keyfactor/keyfactor-auth-client-go/auth_providers"
-	commandsdk "github.com/Keyfactor/keyfactor-go-client/v3/api"
+	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,9 +200,9 @@ func TestSignConfigValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing certificateTemplate",
-			config:  &SignConfig{CertificateTemplate: "", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
-			wantErr: "certificateTemplate is required",
+			name:    "missing certificateTemplate and enrollmentPatternName and enrollmentPatternId",
+			config:  &SignConfig{CertificateTemplate: "", EnrollmentPatternName: "", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified",
 		},
 		{
 			name:    "missing certificateAuthorityLogicalName",
@@ -210,8 +210,23 @@ func TestSignConfigValidate(t *testing.T) {
 			wantErr: "certificateAuthorityLogicalName is required",
 		},
 		{
-			name:    "all valid fields",
+			name:    "all valid fields (both certificateTemplate and enrollmentPatternName specified)",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only certificateTemplate specified)",
 			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only enrollmentPatternName specified)",
+			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			wantErr: "",
+		},
+		{
+			name:    "all valid fields (only enrollmentPatternId specified)",
+			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{
@@ -242,10 +257,6 @@ func TestSignConfigValidate(t *testing.T) {
 	}
 }
 
-var (
-	_ commandsdk.AuthConfig = &fakeCommandAuthenticator{}
-)
-
 type fakeCommandAuthenticator struct {
 	client *http.Client
 	config *auth_providers.Server
@@ -264,19 +275,6 @@ func (f *fakeCommandAuthenticator) GetHttpClient() (*http.Client, error) {
 // GetServerConfig implements api.AuthConfig.
 func (f *fakeCommandAuthenticator) GetServerConfig() *auth_providers.Server {
 	return f.config
-}
-
-func newFakeCommandClientFunc(httpClient *http.Client) newCommandClientFunc {
-	return newCommandClientFunc(func(s *auth_providers.Server, ctx *context.Context) (*commandsdk.Client, error) {
-		client := &commandsdk.Client{
-			AuthClient: &fakeCommandAuthenticator{
-				client: httpClient,
-				config: s,
-			},
-		}
-
-		return client, nil
-	})
 }
 
 func TestNewServerConfig(t *testing.T) {
@@ -365,30 +363,44 @@ var (
 )
 
 type fakeClient struct {
-	enrollCallback func(*commandsdk.EnrollCSRFctArgs)
-	enrollResponse *commandsdk.EnrollResponse
+	enrollCallback func(v1.ApiCreateEnrollmentCSRRequest)
+	enrollResponse *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse
 
-	metadataFields []commandsdk.MetadataField
+	metadataFields     []v1.CSSCMSDataModelModelsMetadataType
+	enrollmentPatterns []v1.EnrollmentPatternsEnrollmentPatternResponse
 
 	err error
 }
 
 // EnrollCSR implements Client.
-func (f *fakeClient) EnrollCSR(ea *commandsdk.EnrollCSRFctArgs) (*commandsdk.EnrollResponse, error) {
+func (f *fakeClient) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error) {
 	if f.enrollCallback != nil {
-		f.enrollCallback(ea)
+		f.enrollCallback(r)
 	}
-	return f.enrollResponse, f.err
+	return f.enrollResponse, nil, f.err
 }
 
 // GetAllMetadataFields implements Client.
-func (f *fakeClient) GetAllMetadataFields() ([]commandsdk.MetadataField, error) {
-	return f.metadataFields, f.err
+func (f *fakeClient) GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
+	return f.metadataFields, nil, f.err
+}
+
+// GetEnrollmentPatterns implements Client.
+func (f *fakeClient) GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error) {
+	return f.enrollmentPatterns, nil, f.err
 }
 
 // TestConnection implements Client.
 func (f *fakeClient) TestConnection() error {
 	return f.err
+}
+
+type EnrollmentCSRRequest struct {
+	EnrollmentPatternId  int32
+	Template             string
+	CertificateAuthority string
+	SANs                 map[string][]string
+	Metadata             map[string]interface{}
 }
 
 func TestSign(t *testing.T) {
@@ -403,21 +415,23 @@ func TestSign(t *testing.T) {
 
 	expectedLeafAndChain := append([]*x509.Certificate{leafCert}, issuingCert)
 
+	enrollmentPatternName := "fake-enrollment-pattern"
 	certificateTemplateName := "fake-cert-template"
 	certificateAuthorityLogicalName := "fake-issuing-ca"
 	certificateAuthorityHostname := "pki.example.com"
 
 	testCases := map[string]struct {
 		enrollCSRFunctionError error
+		enrollmentPatterns     []v1.EnrollmentPatternsEnrollmentPatternResponse
 
 		// Request
 		config *SignConfig
 
 		// Expected
-		expectedEnrollArgs *commandsdk.EnrollCSRFctArgs
+		expectedEnrollArgs *EnrollmentCSRRequest
 		expectedSignError  error
 	}{
-		"success-no-meta": {
+		"success-no-meta-certificate-template": {
 			// Request
 			config: &SignConfig{
 				CertificateTemplate:             certificateTemplateName,
@@ -428,17 +442,84 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: nil,
 		},
-		"success-annotation-config-override": {
+		"success-no-meta-enrollment-pattern-id": {
 			// Request
 			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-no-meta-enrollment-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
+				v1.EnrollmentPatternsEnrollmentPatternResponse{
+					Id:   ptr(int32(12345)),
+					Name: *v1.NewNullableString(&enrollmentPatternName),
+				},
+			},
+
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-no-meta-enrollment-pattern-id-overwrites-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{}, // This would fail if enrollment pattern name was used
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             12345,
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-annotation-config-override-pattern-id": {
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             67890,
 				CertificateTemplate:             certificateTemplateName,
 				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
 				CertificateAuthorityHostname:    certificateAuthorityHostname,
@@ -447,14 +528,49 @@ func TestSign(t *testing.T) {
 					"command-issuer.keyfactor.com/certificateTemplate":             "template-override",
 					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "logicalname-override",
 					"command-issuer.keyfactor.com/certificateAuthorityHostname":    "hostname-override",
+					"command-issuer.keyfactor.com/enrollmentPatternId":             "12345",
 				},
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
 				Template:             "template-override",
 				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+			expectedSignError: nil,
+		},
+		"success-annotation-config-override-pattern-name": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
+				v1.EnrollmentPatternsEnrollmentPatternResponse{
+					Id:   ptr(int32(12345)),
+					Name: *v1.NewNullableString(ptr("enrollment-pattern-override")),
+				},
+			},
+
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateTemplate:             certificateTemplateName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations: map[string]string{
+					"command-issuer.keyfactor.com/certificateTemplate":             "template-override",
+					"command-issuer.keyfactor.com/certificateAuthorityLogicalName": "logicalname-override",
+					"command-issuer.keyfactor.com/certificateAuthorityHostname":    "hostname-override",
+					"command-issuer.keyfactor.com/enrollmentPatternName":           "enrollment-pattern-override",
+				},
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				EnrollmentPatternId:  12345,
+				Template:             "template-override",
+				CertificateAuthority: fmt.Sprintf("%s\\%s", "hostname-override", "logicalname-override"),
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: nil,
@@ -479,10 +595,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata: map[string]interface{}{
 					CommandMetaControllerNamespace:                "namespace",
 					CommandMetaControllerKind:                     "Issuer",
@@ -508,10 +624,10 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata: map[string]interface{}{
 					"testMetadata": "test",
 				},
@@ -530,30 +646,50 @@ func TestSign(t *testing.T) {
 			},
 
 			// Expected
-			expectedEnrollArgs: &commandsdk.EnrollCSRFctArgs{
+			expectedEnrollArgs: &EnrollmentCSRRequest{
 				Template:             certificateTemplateName,
 				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
-				SANs:                 &commandsdk.SANs{},
+				SANs:                 map[string][]string{},
 				Metadata:             map[string]interface{}{},
 			},
 			expectedSignError: errCommandEnrollmentFailure,
+		},
+		"enroll-csr-err-enrollment-pattern-not-found": {
+			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{},
+
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternName:           enrollmentPatternName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			// Expected
+			expectedEnrollArgs: &EnrollmentCSRRequest{
+				Template:             certificateTemplateName,
+				CertificateAuthority: fmt.Sprintf("%s\\%s", certificateAuthorityHostname, certificateAuthorityLogicalName),
+				SANs:                 map[string][]string{},
+				Metadata:             map[string]interface{}{},
+			},
+
+			expectedSignError: errEnrollmentPatternFailure,
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			cb := func(ea *commandsdk.EnrollCSRFctArgs) {
-				require.Equal(t, tc.expectedEnrollArgs.CertificateAuthority, ea.CertificateAuthority)
-				require.Equal(t, tc.expectedEnrollArgs.Template, ea.Template)
-
-				require.Equal(t, tc.expectedEnrollArgs.Metadata, ea.Metadata)
+			cb := func(req v1.ApiCreateEnrollmentCSRRequest) {
+				require.NotNil(t, req)
 			}
 
 			client := fakeClient{
 				err: tc.enrollCSRFunctionError,
 
-				enrollResponse: certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
-				enrollCallback: cb,
+				enrollResponse:     certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
+				enrollmentPatterns: tc.enrollmentPatterns,
+				enrollCallback:     cb,
 			}
 			signer := signer{
 				client: &client,
@@ -578,39 +714,67 @@ func TestSign(t *testing.T) {
 
 func TestCommandSupportsMetadata(t *testing.T) {
 	testCases := map[string]struct {
-		presentMeta []commandsdk.MetadataField
+		presentMeta []v1.CSSCMSDataModelModelsMetadataType
 
 		// Expected
 		expected bool
 	}{
-		"success-no-meta": {
-			presentMeta: []commandsdk.MetadataField{},
+		"failure-no-meta": {
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{},
+
+			// Expected
+			expected: false,
+		},
+		"failure-missing-meta": {
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerNamespace)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerKind)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerResourceGroupName)),
+				},
+				// {
+				// 	Name: CommandMetaIssuerName,
+				// },
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerNamespace)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerReconcileId)),
+				},
+				{
+					Name: *v1.NewNullableString(ptr(CommandMetaCertificateSigningRequestNamespace)),
+				},
+			},
 
 			// Expected
 			expected: false,
 		},
 		"success-all-meta": {
-			presentMeta: []commandsdk.MetadataField{
+			presentMeta: []v1.CSSCMSDataModelModelsMetadataType{
 				{
-					Name: CommandMetaControllerNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerNamespace)),
 				},
 				{
-					Name: CommandMetaControllerKind,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerKind)),
 				},
 				{
-					Name: CommandMetaControllerResourceGroupName,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerResourceGroupName)),
 				},
 				{
-					Name: CommandMetaIssuerName,
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerName)),
 				},
 				{
-					Name: CommandMetaIssuerNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaIssuerNamespace)),
 				},
 				{
-					Name: CommandMetaControllerReconcileId,
+					Name: *v1.NewNullableString(ptr(CommandMetaControllerReconcileId)),
 				},
 				{
-					Name: CommandMetaCertificateSigningRequestNamespace,
+					Name: *v1.NewNullableString(ptr(CommandMetaCertificateSigningRequestNamespace)),
 				},
 			},
 
@@ -641,10 +805,11 @@ func assertErrorIs(t *testing.T, expectedError, actualError error) {
 	if !assert.Error(t, actualError) {
 		return
 	}
+
 	assert.Truef(t, errors.Is(actualError, expectedError), "unexpected error type. expected: %v, got: %v", expectedError, actualError)
 }
 
-func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*x509.Certificate, rootCAs []*x509.Certificate) *commandsdk.EnrollResponse {
+func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*x509.Certificate, rootCAs []*x509.Certificate) *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse {
 	require.NotEqual(t, 0, len(leafCertAndChain))
 	leaf := string(pem.EncodeToMemory(&pem.Block{Bytes: leafCertAndChain[0].Raw, Type: "CERTIFICATE"}))
 
@@ -656,20 +821,20 @@ func certificateRestResponseFromExpectedCerts(t *testing.T, leafCertAndChain []*
 		certs = append(certs, string(pem.EncodeToMemory(&pem.Block{Bytes: cert.Raw, Type: "CERTIFICATE"})))
 	}
 
-	response := &commandsdk.EnrollResponse{
-		Certificates: certs,
-		CertificateInformation: commandsdk.CertificateInformation{
-			SerialNumber:       "",
-			IssuerDN:           "",
-			Thumbprint:         "",
-			KeyfactorID:        0,
-			KeyfactorRequestID: 0,
-			PKCS12Blob:         "",
-			Certificates:       certs,
-			RequestDisposition: "",
-			DispositionMessage: "",
-			EnrollmentContext:  nil,
+	response := &v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse{
+		CertificateInformation: &v1.CSSCMSDataModelModelsPkcs10CertificateResponse{
+			SerialNumber:        *v1.NewNullableString(ptr("")),
+			IssuerDN:            *v1.NewNullableString(ptr("")),
+			Thumbprint:          *v1.NewNullableString(ptr("")),
+			KeyfactorID:         ptr(int32(0)),
+			Certificates:        certs,
+			WorkflowInstanceId:  nil,
+			RequestDisposition:  *v1.NewNullableString(ptr("")),
+			DispositionMessage:  *v1.NewNullableString(ptr("")),
+			EnrollmentContext:   nil,
+			WorkflowReferenceId: nil,
 		},
+		Metadata: map[string]string{},
 	}
 	return response
 }
