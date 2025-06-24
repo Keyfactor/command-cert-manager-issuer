@@ -519,6 +519,7 @@ echo ""
 # Deploy Issuer
 echo "🔐 Deploying $ISSUER_NAMESPACE namespace if not exists..."
 kubectl create namespace ${ISSUER_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+regenerate_issuer
 echo "✅ $ISSUER_NAMESPACE namespace is ready"
 echo ""
 

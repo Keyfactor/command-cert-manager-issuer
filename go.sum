@@ -24,8 +24,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 h1:oygO0locgZJ
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
 github.com/Keyfactor/keyfactor-auth-client-go v1.3.0 h1:otC213b6CYzqeN9b3CRlH1Qj1hTFIN5nqPA8gTlHdLg=
 github.com/Keyfactor/keyfactor-auth-client-go v1.3.0/go.mod h1:97vCisBNkdCK0l2TuvOSdjlpvQa4+GHsMut1UTyv1jo=
-github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2-rc.0 h1:Un+Lch8G/S8oGSIc868ZTeH6YfJcePVH28nQVjMqWQg=
-github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2-rc.0/go.mod h1:VnVW8x+pChhnOWBR1PNYPeCQQjlWIK1bwHI8i8j7UPI=
+github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2 h1:7VsZOYgMHAO2a1eeyVgDKel9TJXXYRQpd1EvSvp8lKA=
+github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2/go.mod h1:VnVW8x+pChhnOWBR1PNYPeCQQjlWIK1bwHI8i8j7UPI=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa h1:LHTHcTQiSGT7VVbI0o4wBRNQIgn917usHWOd6VAffYI=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa/go.mod h1:cEWa1LVoE5KvSD9ONXsZrj0z6KqySlCCNKHlLzbqAt4=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
