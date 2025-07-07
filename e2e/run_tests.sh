@@ -198,7 +198,7 @@ install_cert_manager_issuer() {
 
     # Only set the image repository parameter if we are deploying locally
     if [[ "$IS_LOCAL_DEPLOYMENT" == "true" ]]; then
-        IMAGE_REPO_PARAM="--set image.repository=${IMAGE_NAME}"
+        IMAGE_REPO_PARAM="--set image.repository=${IMAGE_REPO}/${IMAGE_NAME}"
     else
         IMAGE_REPO_PARAM=""
     fi
@@ -382,14 +382,6 @@ add_issuer_specification_field() {
 
     echo "Adding issuer specification field: $field_name with value: $field_value"
 
-    resolved_value=""
-
-    if [[ $field_value =~ ^[0-9]+$ ]]; then
-        resolved_value=$field_value
-    else
-        resolved_value="\"$field_value\""
-    fi
-
     kubectl -n "$ISSUER_NAMESPACE" patch $ISSUER_CRD_FQTN $ISSUER_CR_NAME --type='json' -p="[{\"op\": \"add\", \"path\": \"/spec/$field_name\", \"value\": $field_value}]"
 
     echo "✅ Issuer specification field added successfully."
@@ -464,6 +456,9 @@ if "$IS_LOCAL_DEPLOYMENT" = "true"; then
     echo "🐳 Building ${FULL_IMAGE_NAME} Docker image..."
     docker build -t ${FULL_IMAGE_NAME} .
     echo "✅ Docker image built successfully"
+
+    echo "📦 Listing Docker images..."
+    docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" | head -11
 fi
 
 # 5. Deploy the command-cert-manager-issuer Helm chart if not exists
