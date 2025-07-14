@@ -62,9 +62,28 @@ spec:
                   CertificateAuthorityLogicalName is the logical name of the certificate authority to use
                   E.g. "Keyfactor Root CA" or "Intermediate CA"
                 type: string
+              enrollmentPatternId:
+                description: |-
+                  EnrollmentPatternId is the ID of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
+                  If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
+                  If both enrollmentPatternId and enrollmentPatternName are specified, enrollmentPatternId will take precedence.
+                  Enrollment will fail if the specified template is not compatible with the enrollment pattern.
+                  Refer to the Keyfactor Command documentation for more information.
+                type: integer
+                format: int32
+              enrollmentPatternName:
+                description: |-
+                  EnrollmentPatternName is the name of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
+                  If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
+                  If both enrollmentPatternId and enrollmentPatternName are specified, enrollmentPatternId will take precedence.
+                  Enrollment will fail if the specified template is not compatible with the enrollment pattern.
+                  Refer to the Keyfactor Command documentation for more information.
+                type: string
               certificateTemplate:
                 description: |-
-                  CertificateTemplate is the name of the certificate template to use.
+                  CertificateTemplate is the name of the certificate template to use. Deprecated in favor of EnrollmentPattern as of Keyfactor Command 25.1.
+                  If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
+                  Enrollment will fail if the specified template is not compatible with the enrollment pattern.
                   Refer to the Keyfactor Command documentation for more information.
                 type: string
               commandSecretName:
