@@ -46,7 +46,7 @@ jobs:
         run: go test -v ./...
 
   call-starter-workflow:
-    uses: keyfactor/actions/.github/workflows/starter.yml@v3
+    uses: keyfactor/actions/.github/workflows/starter.yml@3.2.0
     needs: test
     secrets:
       token: ${{ secrets.V2BUILDTOKEN}}

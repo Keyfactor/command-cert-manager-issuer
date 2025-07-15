@@ -47,21 +47,21 @@ type IssuerSpec struct {
 	APIPath string `json:"apiPath,omitempty"`
 
 	// EnrollmentPatternId is the ID of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
-	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precendence.
+	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
 	// If EnrollmentPatternId and EnrollmentPatternName are both specified, EnrollmentPatternId will take precedence.
 	// Enrollment will fail if the specified template is not compatible with the enrollment pattern.
 	// Refer to the Keyfactor Command documentation for more information.
 	EnrollmentPatternId int32 `json:"enrollmentPatternId,omitempty"`
 
 	// EnrollmentPatternName is the name of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
-	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precendence.
+	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
 	// If EnrollmentPatternId and EnrollmentPatternName are both specified, EnrollmentPatternId will take precedence.
 	// Enrollment will fail if the specified template is not compatible with the enrollment pattern.
 	// Refer to the Keyfactor Command documentation for more information.
 	EnrollmentPatternName string `json:"enrollmentPatternName,omitempty"`
 
 	// Deprecated. CertificateTemplate is the name of the certificate template to use. If using Keyfactor Command 25.1 or later, use EnrollmentPatternName or EnrollmentPatternId instead.
-	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precendence.
+	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
 	// Enrollment will fail if the specified template is not compatible with the enrollment pattern.
 	// Refer to the Keyfactor Command documentation for more information.
 	CertificateTemplate string `json:"certificateTemplate,omitempty"`
