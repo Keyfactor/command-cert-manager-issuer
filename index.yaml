@@ -2,6 +2,25 @@ apiVersion: v1
 entries:
   command-cert-manager-issuer:
   - apiVersion: v2
+    appVersion: v2.2.0
+    created: "2025-09-25T19:56:32.406258491Z"
+    description: A helm chart to deploy the cert-manager issuer for the Keyfactor
+      Command platform for Certificate Lifecycle Management
+    digest: 97ab4cdd4b0078ba0a5b3f293a51ccd71813ca948ac618541d5ff3f666c898b4
+    home: https://github.com/Keyfactor/command-cert-manager-issuer
+    maintainers:
+    - email: 49427552+m8rmclaren@users.noreply.github.com
+      name: Hayden Roszell
+    - email: support@keyfactor.com
+      name: Keyfactor Maintainers
+    name: command-cert-manager-issuer
+    sources:
+    - https://github.com/Keyfactor/command-cert-manager-issuer
+    type: application
+    urls:
+    - https://github.com/Keyfactor/command-cert-manager-issuer/releases/download/command-cert-manager-issuer-2.2.0/command-cert-manager-issuer-2.2.0.tgz
+    version: 2.2.0
+  - apiVersion: v2
     appVersion: v2.1.0
     created: "2025-03-21T20:16:19.30222086Z"
     description: A helm chart to deploy the cert-manager issuer for the Keyfactor
@@ -115,4 +134,4 @@ entries:
     urls:
     - https://github.com/Keyfactor/command-cert-manager-issuer/releases/download/command-cert-manager-issuer-1.0.3/command-cert-manager-issuer-1.0.3.tgz
     version: 1.0.3
-generated: "2025-03-21T20:16:19.302346634Z"
+generated: "2025-09-25T19:56:32.406291613Z"
