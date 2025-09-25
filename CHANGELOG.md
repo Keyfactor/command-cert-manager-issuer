@@ -1,3 +1,7 @@
+# v2.3.1
+## Fixes
+- Add a manual dispatch of Helm chart release.
+
 # v2.3.0
 ## Features
 - Added support for `OwnerRoleName` and `OwnerRoleId` to Issuer specification, which will specify the owner of the enrolling certificate.
