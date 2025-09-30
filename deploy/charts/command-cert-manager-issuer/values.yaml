@@ -81,3 +81,10 @@ nodeSelector: {}
 tolerations: []
 
 defaultHealthCheckInterval: ""
+
+env: {}
+  # This can be used to set an http proxy to access the Keyfactor instance
+  # - name: https_proxy
+  #   value: http://someproxy:someport
+  # - name: no_proxy
+  #   value: .somedomain.com,.local,10.0.0.1
