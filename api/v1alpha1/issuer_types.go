@@ -46,6 +46,10 @@ type IssuerSpec struct {
 	// +kubebuilder:default:=KeyfactorAPI
 	APIPath string `json:"apiPath,omitempty"`
 
+	// The number of seconds between successful health checks. 60 seconds (1 minute) by default
+	// +kubebuilder:default:=60
+	HealthCheckIntervalSeconds *int `json:"healthCheckIntervalSeconds,omitempty"`
+
 	// EnrollmentPatternId is the ID of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
 	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
 	// If EnrollmentPatternId and EnrollmentPatternName are both specified, EnrollmentPatternId will take precedence.
