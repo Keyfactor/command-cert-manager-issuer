@@ -1,3 +1,7 @@
+# v2.3.2
+## Features
+- Add a `healthCheckIntervalSeconds` specification to Issuer / ClusterIssuer resources, allowing flexibility in the health check interval.
+
 # v2.3.1
 ## Fixes
 - Add a manual dispatch of Helm chart release.
