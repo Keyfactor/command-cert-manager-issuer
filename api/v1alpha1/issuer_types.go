@@ -46,7 +46,7 @@ type IssuerSpec struct {
 	// +kubebuilder:default:=KeyfactorAPI
 	APIPath string `json:"apiPath,omitempty"`
 
-	// The number of seconds between successful health checks. 60 seconds (1 minute) by default
+	// The number of seconds between successful health checks. 60 seconds (1 minute) by default. Setting to 0 will disable the health check.
 	// +kubebuilder:default:=60
 	HealthCheckIntervalSeconds *int `json:"healthCheckIntervalSeconds,omitempty"`
 

@@ -82,7 +82,8 @@ spec:
               healthCheckIntervalSeconds:
                 default: 60
                 description: The number of seconds between successful health checks.
-                  60 seconds (1 minute) by default
+                  60 seconds (1 minute) by default. Setting to 0 will disable the
+                  health check.
                 type: integer
               ownerRoleId:
                 description: |-
