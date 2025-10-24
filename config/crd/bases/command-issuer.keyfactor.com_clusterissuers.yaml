@@ -102,6 +102,11 @@ spec:
                   Enrollment will fail if the specified template is not compatible with the enrollment pattern.
                   Refer to the Keyfactor Command documentation for more information.
                 type: string
+              healthCheckIntervalSeconds:
+                default: 60
+                description: The number of seconds between successful health checks.
+                  60 seconds (1 minute) by default
+                type: integer
               hostname:
                 description: Hostname is the hostname of a Keyfactor Command instance.
                 type: string
