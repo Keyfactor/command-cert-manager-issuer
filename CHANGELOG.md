@@ -1,6 +1,6 @@
 # v2.3.3
 ## Features
-- Add a `healthCheckIntervalSeconds` specification to Issuer / ClusterIssuer resources, allowing flexibility in the health check interval.
+- Add a `healthcheck` specification to Issuer / ClusterIssuer resources, allowing flexibility in the health check interval.
 
 # v2.3.1
 ## Fixes

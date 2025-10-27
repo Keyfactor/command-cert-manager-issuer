@@ -579,8 +579,11 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Spec: commandissuerv1alpha1.IssuerSpec{
-						SecretName:                 "issuer1-credentials",
-						HealthCheckIntervalSeconds: to.Ptr(30),
+						SecretName: "issuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled:  true,
+							Interval: to.Ptr(metav1.Duration{Duration: 30 * time.Second}),
+						},
 					},
 					Status: commandissuerv1alpha1.IssuerStatus{
 						Conditions: []commandissuerv1alpha1.IssuerCondition{
@@ -617,8 +620,11 @@ func TestIssuerReconcile(t *testing.T) {
 						Name: "clusterissuer1",
 					},
 					Spec: commandissuerv1alpha1.IssuerSpec{
-						SecretName:                 "clusterissuer1-credentials",
-						HealthCheckIntervalSeconds: to.Ptr(30),
+						SecretName: "clusterissuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled:  true,
+							Interval: to.Ptr(metav1.Duration{Duration: 120 * time.Second}),
+						},
 					},
 					Status: commandissuerv1alpha1.IssuerStatus{
 						Conditions: []commandissuerv1alpha1.IssuerCondition{
@@ -645,9 +651,215 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(30) * time.Second},
+			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(120) * time.Second},
 		},
-		"error-healthcheck-negative-value": {
+		"success-healthcheck-disabled": {
+			kind: "ClusterIssuer",
+			name: types.NamespacedName{Name: "clusterissuer1"},
+			objects: []client.Object{
+				&commandissuerv1alpha1.ClusterIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterissuer1",
+					},
+					Spec: commandissuerv1alpha1.IssuerSpec{
+						SecretName: "clusterissuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled: false,
+						},
+					},
+					Status: commandissuerv1alpha1.IssuerStatus{
+						Conditions: []commandissuerv1alpha1.IssuerCondition{
+							{
+								Type:   commandissuerv1alpha1.IssuerConditionReady,
+								Status: commandissuerv1alpha1.ConditionUnknown,
+							},
+						},
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "clusterissuer1-credentials",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
+			clusterResourceNamespace:                 "kube-system",
+			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(0)},
+		},
+		"success-no-healthcheck-interval": {
+			kind: "ClusterIssuer",
+			name: types.NamespacedName{Name: "clusterissuer1"},
+			objects: []client.Object{
+				&commandissuerv1alpha1.ClusterIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterissuer1",
+					},
+					Spec: commandissuerv1alpha1.IssuerSpec{
+						SecretName: "clusterissuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled:  true,
+							Interval: nil,
+						},
+					},
+					Status: commandissuerv1alpha1.IssuerStatus{
+						Conditions: []commandissuerv1alpha1.IssuerCondition{
+							{
+								Type:   commandissuerv1alpha1.IssuerConditionReady,
+								Status: commandissuerv1alpha1.ConditionUnknown,
+							},
+						},
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "clusterissuer1-credentials",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
+			clusterResourceNamespace:                 "kube-system",
+			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthCheckInterval},
+		},
+		"success-nil-healthcheck-interval-defaults": {
+			kind: "ClusterIssuer",
+			name: types.NamespacedName{Name: "clusterissuer1"},
+			objects: []client.Object{
+				&commandissuerv1alpha1.ClusterIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterissuer1",
+					},
+					Spec: commandissuerv1alpha1.IssuerSpec{
+						SecretName: "clusterissuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled:  true,
+							Interval: nil,
+						},
+					},
+					Status: commandissuerv1alpha1.IssuerStatus{
+						Conditions: []commandissuerv1alpha1.IssuerCondition{
+							{
+								Type:   commandissuerv1alpha1.IssuerConditionReady,
+								Status: commandissuerv1alpha1.ConditionUnknown,
+							},
+						},
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "clusterissuer1-credentials",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
+			clusterResourceNamespace:                 "kube-system",
+			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
+		},
+		"success-nil-healthcheck-defaults": {
+			kind: "ClusterIssuer",
+			name: types.NamespacedName{Name: "clusterissuer1"},
+			objects: []client.Object{
+				&commandissuerv1alpha1.ClusterIssuer{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "clusterissuer1",
+					},
+					Spec: commandissuerv1alpha1.IssuerSpec{
+						SecretName:  "clusterissuer1-credentials",
+						HealthCheck: nil,
+					},
+					Status: commandissuerv1alpha1.IssuerStatus{
+						Conditions: []commandissuerv1alpha1.IssuerCondition{
+							{
+								Type:   commandissuerv1alpha1.IssuerConditionReady,
+								Status: commandissuerv1alpha1.ConditionUnknown,
+							},
+						},
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "clusterissuer1-credentials",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
+			clusterResourceNamespace:                 "kube-system",
+			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
+		},
+		// "error-healthcheck-invalid-parsing": {
+		// 	kind: "Issuer",
+		// 	name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
+		// 	objects: []client.Object{
+		// 		&commandissuerv1alpha1.Issuer{
+		// 			ObjectMeta: metav1.ObjectMeta{
+		// 				Name:      "issuer1",
+		// 				Namespace: "ns1",
+		// 			},
+		// 			Spec: commandissuerv1alpha1.IssuerSpec{
+		// 				SecretName: "issuer1-credentials",
+		// 				HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+		// 					Enabled:  true,
+		// 					Interval: to.Ptr(metav1.Duration{Duration: 30 * time.Second}),
+		// 				},
+		// 			},
+		// 			Status: commandissuerv1alpha1.IssuerStatus{
+		// 				Conditions: []commandissuerv1alpha1.IssuerCondition{
+		// 					{
+		// 						Type:   commandissuerv1alpha1.IssuerConditionReady,
+		// 						Status: commandissuerv1alpha1.ConditionUnknown,
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 		&corev1.Secret{
+		// 			Type: corev1.SecretTypeBasicAuth,
+		// 			ObjectMeta: metav1.ObjectMeta{
+		// 				Name:      "issuer1-credentials",
+		// 				Namespace: "ns1",
+		// 			},
+		// 			Data: map[string][]byte{
+		// 				corev1.BasicAuthUsernameKey: []byte("username"),
+		// 				corev1.BasicAuthPasswordKey: []byte("password"),
+		// 			},
+		// 		},
+		// 	},
+		// 	healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
+		// 	expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
+		// 	expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionUnknown,
+		// 	expectedResult:                           ctrl.Result{},
+		// },
+		"error-healthcheck-minimum-value": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
@@ -657,8 +869,11 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Spec: commandissuerv1alpha1.IssuerSpec{
-						SecretName:                 "issuer1-credentials",
-						HealthCheckIntervalSeconds: to.Ptr(-30),
+						SecretName: "issuer1-credentials",
+						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+							Enabled:  true,
+							Interval: to.Ptr(metav1.Duration{Duration: 29 * time.Second}),
+						},
 					},
 					Status: commandissuerv1alpha1.IssuerStatus{
 						Conditions: []commandissuerv1alpha1.IssuerCondition{

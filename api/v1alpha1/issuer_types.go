@@ -46,9 +46,10 @@ type IssuerSpec struct {
 	// +kubebuilder:default:=KeyfactorAPI
 	APIPath string `json:"apiPath,omitempty"`
 
-	// The number of seconds between successful health checks. 60 seconds (1 minute) by default. Setting to 0 will disable the health check.
-	// +kubebuilder:default:=60
-	HealthCheckIntervalSeconds *int `json:"healthCheckIntervalSeconds,omitempty"`
+	// The healthcheck configuration for the issuer. This configures the frequency at which the issuer will perform
+	// a health check to determine issuer's connectivity to Command instance.
+	// +kubebuilder:validation:Optional
+	HealthCheck *HealthCheckConfig `json:"healthcheck,omitempty"`
 
 	// EnrollmentPatternId is the ID of the enrollment pattern to use. Supported in Keyfactor Command 25.1 and later.
 	// If both enrollment pattern and certificate template are specified, enrollment pattern will take precedence.
@@ -296,6 +297,15 @@ const (
 	// ConditionUnknown represents the fact that a given condition is unknown
 	ConditionUnknown ConditionStatus = "Unknown"
 )
+
+type HealthCheckConfig struct {
+	// Determines whether to the health check when the issuer is healthy. Default: true
+	Enabled bool `json:"enabled"`
+
+	// The interval at which to health check the issuer when healthy. Defaults to 1 minute. Must not be less than "30s".
+	// +kubebuilder:validation:Optional
+	Interval *metav1.Duration `json:"interval"`
+}
 
 func init() {
 	SchemeBuilder.Register(&Issuer{}, &IssuerList{})
