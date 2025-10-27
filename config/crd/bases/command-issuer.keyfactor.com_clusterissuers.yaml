@@ -102,12 +102,22 @@ spec:
                   Enrollment will fail if the specified template is not compatible with the enrollment pattern.
                   Refer to the Keyfactor Command documentation for more information.
                 type: string
-              healthCheckIntervalSeconds:
-                default: 60
-                description: The number of seconds between successful health checks.
-                  60 seconds (1 minute) by default. Setting to 0 will disable the
-                  health check.
-                type: integer
+              healthcheck:
+                description: |-
+                  The healthcheck configuration for the issuer. This configures the frequency at which the issuer will perform
+                  a health check to determine issuer's connectivity to Command instance.
+                properties:
+                  enabled:
+                    description: 'Determines whether to the health check when the
+                      issuer is healthy. Default: true'
+                    type: boolean
+                  interval:
+                    description: The interval at which to health check the issuer
+                      when healthy. Defaults to 1 minute. Must not be less than "30s".
+                    type: string
+                required:
+                - enabled
+                type: object
               hostname:
                 description: Hostname is the hostname of a Keyfactor Command instance.
                 type: string

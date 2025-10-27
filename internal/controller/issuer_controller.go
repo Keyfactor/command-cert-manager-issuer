@@ -158,24 +158,31 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 func getHealthCheckInterval(log logr.Logger, issuer commandissuer.IssuerLike) (time.Duration, error) {
 	spec := issuer.GetSpec()
 
-	if spec.HealthCheckIntervalSeconds == nil {
-		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", int(defaultHealthCheckInterval/time.Second)))
+	defaultInterval := int(defaultHealthCheckInterval / time.Second)
+
+	if spec.HealthCheck == nil {
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
 		return defaultHealthCheckInterval, nil
 	}
 
-	interval := *spec.HealthCheckIntervalSeconds
-
-	// Health check interval should not be negative
-	if interval < 0 {
-		return 0, fmt.Errorf("interval %d is invalid, must be greater than or equal to 0", interval)
+	if !spec.HealthCheck.Enabled {
+		log.Info("health check has been disabled")
+		return 0, nil
 	}
 
-	// Issuer may be configured to ignore future health checks
-	if interval == 0 {
-		log.Info("health check interval is configured to be 0. this will disable future health checks for issuer.")
+	if spec.HealthCheck.Interval == nil {
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
+		return defaultHealthCheckInterval, nil
 	}
 
-	return time.Duration(interval) * time.Second, nil
+	healthCheckInterval := *spec.HealthCheck.Interval
+
+	// To prevent from overloading the server, health check interval should not be less than 30 seconds
+	if healthCheckInterval.Duration < time.Duration(30)*time.Second {
+		return 0, fmt.Errorf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval)
+	}
+
+	return healthCheckInterval.Duration, nil
 }
 
 func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer commandissuer.IssuerLike, secretNamespace string) (*command.Config, error) {

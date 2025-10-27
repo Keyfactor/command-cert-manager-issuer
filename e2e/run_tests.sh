@@ -43,7 +43,7 @@ IMAGE_TAG="local" # Uncomment if you want to build the image locally
 FULL_IMAGE_NAME="${IMAGE_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 HELM_CHART_NAME="command-cert-manager-issuer"
-#H ELM_CHART_VERSION="2.1.0" # Uncomment if you want to use a specific version from the Helm repository
+# HELM_CHART_VERSION="2.1.0" # Uncomment if you want to use a specific version from the Helm repository
 HELM_CHART_VERSION="local" # Uncomment if you want to use the local Helm chart
 
 IS_LOCAL_DEPLOYMENT=$([ "$IMAGE_TAG" = "local" ] && echo "true" || echo "false")
@@ -205,7 +205,7 @@ install_cert_manager_issuer() {
 
         CHART_PATH="command-issuer/command-cert-manager-issuer"
         echo "Using Helm chart from repository for version ${HELM_CHART_VERSION}: $CHART_PATH..."
-        VERSION_PARAM="--version ${HELM_CHART_VERSION}"
+        VERSION_PARAM="--version ${HELM_CHART_VERSION} --devel"
     fi
 
     # Only set the image repository parameter if we are deploying locally
