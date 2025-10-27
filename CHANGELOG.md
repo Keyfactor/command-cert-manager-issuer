@@ -1,4 +1,4 @@
-# v2.3.3
+# v2.4.0
 ## Features
 - Add a `healthcheck` specification to Issuer / ClusterIssuer resources, allowing flexibility in the health check interval.
 
