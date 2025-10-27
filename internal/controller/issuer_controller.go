@@ -25,6 +25,7 @@ import (
 
 	commandissuer "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -86,8 +87,6 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{}, nil
 	}
 
-	log.Info(fmt.Sprintf("Starting %s reconciliation run", issuer.GetObjectKind().GroupVersionKind().Kind))
-
 	// Always attempt to update the Ready condition
 	defer func() {
 		if err != nil {
@@ -98,6 +97,17 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 			result = ctrl.Result{}
 		}
 	}()
+
+	healthCheckInterval, err := getHealthCheckInterval(log, issuer)
+	if err != nil {
+		log.Error(err, "en error occurred while getting the health check interval")
+		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionReady, commandissuer.ConditionFalse, issuerReadyConditionReason, err.Error())
+		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionSupportsMetadata, commandissuer.ConditionUnknown, "", "")
+		return ctrl.Result{}, nil
+	}
+
+	log.Info(fmt.Sprintf("Starting %s reconciliation run", issuer.GetObjectKind().GroupVersionKind().Kind))
+	log.Info(fmt.Sprintf("Issuer %s has been configured with a health check interval of %d seconds", issuer.GetObjectKind().GroupVersionKind().Kind, int(healthCheckInterval/time.Second)))
 
 	var secretNamespace string
 
@@ -142,7 +152,37 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionSupportsMetadata, commandissuer.ConditionFalse, "Metadata fields are not defined", "Connected Command platform doesn't have the Command Issuer metadata fields defined.")
 	}
 
-	return ctrl.Result{RequeueAfter: defaultHealthCheckInterval}, nil
+	return ctrl.Result{RequeueAfter: healthCheckInterval}, nil
+}
+
+func getHealthCheckInterval(log logr.Logger, issuer commandissuer.IssuerLike) (time.Duration, error) {
+	spec := issuer.GetSpec()
+
+	defaultInterval := int(defaultHealthCheckInterval / time.Second)
+
+	if spec.HealthCheck == nil {
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
+		return defaultHealthCheckInterval, nil
+	}
+
+	if !spec.HealthCheck.Enabled {
+		log.Info("health check has been disabled")
+		return 0, nil
+	}
+
+	if spec.HealthCheck.Interval == nil {
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
+		return defaultHealthCheckInterval, nil
+	}
+
+	healthCheckInterval := *spec.HealthCheck.Interval
+
+	// To prevent from overloading the server, health check interval should not be less than 30 seconds
+	if healthCheckInterval.Duration < time.Duration(30)*time.Second {
+		return 0, fmt.Errorf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval)
+	}
+
+	return healthCheckInterval.Duration, nil
 }
 
 func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer commandissuer.IssuerLike, secretNamespace string) (*command.Config, error) {
