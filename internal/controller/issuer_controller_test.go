@@ -924,6 +924,7 @@ func TestIssuerReconcile(t *testing.T) {
 				HealthCheckerBuilder:              tc.healthCheckerBuilder,
 				ClusterResourceNamespace:          tc.clusterResourceNamespace,
 				SecretAccessGrantedAtClusterLevel: true,
+				DefaultHealthCheckInterval:        time.Minute,
 			}
 			result, err := controller.Reconcile(
 				ctrl.LoggerInto(context.TODO(), logrtesting.NewTestLogger(t)),

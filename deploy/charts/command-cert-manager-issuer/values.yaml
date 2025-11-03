@@ -79,3 +79,5 @@ resources: {}
 nodeSelector: {}
 
 tolerations: []
+
+defaultHealthCheckInterval: ""
