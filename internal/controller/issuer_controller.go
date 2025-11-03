@@ -36,7 +36,6 @@ import (
 
 const (
 	issuerReadyConditionReason = "command-issuer.IssuerController.Reconcile"
-	defaultHealthCheckInterval = time.Minute
 )
 
 var (
@@ -44,6 +43,7 @@ var (
 	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
 	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
 	errHealthCheckerCheck   = errors.New("healthcheck failed")
+	defaultHealthCheckInterval = time.Minute
 )
 
 // IssuerReconciler reconciles a Issuer object
@@ -54,6 +54,7 @@ type IssuerReconciler struct {
 	SecretAccessGrantedAtClusterLevel bool
 	Scheme                            *runtime.Scheme
 	HealthCheckerBuilder              command.HealthCheckerBuilder
+	DefaultHealthCheckInterval        time.Duration
 }
 
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers;clusterissuers,verbs=get;list;watch
@@ -67,6 +68,7 @@ func (r *IssuerReconciler) newIssuer() (commandissuer.IssuerLike, error) {
 	if err != nil {
 		return nil, err
 	}
+	defaultHealthCheckInterval = r.DefaultHealthCheckInterval
 	return ro.(commandissuer.IssuerLike), nil
 }
 
