@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -107,6 +108,10 @@ type azure struct {
 func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 	log := log.FromContext(ctx)
 
+	// Try Azure with a short timeout
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// To prevent clogging logs every time JWT is generated
 	initializing := a.cred == nil
 
@@ -122,7 +127,7 @@ func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 	log.Info(fmt.Sprintf("generating Default Azure Credentials with scopes %s", strings.Join(a.scopes, " ")))
 
 	// Request a token with the provided scopes
-	token, err := a.cred.GetToken(ctx, policy.TokenRequestOptions{
+	token, err := a.cred.GetToken(timeoutCtx, policy.TokenRequestOptions{
 		Scopes: a.scopes,
 	})
 	if err != nil {

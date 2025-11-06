@@ -164,6 +164,7 @@ These credentials must be configured using a Kubernetes Secret. By default, the 
 Command Issuer also supports ambient authentication, where a token is fetched from an Authorization Server using a cloud provider's auth infrastructure and passed to Command directly. The following methods are supported:
 
 - [Managed Identity Using Azure Entra ID Workload Identity](./docs/ambient-providers/azure.md) (if running in [AKS](https://azure.microsoft.com/en-us/products/kubernetes-service))
+- [Workload Identity Using Google Kubernetes Engine](./docs/ambient-providers/google.md) (if running in [GKE](https://cloud.google.com/kubernetes-engine))
 
 If you are running your Kubernetes workload in a cloud provider not listed above, you can use workload identity federation with [Azure AD](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation).
 
