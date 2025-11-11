@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -64,6 +65,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var healthCheckInterval string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var clusterResourceNamespace string
@@ -79,6 +81,8 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&healthCheckInterval, "default-health-check-interval", "60s",
+		"If set, it is the default health check interval for issuers.")
 	flag.StringVar(&clusterResourceNamespace, "cluster-resource-namespace", "", "The namespace for secrets in which cluster-scoped resources are found.")
 	flag.BoolVar(&disableApprovedCheck, "disable-approved-check", false,
 		"Disables waiting for CertificateRequests to have an approved condition before signing.")
@@ -168,6 +172,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	defaultHealthCheckInterval, err := time.ParseDuration(healthCheckInterval)
+	if err != nil {
+		setupLog.Error(err, "unable to parse default health check interval")
+		os.Exit(1)
+	}
+
+	if defaultHealthCheckInterval < time.Duration(30) * time.Second {
+		setupLog.Error(errors.New(fmt.Sprintf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval)), "invalid health check interval")
+		os.Exit(1)
+	}
+
 	if err = (&controller.IssuerReconciler{
 		Client:                            mgr.GetClient(),
 		Kind:                              "Issuer",
@@ -175,6 +190,7 @@ func main() {
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
 		Scheme:                            mgr.GetScheme(),
 		HealthCheckerBuilder:              command.NewHealthChecker,
+		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
 		os.Exit(1)
@@ -186,6 +202,7 @@ func main() {
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
 		HealthCheckerBuilder:              command.NewHealthChecker,
+		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
 		os.Exit(1)
