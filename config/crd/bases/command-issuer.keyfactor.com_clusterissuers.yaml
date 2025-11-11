@@ -122,8 +122,8 @@ spec:
                   a health check to determine issuer's connectivity to Command instance.
                 properties:
                   enabled:
-                    description: 'Determines whether to enable the health check when the
-                      issuer is healthy. Default: true'
+                    description: 'Determines whether to enable the health check when
+                      the issuer is healthy. Default: true'
                     type: boolean
                   interval:
                     description: The interval at which to health check the issuer
