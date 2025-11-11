@@ -39,7 +39,7 @@ Modify the fields as needed.
 
 ```bash
 # enable the script to be executed
-chmod +x ./run_test.sh
+chmod +x ./run_tests.sh
 
 # load the environment variables
 source .env
