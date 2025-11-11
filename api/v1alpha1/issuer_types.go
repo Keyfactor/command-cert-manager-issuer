@@ -285,7 +285,7 @@ const (
 )
 
 type HealthCheckConfig struct {
-	// Determines whether to the health check when the issuer is healthy. Default: true
+	// Determines whether to enable the health check when the issuer is healthy. Default: true
 	Enabled bool `json:"enabled"`
 
 	// The interval at which to health check the issuer when healthy. Defaults to 1 minute. Must not be less than "30s".
