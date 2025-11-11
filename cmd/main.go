@@ -197,7 +197,7 @@ func main() {
 	}
 
 	if defaultHealthCheckInterval < time.Duration(30) * time.Second {
-		setupLog.Error(err, fmt.Sprintf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval))
+		setupLog.Error(errors.New(fmt.Sprintf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval)), "invalid health check interval")
 		os.Exit(1)
 	}
 
