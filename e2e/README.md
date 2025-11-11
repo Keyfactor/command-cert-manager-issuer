@@ -48,7 +48,7 @@ Please place the CA certificates for the Keyfactor Command instance you'd like t
 
 ```bash
 # enable the script to be executed
-chmod +x ./run_test.sh
+chmod +x ./run_tests.sh
 
 # load the environment variables
 source .env

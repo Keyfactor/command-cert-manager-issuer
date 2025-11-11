@@ -209,7 +209,13 @@ install_cert_manager_issuer() {
 
         CHART_PATH="command-issuer/command-cert-manager-issuer"
         echo "Using Helm chart from repository for version ${HELM_CHART_VERSION}: $CHART_PATH..."
-        VERSION_PARAM="--version ${HELM_CHART_VERSION} --devel"
+        
+        # Only include --devel if HELM_CHART_VERSION is a pre-release (contains -alpha, -beta, -rc, etc.)
+        if [[ "${HELM_CHART_VERSION}" =~ -alpha|-beta|-rc ]]; then
+            VERSION_PARAM="--version ${HELM_CHART_VERSION} --devel"
+        else
+            VERSION_PARAM="--version ${HELM_CHART_VERSION}"
+        fi
     fi
 
     # Only set the image repository parameter if we are deploying locally
@@ -506,10 +512,10 @@ delete_certificate() {
     echo "🗑️ Deleting certificate..."
 
     if cr_exists $CERTIFICATE_CRD_FQTN "$ISSUER_NAMESPACE" "$CR_C_NAME"; then
-        echo "Deleting Certificate called $CR_CR_NAME in $ISSUER_NAMESPACE"
+        echo "Deleting Certificate called $CR_C_NAME in $ISSUER_NAMESPACE"
         kubectl -n "$ISSUER_NAMESPACE" delete certificate "$CR_C_NAME"
     else
-        echo "⚠️ Certificate $CR_CR_NAME not found in $ISSUER_NAMESPACE"
+        echo "⚠️ Certificate $CR_C_NAME not found in $ISSUER_NAMESPACE"
     fi
 }
 
