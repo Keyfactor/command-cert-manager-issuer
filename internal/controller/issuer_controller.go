@@ -39,12 +39,12 @@ const (
 )
 
 var (
-	errGetAuthSecret        = errors.New("failed to get Secret containing Issuer credentials")
-	errGetCaConfigMap       = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
-	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
-	errGetCaBundleKey       = errors.New("failed to get CA bundle key from CA certificate data")
-	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
-	errHealthCheckerCheck   = errors.New("healthcheck failed")
+	errGetAuthSecret           = errors.New("failed to get Secret containing Issuer credentials")
+	errGetCaConfigMap          = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
+	errGetCaSecret             = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
+	errGetCaBundleKey          = errors.New("failed to get CA bundle key from CA certificate data")
+	errHealthCheckerBuilder    = errors.New("failed to build the healthchecker")
+	errHealthCheckerCheck      = errors.New("healthcheck failed")
 	defaultHealthCheckInterval = time.Minute
 )
 
@@ -104,7 +104,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 
 	healthCheckInterval, err := getHealthCheckInterval(log, issuer)
 	if err != nil {
-		log.Error(err, "en error occurred while getting the health check interval")
+		log.Error(err, "an error occurred while getting the health check interval")
 		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionReady, commandissuer.ConditionFalse, issuerReadyConditionReason, err.Error())
 		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionSupportsMetadata, commandissuer.ConditionUnknown, "", "")
 		return ctrl.Result{}, nil
