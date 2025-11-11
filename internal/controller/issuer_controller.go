@@ -70,7 +70,6 @@ func (r *IssuerReconciler) newIssuer() (commandissuer.IssuerLike, error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultHealthCheckInterval = r.DefaultHealthCheckInterval
 	return ro.(commandissuer.IssuerLike), nil
 }
 
@@ -102,7 +101,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		}
 	}()
 
-	healthCheckInterval, err := getHealthCheckInterval(log, issuer)
+	healthCheckInterval, err := r.getHealthCheckInterval(log, issuer)
 	if err != nil {
 		log.Error(err, "an error occurred while getting the health check interval")
 		issuer.GetStatus().SetCondition(ctx, commandissuer.IssuerConditionReady, commandissuer.ConditionFalse, issuerReadyConditionReason, err.Error())
@@ -159,14 +158,14 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	return ctrl.Result{RequeueAfter: healthCheckInterval}, nil
 }
 
-func getHealthCheckInterval(log logr.Logger, issuer commandissuer.IssuerLike) (time.Duration, error) {
+func (r *IssuerReconciler) getHealthCheckInterval(log logr.Logger, issuer commandissuer.IssuerLike) (time.Duration, error) {
 	spec := issuer.GetSpec()
 
-	defaultInterval := int(defaultHealthCheckInterval / time.Second)
+	defaultInterval := int(r.DefaultHealthCheckInterval / time.Second)
 
 	if spec.HealthCheck == nil {
-		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
-		return defaultHealthCheckInterval, nil
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d seconds", defaultInterval))
+		return r.DefaultHealthCheckInterval, nil
 	}
 
 	if !spec.HealthCheck.Enabled {
@@ -175,8 +174,8 @@ func getHealthCheckInterval(log logr.Logger, issuer commandissuer.IssuerLike) (t
 	}
 
 	if spec.HealthCheck.Interval == nil {
-		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d", defaultInterval))
-		return defaultHealthCheckInterval, nil
+		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d seconds", defaultInterval))
+		return r.DefaultHealthCheckInterval, nil
 	}
 
 	healthCheckInterval := *spec.HealthCheck.Interval
