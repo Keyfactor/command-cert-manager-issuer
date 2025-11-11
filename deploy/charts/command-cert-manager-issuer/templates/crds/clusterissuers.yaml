@@ -79,6 +79,22 @@ spec:
                   Enrollment will fail if the specified template is not compatible with the enrollment pattern.
                   Refer to the Keyfactor Command documentation for more information.
                 type: string
+              healthcheck:
+                description: |-
+                  The healthcheck configuration for the issuer. This configures the frequency at which the issuer will perform
+                  a health check to determine issuer's connectivity to Command instance.
+                properties:
+                  enabled:
+                    description: 'Determines whether to enable the health check when the
+                      issuer is healthy. Default: true'
+                    type: boolean
+                  interval:
+                    description: The interval at which to health check the issuer
+                      when healthy. Defaults to 1 minute.
+                    type: string
+                required:
+                - enabled
+                type: object
               ownerRoleId:
                 description: |-
                   OwnerRoleId is the ID of the security role assigned as the certificate owner.
