@@ -304,7 +304,7 @@ type HealthCheckConfig struct {
 
 	// The interval at which to health check the issuer when healthy. Defaults to 1 minute. Must not be less than "30s".
 	// +kubebuilder:validation:Optional
-	Interval *metav1.Duration `json:"interval"`
+	Interval *metav1.Duration `json:"interval,omitempty"`
 }
 
 func init() {

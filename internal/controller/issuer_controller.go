@@ -174,7 +174,7 @@ func (r *IssuerReconciler) getHealthCheckInterval(log logr.Logger, issuer comman
 	}
 
 	if spec.HealthCheck.Interval == nil {
-		log.Info(fmt.Sprintf("health check spec value is nil, using default: %d seconds", defaultInterval))
+		log.Info(fmt.Sprintf("health check interval is nil, using default: %d seconds", defaultInterval))
 		return r.DefaultHealthCheckInterval, nil
 	}
 
