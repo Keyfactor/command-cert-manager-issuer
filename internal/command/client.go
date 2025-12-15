@@ -109,7 +109,7 @@ func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
 	log := log.FromContext(ctx)
 
 	// Try Azure with a short timeout
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	// To prevent clogging logs every time JWT is generated

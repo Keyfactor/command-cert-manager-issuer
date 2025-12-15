@@ -64,7 +64,7 @@ For the below steps, configure your environment variables.
 
 ```bash
 # Get project-level metadata
-export PROJECT_ID=$(gcloud config get project) # use "gcloud projects list" to get a list of projects and "gcloud config set project " to set the project
+export PROJECT_ID=$(gcloud config get project) # use "gcloud projects list" to get a list of projects and "gcloud config set project <PROJECT_ID>" to set the project
 export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} \
   --format="value(projectNumber)")
 
@@ -356,48 +356,7 @@ The security claim format in Command should be:
 
 ---
 
-## Verification and Troubleshooting
-
-### Verify Workload Identity Configuration
-
-Test the complete setup with a temporary pod:
-
-```bash
-# Deploy a test pod using your KSA
-kubectl run -it --rm test-wi \
-  --image=google/cloud-sdk:slim \
-  --serviceaccount=${KSA_NAME} \
-  --namespace=${KSA_NAMESPACE} \
-  -- bash
-
-# Inside the pod, verify the service account annotation is working
-curl -H "Metadata-Flavor: Google" \
-  http://metadata/computeMetadata/v1/instance/service-accounts/default/email
-
-# This should return: @.iam.gserviceaccount.com
-
-# Get an ID token for your audience (e.g., your Command instance)
-curl -H "Metadata-Flavor: Google" \
-  "http://metadata/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://your-keyfactor-command-instance.com&format=full"
-
-# You should receive a JWT token
-```
-
-### Verify Token Claims
-
-Decode the token to verify it contains the expected claims:
-
-```bash
-# Copy the token from the previous step and decode it at https://jwt.io
-# Or use a CLI tool:
-echo "" | cut -d. -f2 | base64 -d | jq .
-```
-
-Expected claims:
-- `iss`: Should be `https://accounts.google.com`
-- `sub`: Should be the OAuth Client ID of your GSA
-- `email`: Should be `<GSA_NAME>@<PROJECT_ID>.iam.gserviceaccount.com`
-- `aud`: Should match your audience parameter
+## Troubleshooting
 
 ### Common Issues
 
