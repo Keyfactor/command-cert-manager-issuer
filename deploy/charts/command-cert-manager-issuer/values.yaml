@@ -39,6 +39,15 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
+  # Specifies whether to automount the service account token
+  # If false, a projected volume will be used to mount the token
+  automountServiceAccountToken: false
+  # Configuration for projected service account token volume (used when automountServiceAccountToken is false)
+  projectedTokenVolume:
+    # Token expiration time in seconds
+    expirationSeconds: 3607
+    # File permissions for the token
+    defaultMode: 0444
 
 podLabels: {}
 

@@ -28,6 +28,16 @@ spec:
       serviceAccountName: {{ include "command-cert-manager-issuer.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if not .Values.serviceAccount.automountServiceAccountToken }}
+      volumes:
+        - name: serviceaccount-token
+          projected:
+            defaultMode: {{ .Values.serviceAccount.projectedTokenVolume.defaultMode }}
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: {{ .Values.serviceAccount.projectedTokenVolume.expirationSeconds }}
+                  path: token
+      {{- end }}
       containers:
         - args:
             - --health-probe-bind-address=:8081
@@ -57,6 +67,12 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if not .Values.serviceAccount.automountServiceAccountToken }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: serviceaccount-token
+              readOnly: true
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
