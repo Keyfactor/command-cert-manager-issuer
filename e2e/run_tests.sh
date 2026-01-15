@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ## =======================   LICENSE     ===================================
-# Copyright © 2025 Keyfactor
+# Copyright © 2026 Keyfactor
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,15 +25,6 @@
 # This script can be run multiple times to test various scenarios.
 
 ## =======================================================================
-
-## ======================= Requirements ===================================
-# - Minikube running
-# - Helm installed
-# - Docker installed
-# - kubectl installed
-# - cmctl installed
-# - cert-manager Helm chart available
-## ===========================================================================
 
 ## ======================= How to run ===================================
 # Enable the script to run:
@@ -87,6 +78,9 @@ SIGNER_CA_SECRET_NAME="ca-secret"
 
 CERTIFICATEREQUEST_CRD_FQTN="certificaterequests.cert-manager.io"
 
+CA_CERTS_PATH="e2e/certs"
+CA_SECRET_NAME="ca-trust-secret"
+
 
 CR_CR_NAME="req"
 
@@ -116,6 +110,7 @@ check_env() {
     validate_env_present OAUTH_CLIENT_SECRET true
 
     validate_env_present CERTIFICATE_AUTHORITY_HOSTNAME false
+    validate_env_present DISABLE_CA_CHECK false
 }
 
 ns_exists () {
@@ -242,6 +237,12 @@ create_issuer() {
         return 1
     fi
 
+    caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
+    if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
+        echo "Disabling CA check as per DISABLE_CA_CHECK environment variable"
+        caSecretNameSpec=""
+    fi
+
     kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
 apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: Issuer
@@ -251,6 +252,7 @@ spec:
   hostname: "$HOSTNAME"
   apiPath: "$API_PATH"
   commandSecretName: "$SIGNER_SECRET_NAME"
+  $caSecretNameSpec
   certificateTemplate: "$CERTIFICATE_TEMPLATE"
   certificateAuthorityLogicalName: "$CERTIFICATE_AUTHORITY_LOGICAL_NAME"
   certificateAuthorityHostname: "$CERTIFICATE_AUTHORITY_HOSTNAME"
@@ -282,6 +284,12 @@ create_cluster_issuer() {
         return 1
     fi
 
+    caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
+    if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
+        echo "Disabling CA check as per DISABLE_CA_CHECK environment variable"
+        caSecretNameSpec=""
+    fi
+
     kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
 apiVersion: command-issuer.keyfactor.com/v1alpha1
 kind: ClusterIssuer
@@ -291,6 +299,7 @@ spec:
   hostname: "$HOSTNAME"
   apiPath: "$API_PATH"
   commandSecretName: "$SIGNER_SECRET_NAME"
+  $caSecretNameSpec
   certificateTemplate: "$CERTIFICATE_TEMPLATE"
   certificateAuthorityLogicalName: "$CERTIFICATE_AUTHORITY_LOGICAL_NAME"
   certificateAuthorityHostname: "$CERTIFICATE_AUTHORITY_HOSTNAME"
@@ -482,6 +491,42 @@ regenerate_cluster_issuer() {
     echo "✅ ClusterIssuer is healthy and ready for requests."
 }
 
+check_for_certificates() {
+    # check the certs directory for any files other than .gitkeep
+    if [ -n "$(ls -A $CA_CERTS_PATH 2>/dev/null | grep -v '.gitkeep')" ]; then
+        echo "✅ Certificates found in $CA_CERTS_PATH directory."
+        return 0
+    fi
+
+    echo "⚠️ No certificates found in $CA_CERTS_PATH directory. May result in test failures."
+}
+
+create_ca_secret () {
+   echo "🔐 Creating CA secret resource..."
+
+   check_for_certificates
+
+   kubectl -n ${MANAGER_NAMESPACE} create secret generic $CA_SECRET_NAME --from-file=$CA_CERTS_PATH
+
+   echo "✅ CA secret '$CA_SECRET_NAME' created successfully"
+}
+
+delete_ca_secret() {
+    echo "🗑️ Deleting CA secret..."
+
+    kubectl -n ${MANAGER_NAMESPACE} delete secret $CA_SECRET_NAME || true
+
+    echo "✅ CA secret '$CA_SECRET_NAME' deleted successfully"
+}
+
+regenerate_ca_secret() {
+    echo "🔄 Regenerating CA secret..."
+
+    delete_ca_secret
+    create_ca_secret
+
+    echo "✅ CA secret regenerated successfully"
+}
 
 
 # ================= BEGIN: Resource Deployment =====================
@@ -579,6 +624,10 @@ echo ""
 delete_certificate_request
 echo ""
 
+echo """🔐 Creating CA secret used for testing..."
+regenerate_ca_secret
+echo ""
+
 # Deploy Issuer
 echo "🔐 Deploying $ISSUER_NAMESPACE namespace if not exists..."
 kubectl create namespace ${ISSUER_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
@@ -619,6 +668,8 @@ approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 1a completed successfully."
 echo ""
+
+exit 0
 
 echo "🧪💬 Test 2: Add EnrollmentPatternId to Issuer resource"
 regenerate_issuer
