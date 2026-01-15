@@ -239,7 +239,7 @@ create_issuer() {
 
     caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
     if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
-        echo "Disabling CA check as per DISABLE_CA_CHECK environment variable"
+        echo "⚠️ Disabling CA check as per DISABLE_CA_CHECK environment variable"
         caSecretNameSpec=""
     fi
 
@@ -286,7 +286,7 @@ create_cluster_issuer() {
 
     caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
     if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
-        echo "Disabling CA check as per DISABLE_CA_CHECK environment variable"
+        echo "⚠️ Disabling CA check as per DISABLE_CA_CHECK environment variable"
         caSecretNameSpec=""
     fi
 
