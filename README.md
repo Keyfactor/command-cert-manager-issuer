@@ -144,7 +144,22 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
         --create-namespace 
     ```
 
+    You can also install a specific version of the commnad-cert-manager-issuer Helm chart:
+
+    ```shell
+    helm search repo command-issuer/command-cert-manager-issuer --versions
+    ```
+
+    ```shell
+    helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
+        --namespace command-issuer-system \
+        --version 2.4.0
+        --create-namespace 
+    ```
+
 > The Helm chart installs the Command Issuer CRDs by default. The CRDs can be installed manually with the `make install` target.
+
+> A list of configurable Helm chart parameters can be found [in the Helm chart docs](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
 
 # Authentication
 
@@ -211,11 +226,7 @@ This section has moved. Please refer to [this link](./docs/ambient-providers/azu
 
 # CA Bundle
 
-If the Command API is configured to use a self-signed certificate or with a certificate whose issuer isn't widely trusted, the CA certificate must be provided as a Kubernetes secret.
-
-```shell
-kubectl -n command-issuer-system create secret generic command-ca-secret --from-file=ca.crt
-```
+This section has been moved. Please refer to the new [CA Bundle docs](./docs/ca-bundle/README.md) documentation regarding CA trust with command-cert-manager-issuer.
 
 # Creating Issuer and ClusterIssuer resources
 
@@ -242,7 +253,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | hostname                 | The hostname of the Command API Server.                                                                                                           |
     | apiPath                 | (optional) The base path of the Command REST API. Defaults to `KeyfactorAPI`.                                                                                                           |
     | commandSecretName          | (optional) The name of the Kubernetes secret containing basic auth credentials or OAuth 2.0 credentials. Omit if using ambient credentials.                                         |
-    | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate. Required if the Command API uses a self-signed certificate or it was signed by a CA that is not widely trusted.      |
+    | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
     | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
     | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
@@ -272,7 +283,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically
           commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
-          caSecretName: "command-ca-secret" # references the secret created above
+          caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
@@ -302,7 +313,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically 
           commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
-          caSecretName: "command-ca-secret" # references the secret created above
+          caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
