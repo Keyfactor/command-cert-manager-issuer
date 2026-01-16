@@ -4,7 +4,7 @@ The command-cert-manager-issuer integration requires a secure, trusted connectio
 
 ## Using Self-Signed Certificates
 
-If the targeted Keyfactor Command API is configured to use a self-signed certificate or with a certificate whose issuer isn't widely trusted, the CA certificate **must be provided** as a Kubernetes secret. The secret must belong to the same namespace that command-cert-manager-issuer is deployed to. 
+If the targeted Keyfactor Command API is configured to use a self-signed certificate or with a certificate whose issuer isn't widely trusted, the CA certificate **must be provided** as a Kubernetes secret. The secret must belong to the same namespace that command-cert-manager-issuer is deployed to (i.e. `command-issuer-system`). 
 
 ```shell
 kubectl -n command-issuer-system create secret generic command-ca-secret --from-file=ca.crt
@@ -29,9 +29,13 @@ If the targeted Keyfactor Command API is configured with a publicly trusted cert
 
 It is not required to use the `caSecretName` specification, but it is **recommended** to maintain a list of trusted certificates instead of relying on the pre-bundled certificate store when the command-cert-manager-issuer image is created. This will reduce the likelihood of connectivity issues if the Keyfactor Command instance is updated to use a new CA or if the command-cert-manager-issuer image is updated and it does not include the Command CA in its trust store.
 
+This document covers available tools to help manage CA trust bundles.
+
 ### trust-manager
 
 [trust-manager](https://cert-manager.io/docs/trust/trust-manager/) can be used to sync CA trust bundles in a Kubernetes cluster. trust-manager can synchronize a list of publicly trusted CAs as well as any custom CAs to be included in the trust chain.
+
+TODO: trust-manager also supports configMap targets, which are more secure to write to with better RBAC policy.
 
 #### Pre-requisites
 
@@ -51,15 +55,15 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
 
 #### Setting up trust-manager
 
-1. Install trust-manager
+> NOTE: The below instructions are subject to become outdated over time. Please always refer to the [cert-manager](https://cert-manager.io/docs/trust/trust-manager/installation/) documentation for updated installation instructions.
 
-    Please refer to the [trust-manager installation documentation](https://cert-manager.io/docs/trust/  trust-manager/installation/) for up-to-date installation instructions.
+1. Install trust-manager
 
     ```bash
     # Install trust-manager in the cert-manager namespace
     helm install trust-manager oci://quay.io/jetstack/charts/trust-manager \
       --namespace cert-manager \
-      --set secretTargets.enabled=true \
+      --set secretTargets.enabled=true \ # required trust-manager to write to Kubernetes secrets
       --create-namespace \
       --wait
     ```
@@ -74,54 +78,58 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
         --dry-run=client -o yaml | kubectl apply -f -
    ```
 
-3a. Create a ClusterRole for trust-manager
+3. Label target namespaces
+
+    Label the namespace command-cert-manager-issuer is deployed to annotate trust-manager should write secrets to it
+
+    ```bash
+    kubectl label namespace command-issuer-system command-issuer-ca-bundle=enabled # change to your namespace
+    ```
+
+4. Configure RBAC policies for trust-manager
+
+Due to Kubernetes constraints, writing to secrets outside of trust-manager's namespace is forbidden unless explicit policy is provided. trust-manager needs cluster-level access to read secrets, so a ClusterRole RBAC policy must be created to grant cluster-level read secret access to trust-manager
+
+4a. Create a ClusterRole for trust-manager
 
    This RBAC policy gives trust-manager read permission to secrets across the entire cluster
 
    ```yaml
+    kubectl apply -f - <<EOF
     ---
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
-      name: trust-manager-read
+      name: trust-manager-read-secrets
       labels:
         app.kubernetes.io/name: trust-manager
     rules:
-    - apiGroups: ["trust.cert-manager.io"]
-      resources: ["bundles"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: ["trust.cert-manager.io"]
-      resources: ["bundles/status"]
-      verbs: ["patch", "update"]
     - apiGroups: [""]
-      resources: ["secrets", "configmaps"]
+      resources: ["secrets"]
       verbs: ["get", "list", "watch"]
-    - apiGroups: [""]
-      resources: ["namespaces"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: [""]
-      resources: ["events"]
-      verbs: ["create", "patch"]
 
     ---
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: trust-manager-read
+      name: trust-manager-read-secrets
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: trust-manager-read
+      name: trust-manager-read-secrets
     subjects:
     - kind: ServiceAccount
       name: trust-manager
       namespace: cert-manager
+    EOF
    ```
-3b. Create a namepaced Role for trust-manager
 
-    For each namespace that trust-manager should sync secrets to, create a role that allows trust-manager to write secrets
+4b. Create a namepaced Role for trust-manager
+
+  For each namespace that trust-manager should sync secrets to, create a role that allows trust-manager to write secrets
 
     ```yaml
+    kubectl apply -f - <<EOF
     ---
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
@@ -132,7 +140,6 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
     - apiGroups: [""]
       resources: ["secrets"]
         verbs: ["create", "update", "patch", "delete"]
-
     ---
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -148,13 +155,6 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
       name: trust-manager
       namespace: cert-manager
     ```
-4. Label target namespaces
-
-    Label the namespace command-cert-manager-issuer is deployed to annotate trust-manager should write secrets to it
-
-    ```bash
-    kubectl label namespace command-issuer-system command-issuer-ca-bundle=enabled # change to your namespace
-    ```
 
 5. Create a Bundle
 
@@ -167,7 +167,7 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
       name: command-issuer-ca-bundle
     spec:
       sources:
-      - useDefaultCAs: true # determines whether to bundle publicly trusted certificates used to    validate most TLS certificates on the internet (Let's Encrypt, Google, Amazon, etc.)
+      - useDefaultCAs: true # determines whether to bundle publicly trusted certificates used to validate most TLS certificates on the internet (Let's Encrypt, Google, Amazon, etc.)
     
       - secret:
           name: "enterprise-root-ca"
@@ -190,7 +190,7 @@ trust-manager requires **cluster-wide read access** to secrets. This is a hard t
 
 #### Using the trust bundle
 
-Once the setup is complete, a secret called `command-issuer-ca-bundle` will appear in the desired namespace (i.e. `command-issuer-system`) and the trusted CA bundle will appear in the `ca.crt` key.
+Once the setup is complete, a Kubernetes secret called `command-issuer-ca-bundle` will appear in the desired namespace (i.e. `command-issuer-system`) and the trusted CA bundle will appear in the `ca.crt` key.
 
 In your issuer specification (Issuer/ClusterIssuer), reference the secret in the `caSecretName` specification field:
 
