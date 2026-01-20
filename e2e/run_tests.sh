@@ -405,7 +405,7 @@ approve_certificate_request() {
 check_certificate_request_status() {
     echo "🔎 Checking certificate request status..."
 
-    if [[ ! $(kubectl wait --for=condition=Ready certificaterequest/$CR_CR_NAME -n $ISSUER_NAMESPACE --timeout=30s) ]]; then
+    if [[ ! $(kubectl wait --for=condition=Ready certificaterequest/$CR_CR_NAME -n $ISSUER_NAMESPACE --timeout=90s) ]]; then
         echo "⚠️  Certificate request did not become ready within the timeout period."
         echo "Check the Issuer / Command Issuer logs for errors. Check the configuration of your Issuer or CertificateRequest resources."
         echo "🚫 Test failed"
@@ -668,8 +668,6 @@ approve_certificate_request
 check_certificate_request_status
 echo "🧪✅ Test 1a completed successfully."
 echo ""
-
-exit 0
 
 echo "🧪💬 Test 2: Add EnrollmentPatternId to Issuer resource"
 regenerate_issuer

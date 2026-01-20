@@ -13,7 +13,7 @@ The test suite does the following:
 This is currently configured as a Bash script, so it is necessary to run this on a UNIX-compatible machine.
 
 ## Requirements
-- An available EJBCA is running and configured as described in the [root README](../README.md#configuring-command)
+- An available Command instance is running and configured as described in the [root README](../README.md#configuring-command)
     - OAuth is used to communicate with Command
 - Docker (>= 28.2.2)
 - Minikube (>= v1.35.0)
@@ -21,8 +21,12 @@ This is currently configured as a Bash script, so it is necessary to run this on
 - helm (>= v3.17.1)
 - cmctl (>= v2.1.1)
 
+On the Command side:
+- An enrollment pattern is created called "Test Enrollment Pattern" that is has CSR Enrollment, CSR Generation, and PFX Enrollment enabled
+- A security role by the name of "InstanceOwner" exists and has the ability to perform Enrollment
+
 ## Configuring the environment variables
-command-cert-manager-issuer interacts with an external Command instance. An environment variable file `.env` can be used to store the environment variables to be used to talk to the EJBCCommand instance.
+command-cert-manager-issuer interacts with an external Command instance. An environment variable file `.env` can be used to store the environment variables to be used to talk to the Command instance.
 
 A `.env.example` file is available as a template for your environment variables.
 
