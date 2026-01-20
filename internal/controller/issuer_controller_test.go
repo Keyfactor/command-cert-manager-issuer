@@ -693,7 +693,54 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string][]byte{
-						"ca.crt": []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+						"ca.crt":  []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-secret-with-key",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				SecretName:   "auth-secret",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			secrets: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+						"ca.crt":  []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
 					},
 				},
 			},
@@ -736,7 +783,53 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string]string{
-						"ca.crt": "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+						"ca.crt":  "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap-with-key",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			secrets: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"ca.crt":  "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
 					},
 				},
 			},
@@ -931,6 +1024,28 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 			expectedError:   errGetCaSecret,
 		},
 		{
+			name: "error-ca-secret-key-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			secrets: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
+		},
+		{
 			name: "error-ca-configmap-not-found",
 			issuerSpec: commandissuerv1alpha1.IssuerSpec{
 				Hostname:              "https://ca.example.com",
@@ -939,6 +1054,27 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 			secretNamespace: "ns1",
 			secrets:         []client.Object{},
 			expectedError:   errGetCaConfigMap,
+		},
+		{
+			name: "error-ca-configmap-key-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			secrets: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
 		},
 		{
 			name: "error-basic-auth-no-username",

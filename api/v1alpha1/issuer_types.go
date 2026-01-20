@@ -113,6 +113,12 @@ type IssuerSpec struct {
 	// +optional
 	CaBundleConfigMapName string `json:"caBundleConfigMapName,omitempty"`
 
+	// The key in the Secret or ConfigMap containing the CA certificate bundle.
+	// Applies to both caSecretName and caBundleConfigMapName.
+	// If unspecifed, the last key alphabetically in the Secret or ConfigMap data will be used.
+	// +optional
+	CaBundleKey string `json:"caBundleKey,omitempty"`
+
 	// A list of comma separated scopes used when requesting a Bearer token from an ambient token provider implied
 	// by the environment, rather than by commandSecretName. For example, could be set to
 	// api://{tenant ID}/.default when requesting an access token for Entra ID (DefaultAzureCredential). Has no

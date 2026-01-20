@@ -80,6 +80,7 @@ CERTIFICATEREQUEST_CRD_FQTN="certificaterequests.cert-manager.io"
 
 CA_CERTS_PATH="e2e/certs"
 CA_SECRET_NAME="ca-trust-secret"
+CA_CONFIG_MAP_NAME="ca-trust-configmap"
 
 
 CR_CR_NAME="req"
@@ -528,6 +529,33 @@ regenerate_ca_secret() {
     echo "✅ CA secret regenerated successfully"
 }
 
+create_ca_config_map() {
+    echo "🔐 Creating CA config map resource..."
+    
+    check_for_certificates
+    
+    kubectl -n ${MANAGER_NAMESPACE} create configmap $CA_CONFIG_MAP_NAME --from-file=$CA_CERTS_PATH
+    
+    echo "✅ CA config map '$CA_CONFIG_MAP_NAME' created successfully"
+}
+
+delete_ca_config_map() {
+    echo "🗑️ Deleting CA config map..."
+
+    kubectl -n ${MANAGER_NAMESPACE} delete configmap $CA_CONFIG_MAP_NAME || true
+
+    echo "✅ CA config map '$CA_CONFIG_MAP_NAME' deleted successfully"
+}
+
+regenerate_ca_config_map() {
+    echo "🔄 Regenerating CA config map..."
+
+    delete_ca_config_map
+    create_ca_config_map
+
+    echo "✅ CA config map regenerated successfully"
+}
+
 
 # ================= BEGIN: Resource Deployment =====================
 
@@ -812,8 +840,64 @@ check_certificate_request_status
 echo "🧪✅ Test 104 completed successfully."
 echo ""
 
+## ===================  END: Annotation Tests    ============================
+
+## ===================  BEGIN: CA Secret / ConfigMap Tests    ============================
+
+if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
+    echo "⚠️ Skipping CA Secret / ConfigMap Tests as DISABLE_CA_CHECK is set to true"
+else
+    echo "🧪💬 Test 200: Use Secret for CA Bundle"
+    regenerate_issuer
+    delete_issuer_specification_field caSecretName Issuer
+    regenerate_ca_secret
+    add_issuer_specification_field caSecretName "\"$CA_SECRET_NAME\"" Issuer
+    regenerate_certificate_request Issuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 200 completed successfully."
+    echo ""
+
+    echo "🧪💬 Test 201: Use ConfigMap for CA Bundle"
+    regenerate_issuer
+    delete_issuer_specification_field caSecretName Issuer
+    regenerate_ca_config_map
+    add_issuer_specification_field caBundleConfigMapName "\"$CA_CONFIG_MAP_NAME\"" Issuer
+    regenerate_certificate_request Issuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 201 completed successfully."
+    echo ""
+
+    echo "🧪💬 Test 202: Use Secret with CA Key"
+    regenerate_issuer
+    delete_issuer_specification_field caSecretName Issuer
+    regenerate_ca_secret
+    add_issuer_specification_field caSecretName "\"$CA_SECRET_NAME\"" Issuer
+    add_issuer_specification_field caBundleKey "\"ca.crt\"" Issuer
+    regenerate_certificate_request Issuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 202 completed successfully."
+    echo ""
+
+    echo "🧪💬 Test 203: Use ConfigMap with CA Key"
+    regenerate_issuer
+    delete_issuer_specification_field caSecretName Issuer
+    regenerate_ca_config_map
+    add_issuer_specification_field caBundleConfigMapName "\"$CA_CONFIG_MAP_NAME\"" Issuer
+    add_issuer_specification_field caBundleKey "\"ca.crt\"" Issuer
+    regenerate_certificate_request Issuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 203 completed successfully."
+    echo ""
+fi
+
+
+
 echo "🎉🎉🎉 Tests have completed successfully!"
 
-## ===================  END: Annotation Tests    ============================
+## ===================  END: CA Secret / ConfigMap Tests    ============================
 
 # ================= END: Test Execution ========================

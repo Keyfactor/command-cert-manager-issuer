@@ -42,6 +42,7 @@ var (
 	errGetAuthSecret        = errors.New("failed to get Secret containing Issuer credentials")
 	errGetCaConfigMap       = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
 	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
+	errGetCaBundleKey       = errors.New("failed to get CA bundle key from CA certificate data")
 	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
 	errHealthCheckerCheck   = errors.New("healthcheck failed")
 )
@@ -248,11 +249,18 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 	}
 
 	var caCertBytes []byte
-	// There is no requirement that the CA certificate is stored under a specific
-	// key in the secret, so we can just iterate over the map and effectively select
-	// the last value in the map
-	for _, bytes := range caData {
-		caCertBytes = bytes
+
+	if issuer.GetSpec().CaBundleKey != "" {
+		caCert, ok := caData[issuer.GetSpec().CaBundleKey]
+		if !ok {
+			return nil, fmt.Errorf("%w: caBundleKey '%s' not found in CA bundle data", errGetCaBundleKey, issuer.GetSpec().CaBundleKey)
+		}
+		caCertBytes = caCert
+	} else {
+		// If no caBundleKey is specified, take the last entry in the caData map
+		for _, bytes := range caData {
+			caCertBytes = bytes
+		}
 	}
 
 	return &command.Config{

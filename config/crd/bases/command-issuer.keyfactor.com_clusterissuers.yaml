@@ -59,6 +59,12 @@ spec:
                   the client trust roots for the Command issuer. If both caSecretName and caBundleConfigMapName
                   are specified, caBundleConfigMapName will take precedence.
                 type: string
+              caBundleKey:
+                description: |-
+                  The key in the Secret or ConfigMap containing the CA certificate bundle.
+                  Applies to both caSecretName and caBundleConfigMapName.
+                  If unspecifed, the last key alphabetically in the Secret or ConfigMap data will be used.
+                type: string
               caSecretName:
                 description: |-
                   The name of the secret containing the CA bundle to use when verifying
