@@ -40,6 +40,7 @@ const (
 
 var (
 	errGetAuthSecret        = errors.New("failed to get Secret containing Issuer credentials")
+	errGetCaConfigMap       = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
 	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
 	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
 	errHealthCheckerCheck   = errors.New("healthcheck failed")
@@ -214,23 +215,43 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 		}
 	}
 
-	var caSecret corev1.Secret
-	// If the CA secret name is not specified, we will not attempt to retrieve it
-	if issuer.GetSpec().CaSecretName != "" {
+	var caData map[string][]byte
+
+	if issuer.GetSpec().CaBundleConfigMapName != "" {
+		var configMap corev1.ConfigMap
+		err := c.Get(ctx, types.NamespacedName{
+			Name:      issuer.GetSpec().CaBundleConfigMapName,
+			Namespace: secretNamespace,
+		}, &configMap)
+
+		if err != nil {
+			return nil, fmt.Errorf("%w, configmap name: %s, reason: %w", errGetCaConfigMap, issuer.GetSpec().CaBundleConfigMapName, err)
+		}
+
+		caData = make(map[string][]byte)
+		for key, value := range configMap.Data {
+			caData[key] = []byte(value)
+		}
+	} else if issuer.GetSpec().CaSecretName != "" {
+		var caSecret corev1.Secret
+
 		err := c.Get(ctx, types.NamespacedName{
 			Name:      issuer.GetSpec().CaSecretName,
 			Namespace: secretNamespace,
 		}, &caSecret)
+
 		if err != nil {
 			return nil, fmt.Errorf("%w, secret name: %s, reason: %w", errGetCaSecret, issuer.GetSpec().CaSecretName, err)
 		}
+
+		caData = caSecret.Data
 	}
 
 	var caCertBytes []byte
 	// There is no requirement that the CA certificate is stored under a specific
 	// key in the secret, so we can just iterate over the map and effectively select
 	// the last value in the map
-	for _, bytes := range caSecret.Data {
+	for _, bytes := range caData {
 		caCertBytes = bytes
 	}
 
