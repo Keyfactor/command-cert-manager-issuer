@@ -43,13 +43,12 @@ IMAGE_TAG="local" # Uncomment if you want to build the image locally
 FULL_IMAGE_NAME="${IMAGE_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 HELM_CHART_NAME="command-cert-manager-issuer"
-#HELM_CHART_VERSION="2.1.0" # Uncomment if you want to use a specific version from the Helm repository
+#H ELM_CHART_VERSION="2.1.0" # Uncomment if you want to use a specific version from the Helm repository
 HELM_CHART_VERSION="local" # Uncomment if you want to use the local Helm chart
 
 IS_LOCAL_DEPLOYMENT=$([ "$IMAGE_TAG" = "local" ] && echo "true" || echo "false")
 IS_LOCAL_HELM=$([ "$HELM_CHART_VERSION" = "local" ] && echo "true" || echo "false")
 
-# TODO: Handle both in the e2e tests
 ISSUER_TYPE="Issuer"
 CLUSTER_ISSUER_TYPE="ClusterIssuer"
 
@@ -75,17 +74,21 @@ ISSUER_NAMESPACE="issuer-playground"
 
 SIGNER_SECRET_NAME="auth-secret"
 
+CERTIFICATE_CRD_FQTN="certificates.cert-manager.io"
 CERTIFICATEREQUEST_CRD_FQTN="certificaterequests.cert-manager.io"
 
 CA_CERTS_PATH="e2e/certs"
 SIGNER_CA_SECRET_NAME="ca-trust-secret"
 SIGNER_CA_CONFIGMAP_NAME="ca-trust-configmap"
 
-
-CR_CR_NAME="req"
+CR_C_NAME="command-cert"
+CR_CR_NAME="command-cert-1"
+CR_C_SECRET_NAME="$CR_C_NAME-tls"
 
 set -e # Exit on any error
 
+# checks if environment variable is available in system. if it is not present but the variable is required
+# an error is thrown
 validate_env_present() {
     local env_var=$1
     local required=$2
@@ -100,6 +103,7 @@ validate_env_present() {
     fi
 }
 
+# checks whether the following environment variables are provided. some environment variables are optional.
 check_env() {
     validate_env_present HOSTNAME true
     validate_env_present API_PATH true
@@ -108,11 +112,14 @@ check_env() {
     validate_env_present OAUTH_TOKEN_URL true
     validate_env_present OAUTH_CLIENT_ID true
     validate_env_present OAUTH_CLIENT_SECRET true
+    validate_env_present OAUTH_AUDIENCE false
+    validate_env_present OAUTH_SCOPES false
 
     validate_env_present CERTIFICATE_AUTHORITY_HOSTNAME false
     validate_env_present DISABLE_CA_CHECK false
 }
 
+# checks whether the provided kubernetes namespace exists
 ns_exists () {
     local ns=$1
     if [ "$(kubectl get namespace -o json | jq --arg namespace "$ns" -e '.items[] | select(.metadata.name == $namespace) | .metadata.name')" ]; then
@@ -121,6 +128,7 @@ ns_exists () {
     return 1
 }
 
+# checks whether the provided helm chart has been deployed to the cluster (namespaced)
 helm_exists () {
     local namespace=$1
     local chart_name=$2
@@ -130,6 +138,7 @@ helm_exists () {
     return 1
 }
 
+# checks whether the provided custom resource can be found in the cluster (namespaced)
 cr_exists () {
     local fqtn=$1
     local ns=$2
@@ -141,6 +150,7 @@ cr_exists () {
     return 1
 }
 
+# checks whether the provided secret name exists in the cluster (namespaced)
 secret_exists () {
     local ns=$1
     local name=$2
@@ -151,6 +161,7 @@ secret_exists () {
     return 1
 }
 
+# installs cert-manager onto the Kubernetes cluster
 install_cert_manager() {
     echo "📦 Installing cert-manager..."
 
@@ -174,6 +185,7 @@ install_cert_manager() {
     echo "✅ cert-manager installed successfully"
 }
 
+# installs the issuer to the Kubernetes cluster
 install_cert_manager_issuer() {
     echo "📦 Installing instance of $IMAGE_NAME with tag $IMAGE_TAG..."
     
@@ -189,6 +201,12 @@ install_cert_manager_issuer() {
 
         VERSION_PARAM=""
     else
+        # Add command-issuer repository if not already added
+        if ! helm repo list | grep -q command-issuer; then
+            echo "Adding command-issuer Helm repository..."
+            helm repo add command-issuer https://keyfactor.github.io/command-cert-manager-issuer
+        fi
+
         CHART_PATH="command-issuer/command-cert-manager-issuer"
         echo "Using Helm chart from repository for version ${HELM_CHART_VERSION}: $CHART_PATH..."
         VERSION_PARAM="--version ${HELM_CHART_VERSION}"
@@ -200,6 +218,15 @@ install_cert_manager_issuer() {
     else
         IMAGE_REPO_PARAM=""
     fi
+
+    
+
+    # Only set the pull policy to Never if we are deploying locally
+    if [[ "$IS_LOCAL_DEPLOYMENT" == "true" ]]; then
+        PULL_POLICY_PARAM="--set image.pullPolicy=Never"
+    else
+        PULL_POLICY_PARAM=""
+    fi
     
     # Helm chart could be out of date for release candidates, so we will install from
     # the chart defined in the repository.
@@ -209,12 +236,116 @@ install_cert_manager_issuer() {
         $IMAGE_REPO_PARAM \
         --set "fullnameOverride=${IMAGE_NAME}" \
         --set image.tag=${IMAGE_TAG} \
-        --set image.pullPolicy=Never \
-        --wait
+        $PULL_POLICY_PARAM \
+        --wait \
+        --timeout 30s
         
     echo "✅ $IMAGE_NAME installed successfully"
 }
 
+# performs a redeployment of the cert-manager. helpful for recycling TLS certificates that have expired.
+deploy_cert_manager() {
+    # Restart all cert-manager components
+    kubectl rollout restart deployment/cert-manager -n ${CERT_MANAGER_NAMESPACE}
+    kubectl rollout restart deployment/cert-manager-webhook -n ${CERT_MANAGER_NAMESPACE}
+    kubectl rollout restart deployment/cert-manager-cainjector -n ${CERT_MANAGER_NAMESPACE}
+
+    # Wait for them to be ready
+    kubectl rollout status deployment/cert-manager -n ${CERT_MANAGER_NAMESPACE}
+    kubectl rollout status deployment/cert-manager-webhook -n ${CERT_MANAGER_NAMESPACE}
+    kubectl rollout status deployment/cert-manager-cainjector -n ${CERT_MANAGER_NAMESPACE}
+}
+
+# deploys the issuer to the Kubernetes cluster
+deploy_cert_manager_issuer() {
+    # Find the deployment name (assuming it follows a pattern)
+    DEPLOYMENT_NAME=$(kubectl get deployments -n ${MANAGER_NAMESPACE} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "$IMAGE_NAME")
+
+    # Between runs, we want to make sure that the running issuer has the latest version of the code we want.
+    # Doing this patch and redeployment forces the container to restart with the latest desired version
+    if kubectl get deployment ${DEPLOYMENT_NAME} -n ${MANAGER_NAMESPACE} >/dev/null 2>&1; then
+        # Patch the deployment
+        kubectl patch deployment ${DEPLOYMENT_NAME} -n ${MANAGER_NAMESPACE} -p "{
+            \"spec\": {
+                \"template\": {
+                    \"spec\": {
+                        \"containers\": [{
+                            \"name\": \"${IMAGE_NAME}\",
+                            \"image\": \"${FULL_IMAGE_NAME}\",
+                            \"imagePullPolicy\": \"Never\"
+                        }]
+                    }
+                }
+            }
+        }"
+
+        # Rollout deployment changes and apply the patch
+        kubectl rollout restart deployment/${DEPLOYMENT_NAME} -n ${MANAGER_NAMESPACE}
+            kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${MANAGER_NAMESPACE} --timeout=300s
+
+
+        echo "✅ Deployment patched and rolled out successfully"
+    else
+        echo "⚠️  Deployment ${DEPLOYMENT_NAME} not found. The Helm chart might use a different naming convention."
+        echo "Available deployments in ${MANAGER_NAMESPACE}:"
+        kubectl get deployments -n ${MANAGER_NAMESPACE}
+    fi
+
+    echo ""
+    echo "🎉 Deployment complete!"
+    echo ""
+}
+
+# check the expiration of the cert-manager TLS certificate
+check_cert_manager_webhook_cert() {
+    local namespace=${1:-cert-manager}
+    local secret_name=${2:-cert-manager-webhook-ca}
+    
+    echo "🔍 Checking cert-manager webhook certificate..."
+    
+    # Check if secret exists
+    if ! kubectl get secret "$secret_name" -n "$namespace" >/dev/null 2>&1; then
+        echo "❌ Secret $secret_name not found in namespace $namespace"
+        return 1
+    fi
+    
+    # Get certificate data
+    local cert_data=$(kubectl get secret "$secret_name" -n "$namespace" -o jsonpath='{.data.tls\.crt}' 2>/dev/null)
+    
+    if [ -z "$cert_data" ]; then
+        echo "❌ No certificate data found in secret"
+        return 1
+    fi
+    
+    # Decode and check certificate
+    local cert_info=$(echo "$cert_data" | base64 -d | openssl x509 -noout -dates 2>/dev/null)
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to parse certificate"
+        return 1
+    fi
+    
+    echo "📋 Certificate validity:"
+    echo "$cert_info"
+    
+    # Check if certificate is currently valid
+    if echo "$cert_data" | base64 -d | openssl x509 -noout -checkend 0 >/dev/null 2>&1; then
+        echo "✅ Certificate is currently valid"
+        
+        # Check if expires within 7 days
+        if ! echo "$cert_data" | base64 -d | openssl x509 -noout -checkend 604800 >/dev/null 2>&1; then
+            echo "⚠️  Certificate expires within 7 days"
+            return 2  # Warning status
+        fi
+        
+        return 0  # Valid
+    else
+        echo "❌ Certificate is expired or not yet valid"
+        return 1  # Expired
+    fi
+}
+
+# creates a new issuer custom resource
 create_issuer() {
     echo "🔐 Creating issuer resource..."
 
@@ -265,6 +396,7 @@ EOF
     echo "✅ Issuer resources created successfully"
 }
 
+# creates a new cluster issuer custom resource
 create_cluster_issuer() {
     echo "🔐 Creating cluster issuer resource..."
 
@@ -315,6 +447,7 @@ EOF
     echo "✅ Issuer resources created successfully"
 }
 
+# deletes Issuer and ClusterIssuer custom resources from the Kubernetes cluster
 delete_issuers() {
     echo "🗑️ Deleting issuer resources..."
 
@@ -336,6 +469,59 @@ delete_issuers() {
     fi
 
     echo "✅ Issuer resources deleted successfully"
+}
+
+# creates a Certificate custom resource. this is picked up by cert-manager and converted to a CertificateRequest.
+create_certificate() {
+    local issuer_type=$1
+
+    echo "Generating a certificate object for issuer type: $issuer_type"
+
+    kubectl -n "$ISSUER_NAMESPACE" apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: $CR_C_NAME
+spec:
+  secretName: ${CR_C_SECRET_NAME}  # Where the Secret will be created
+  commonName: example.com
+  usages:
+    - signing
+    - digital signature
+    - server auth
+    # 90 days
+  duration: 2160h
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: $ISSUER_CR_NAME
+    group: command-issuer.keyfactor.com
+    kind: $issuer_type
+EOF
+}
+
+# deletes the Certificate custom resource
+delete_certificate() {
+    echo "🗑️ Deleting certificate..."
+
+    if cr_exists $CERTIFICATE_CRD_FQTN "$ISSUER_NAMESPACE" "$CR_C_NAME"; then
+        echo "Deleting Certificate called $CR_CR_NAME in $ISSUER_NAMESPACE"
+        kubectl -n "$ISSUER_NAMESPACE" delete certificate "$CR_C_NAME"
+    else
+        echo "⚠️ Certificate $CR_CR_NAME not found in $ISSUER_NAMESPACE"
+    fi
+}
+
+# deletes the Secret associated with the Certificate resource
+delete_certificate_secret() {
+    echo "🗑️ Deleting certificate secret $CR_C_SECRET_NAME..."
+
+    if secret_exists "$ISSUER_NAMESPACE" "$CR_C_SECRET_NAME"; then
+        kubectl -n "$ISSUER_NAMESPACE" delete secret "$CR_C_SECRET_NAME"
+    else
+        echo "⚠️ Certificate secret $CR_C_SECRET_NAME not found in $ISSUER_NAMESPACE"
+    fi
 }
 
 create_certificate_request() {
@@ -378,6 +564,7 @@ EOF
         echo "Certificate request created successfully."
 }
 
+# deletes the CertificateRequest custom resource
 delete_certificate_request() {
     echo "🗑️ Deleting certificate request..."
 
@@ -391,14 +578,52 @@ delete_certificate_request() {
     echo "✅ Certificate request deleted successfully"
 }
 
+regenerate_certificate() {
+    local issuer_type=$1
+    delete_certificate_secret # delete existing certificate secret so that a new CertificateRequest can be generated
+    delete_certificate_request # delete stale CertificateRequest resource
+    delete_certificate # delete stale Certificate resource
+    create_certificate $issuer_type
+}
+
 regenerate_certificate_request() {
     local issuer_type=$1
     delete_certificate_request
     create_certificate_request $issuer_type 
 }
 
+# cert-manager will take care of generating a CertificateRequest resource from the Certificate resource.
+# This does take a few seconds to complete
+wait_for_certificate_request() {
+    local timeout=30
+
+    echo "🕰️ Waiting for certificate request to exist..."
+
+    local end_time=$(($(date +%s) + timeout))
+
+    while [ $(date +%s) -lt $end_time ]; do
+        local cr_count=$(kubectl -n issuer-playground get certificaterequests -o json | \
+            jq -r '.items[] | .metadata.name' | wc -l)
+
+        cr_count=$(echo "$cr_count" | tr -d ' ')
+
+        if [ "$cr_count" -gt 0 ]; then
+            echo "✅ CertificateRequest created"
+            return 0
+        fi
+
+        sleep 2
+    done
+
+    echo "❌ No CertificateRequest found for Certificate '$CR_C_NAME' within ${timeout}s"
+    return 1
+}
+
+# approve the CertificateRequest so that the issuer can perform work on the resource
 approve_certificate_request() {
     echo "🔍 Approving certificate request..."
+
+    sleep 1
 
     if cr_exists $CERTIFICATEREQUEST_CRD_FQTN "$ISSUER_NAMESPACE" "$CR_CR_NAME"; then
         cmctl -n $ISSUER_NAMESPACE approve $CR_CR_NAME
@@ -408,17 +633,30 @@ approve_certificate_request() {
     fi
 }
 
+# If the issuer issues the certificate, the CertificateRequest resource will have its Ready property set to True
 check_certificate_request_status() {
     echo "🔎 Checking certificate request status..."
 
     if [[ ! $(kubectl wait --for=condition=Ready certificaterequest/$CR_CR_NAME -n $ISSUER_NAMESPACE --timeout=70s) ]]; then
         echo "⚠️  Certificate request did not become ready within the timeout period."
-        echo "Check the Issuer / Command Issuer logs for errors. Check the configuration of your Issuer or CertificateRequest resources."
+        echo "Check the Issuer / ClusterIssuer logs for errors. Check the configuration of your Issuer or CertificateRequest resources."
         echo "🚫 Test failed"
         exit 1
     fi
 
     echo "✅ Certificate request was issued successfully."
+}
+
+check_for_certificate_secret() {
+    echo "🔎 Checking to see if certificate secret was created..."
+
+    if secret_exists "$ISSUER_NAMESPACE" "$CR_C_SECRET_NAME"; then
+        echo "✅ Certificate secret $CR_C_SECRET_NAME was found in $ISSUER_NAMESPACE"
+        return 0
+    fi
+
+    echo "🚫 Certificate secret $CR_C_SECRET_NAME not found in $ISSUER_NAMESPACE. Test failed."
+    exit 1
 }
 
 delete_issuer_specification_field() {
@@ -631,6 +869,9 @@ else
     echo "✅ cert-manager already installed"
 fi
 
+# 2a. If cert-manager webhook certificate is out of date, redeploy it to update the certificate.
+check_cert_manager_webhook_cert || deploy_cert_manager
+
 # 3. Create command-cert-manager-issuer namespace if it doesn't exist
 kubectl create namespace ${MANAGER_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
@@ -642,7 +883,7 @@ if "$IS_LOCAL_DEPLOYMENT" = "true"; then
     echo "✅ Docker image built successfully"
 
     echo "📦 Listing Docker images..."
-    docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" | head -11
+    docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" | head -5
 fi
 
 # 5. Deploy the command-cert-manager-issuer Helm chart if not exists
@@ -727,17 +968,21 @@ echo ""
 
 echo "🧪💬 Test 1: A generated certificate request should be successfully issued by Issuer."
 regenerate_issuer
-regenerate_certificate_request Issuer
+regenerate_certificate Issuer
+wait_for_certificate_request
 approve_certificate_request
 check_certificate_request_status
+check_for_certificate_secret
 echo "🧪✅ Test 1 completed successfully."
 echo ""
 
 echo "🧪💬 Test 1a: A generated certificate request should be successfully issued by ClusterIssuer."
 regenerate_cluster_issuer
-regenerate_certificate_request ClusterIssuer
+regenerate_certificate ClusterIssuer
+wait_for_certificate_request
 approve_certificate_request
 check_certificate_request_status
+check_for_certificate_secret
 echo "🧪✅ Test 1a completed successfully."
 echo ""
 
