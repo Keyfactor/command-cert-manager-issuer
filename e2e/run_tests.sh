@@ -74,13 +74,12 @@ CERT_MANAGER_NAMESPACE="cert-manager"
 ISSUER_NAMESPACE="issuer-playground"
 
 SIGNER_SECRET_NAME="auth-secret"
-SIGNER_CA_SECRET_NAME="ca-secret"
 
 CERTIFICATEREQUEST_CRD_FQTN="certificaterequests.cert-manager.io"
 
 CA_CERTS_PATH="e2e/certs"
-CA_SECRET_NAME="ca-trust-secret"
-CA_CONFIG_MAP_NAME="ca-trust-configmap"
+SIGNER_CA_SECRET_NAME="ca-trust-secret"
+SIGNER_CA_CONFIGMAP_NAME="ca-trust-configmap"
 
 
 CR_CR_NAME="req"
@@ -238,7 +237,10 @@ create_issuer() {
         return 1
     fi
 
-    caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
+    regenerate_ca_secret
+    regenerate_ca_config_map
+
+    caSecretNameSpec="caSecretName: $SIGNER_CA_SECRET_NAME"
     if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
         echo "⚠️ Disabling CA check as per DISABLE_CA_CHECK environment variable"
         caSecretNameSpec=""
@@ -285,7 +287,10 @@ create_cluster_issuer() {
         return 1
     fi
 
-    caSecretNameSpec="caSecretName: $CA_SECRET_NAME"
+    regenerate_ca_secret
+    regenerate_ca_config_map
+
+    caSecretNameSpec="caSecretName: $SIGNER_CA_SECRET_NAME"
     if [[ "$DISABLE_CA_CHECK" == "true" ]]; then
         echo "⚠️ Disabling CA check as per DISABLE_CA_CHECK environment variable"
         caSecretNameSpec=""
@@ -406,7 +411,7 @@ approve_certificate_request() {
 check_certificate_request_status() {
     echo "🔎 Checking certificate request status..."
 
-    if [[ ! $(kubectl wait --for=condition=Ready certificaterequest/$CR_CR_NAME -n $ISSUER_NAMESPACE --timeout=90s) ]]; then
+    if [[ ! $(kubectl wait --for=condition=Ready certificaterequest/$CR_CR_NAME -n $ISSUER_NAMESPACE --timeout=70s) ]]; then
         echo "⚠️  Certificate request did not become ready within the timeout period."
         echo "Check the Issuer / Command Issuer logs for errors. Check the configuration of your Issuer or CertificateRequest resources."
         echo "🚫 Test failed"
@@ -507,17 +512,20 @@ create_ca_secret () {
 
    check_for_certificates
 
-   kubectl -n ${MANAGER_NAMESPACE} create secret generic $CA_SECRET_NAME --from-file=$CA_CERTS_PATH
+   kubectl -n ${MANAGER_NAMESPACE} create secret generic $SIGNER_CA_SECRET_NAME --from-literal=ca.crt="$(
+    find e2e/certs -type f ! -name '.gitignore' -exec cat {} \;
+  )" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
-   echo "✅ CA secret '$CA_SECRET_NAME' created successfully"
+   echo "✅ CA secret '$SIGNER_CA_SECRET_NAME' created successfully"
 }
 
 delete_ca_secret() {
     echo "🗑️ Deleting CA secret..."
 
-    kubectl -n ${MANAGER_NAMESPACE} delete secret $CA_SECRET_NAME || true
+    kubectl -n ${MANAGER_NAMESPACE} delete secret $SIGNER_CA_SECRET_NAME || true
 
-    echo "✅ CA secret '$CA_SECRET_NAME' deleted successfully"
+    echo "✅ CA secret '$SIGNER_CA_SECRET_NAME' deleted successfully"
 }
 
 regenerate_ca_secret() {
@@ -529,22 +537,41 @@ regenerate_ca_secret() {
     echo "✅ CA secret regenerated successfully"
 }
 
+add_bad_cert_to_ca_secret() {
+    echo "🔐 Adding bad certificate to CA secret..."
+
+    kubectl -n ${MANAGER_NAMESPACE} patch secret $SIGNER_CA_SECRET_NAME\
+  --type='json' \
+  -p='[
+    {
+      "op": "add",
+      "path": "/data/zzz.crt",
+      "value": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClRISVNfSVNfTk9UX0FfUkVBTF9DRVJUCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K" 
+    }
+  ]'
+
+    echo "✅ Bad certificate added to CA secret successfully."
+}
+
 create_ca_config_map() {
     echo "🔐 Creating CA config map resource..."
     
     check_for_certificates
     
-    kubectl -n ${MANAGER_NAMESPACE} create configmap $CA_CONFIG_MAP_NAME --from-file=$CA_CERTS_PATH
+    kubectl -n ${MANAGER_NAMESPACE} create configmap $SIGNER_CA_CONFIGMAP_NAME --from-literal=ca.crt="$(
+        find e2e/certs -type f ! -name '.gitignore' -exec cat {} \;
+      )" \
+      --dry-run=client -o yaml | kubectl apply -f -
     
-    echo "✅ CA config map '$CA_CONFIG_MAP_NAME' created successfully"
+    echo "✅ CA config map '$SIGNER_CA_CONFIGMAP_NAME' created successfully"
 }
 
 delete_ca_config_map() {
     echo "🗑️ Deleting CA config map..."
 
-    kubectl -n ${MANAGER_NAMESPACE} delete configmap $CA_CONFIG_MAP_NAME || true
+    kubectl -n ${MANAGER_NAMESPACE} delete configmap $SIGNER_CA_CONFIGMAP_NAME || true
 
-    echo "✅ CA config map '$CA_CONFIG_MAP_NAME' deleted successfully"
+    echo "✅ CA config map '$SIGNER_CA_CONFIGMAP_NAME' deleted successfully"
 }
 
 regenerate_ca_config_map() {
@@ -554,6 +581,22 @@ regenerate_ca_config_map() {
     create_ca_config_map
 
     echo "✅ CA config map regenerated successfully"
+}
+
+add_bad_cert_to_ca_config_map() {
+    echo "🔐 Adding bad certificate to CA config map..."
+
+    kubectl -n ${MANAGER_NAMESPACE} patch configmap $SIGNER_CA_CONFIGMAP_NAME\
+  --type='json' \
+  -p='[
+    {
+      "op": "add",
+      "path": "/data/zzz.crt",
+      "value": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClRISVNfSVNfTk9UX0FfUkVBTF9DRVJUCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K" 
+    }
+  ]'
+
+    echo "✅ Bad certificate added to CA config map successfully."
 }
 
 
@@ -654,6 +697,7 @@ echo ""
 
 echo """🔐 Creating CA secret used for testing..."
 regenerate_ca_secret
+regenerate_ca_config_map
 echo ""
 
 # Deploy Issuer
@@ -850,30 +894,48 @@ else
     echo "🧪💬 Test 200: Use Secret for CA Bundle"
     regenerate_issuer
     delete_issuer_specification_field caSecretName Issuer
-    regenerate_ca_secret
-    add_issuer_specification_field caSecretName "\"$CA_SECRET_NAME\"" Issuer
+    add_issuer_specification_field caSecretName "\"$SIGNER_CA_SECRET_NAME\"" Issuer
     regenerate_certificate_request Issuer
     approve_certificate_request
     check_certificate_request_status
     echo "🧪✅ Test 200 completed successfully."
     echo ""
 
+    echo "🧪💬 Test 200a: Use Secret for CA Bundle ClusterIssuer"
+    regenerate_cluster_issuer
+    delete_issuer_specification_field caSecretName ClusterIssuer
+    add_issuer_specification_field caSecretName "\"$SIGNER_CA_SECRET_NAME\"" ClusterIssuer
+    regenerate_certificate_request ClusterIssuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 200a completed successfully."
+    echo ""
+
     echo "🧪💬 Test 201: Use ConfigMap for CA Bundle"
     regenerate_issuer
     delete_issuer_specification_field caSecretName Issuer
-    regenerate_ca_config_map
-    add_issuer_specification_field caBundleConfigMapName "\"$CA_CONFIG_MAP_NAME\"" Issuer
+    add_issuer_specification_field caBundleConfigMapName "\"$SIGNER_CA_CONFIGMAP_NAME\"" Issuer
     regenerate_certificate_request Issuer
     approve_certificate_request
     check_certificate_request_status
     echo "🧪✅ Test 201 completed successfully."
     echo ""
 
+    echo "🧪💬 Test 201a: Use ConfigMap for CA Bundle ClusterIssuer"
+    regenerate_cluster_issuer
+    delete_issuer_specification_field caSecretName ClusterIssuer
+    add_issuer_specification_field caBundleConfigMapName "\"$SIGNER_CA_CONFIGMAP_NAME\"" ClusterIssuer
+    regenerate_certificate_request ClusterIssuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 201a completed successfully."
+    echo ""
+
     echo "🧪💬 Test 202: Use Secret with CA Key"
     regenerate_issuer
     delete_issuer_specification_field caSecretName Issuer
-    regenerate_ca_secret
-    add_issuer_specification_field caSecretName "\"$CA_SECRET_NAME\"" Issuer
+    add_bad_cert_to_ca_secret
+    add_issuer_specification_field caSecretName "\"$SIGNER_CA_SECRET_NAME\"" Issuer
     add_issuer_specification_field caBundleKey "\"ca.crt\"" Issuer
     regenerate_certificate_request Issuer
     approve_certificate_request
@@ -881,16 +943,40 @@ else
     echo "🧪✅ Test 202 completed successfully."
     echo ""
 
+    echo "🧪💬 Test 202a: Use Secret with CA Key ClusterIssuer"
+    regenerate_cluster_issuer
+    delete_issuer_specification_field caSecretName ClusterIssuer
+    add_bad_cert_to_ca_secret
+    add_issuer_specification_field caSecretName "\"$SIGNER_CA_SECRET_NAME\"" ClusterIssuer
+    add_issuer_specification_field caBundleKey "\"ca.crt\"" ClusterIssuer
+    regenerate_certificate_request ClusterIssuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 202a completed successfully."
+    echo ""
+
     echo "🧪💬 Test 203: Use ConfigMap with CA Key"
     regenerate_issuer
     delete_issuer_specification_field caSecretName Issuer
-    regenerate_ca_config_map
-    add_issuer_specification_field caBundleConfigMapName "\"$CA_CONFIG_MAP_NAME\"" Issuer
+    add_bad_cert_to_ca_config_map
+    add_issuer_specification_field caBundleConfigMapName "\"$SIGNER_CA_CONFIGMAP_NAME\"" Issuer
     add_issuer_specification_field caBundleKey "\"ca.crt\"" Issuer
     regenerate_certificate_request Issuer
     approve_certificate_request
     check_certificate_request_status
     echo "🧪✅ Test 203 completed successfully."
+    echo ""
+
+    echo "🧪💬 Test 203a: Use ConfigMap with CA Key ClusterIssuer"
+    regenerate_cluster_issuer
+    delete_issuer_specification_field caSecretName ClusterIssuer
+    add_bad_cert_to_ca_config_map
+    add_issuer_specification_field caBundleConfigMapName "\"$SIGNER_CA_CONFIGMAP_NAME\"" ClusterIssuer
+    add_issuer_specification_field caBundleKey "\"ca.crt\"" ClusterIssuer
+    regenerate_certificate_request ClusterIssuer
+    approve_certificate_request
+    check_certificate_request_status
+    echo "🧪✅ Test 203a completed successfully."
     echo ""
 fi
 
