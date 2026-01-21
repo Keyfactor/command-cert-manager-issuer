@@ -158,7 +158,6 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
     ```
 
 > For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [this list](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
-    > For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [this list](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
 
 > The Helm chart installs the Command Issuer CRDs by default. The CRDs can be installed manually with the `make install` target.
 
