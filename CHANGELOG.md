@@ -3,6 +3,7 @@
 - Add support to specify a ConfigMap for CA trust bundles in Issuer / ClusterIssuer resources via the `caBundleConfigMapName` specification.
 - Add support for specifying a key on a Secret / ConfigMap resource for the CA trust bundle via the `caBundleKey` specification on an Issuer / ClusterIssuer resource.
 - Add a timeout when fetching ambient Azure credentials to move onto other ambient credential methods.
+- Ability to specify environment variables on issuer deployment to set additional configuration options (i.e. HTTP proxy settings, etc.)
 
 ## Chores
 - Add documentation for how to configure command-cert-manager-issuer with ambient credentials on Google Kubernetes Engine (GKE).
