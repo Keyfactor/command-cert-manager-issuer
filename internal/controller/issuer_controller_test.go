@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Keyfactor
+Copyright © 2026 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	commandissuer "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	commandissuerv1alpha1 "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
 	logrtesting "github.com/go-logr/logr/testing"
@@ -951,6 +952,672 @@ func TestIssuerReconcile(t *testing.T) {
 				require.NoError(t, err)
 				assert.True(t, issuer.GetStatus().HasCondition(commandissuerv1alpha1.IssuerConditionReady, tc.expectedReadyConditionStatus))
 				assert.True(t, issuer.GetStatus().HasCondition(commandissuerv1alpha1.IssuerConditionSupportsMetadata, tc.expectedMetadataSupportedConditionStatus))
+			}
+		})
+	}
+}
+
+func TestCommandConfigFromIssuer(t *testing.T) {
+	type testCase struct {
+		name             string
+		issuerSpec       commandissuerv1alpha1.IssuerSpec
+		secretNamespace  string
+		objects          []client.Object
+		expectedConfig   *command.Config
+		expectedError    error
+		expectedErrorMsg string
+	}
+
+	tests := []testCase{
+		{
+			name: "success-basic-auth",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-secret",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				SecretName:   "auth-secret",
+				CaSecretName: "ca-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-secret-with-key",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				SecretName:   "auth-secret",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+						"ca.crt":  []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaBundleConfigMapName: "ca-configmap",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap-with-key",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"ca.crt":  "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap-overwrites-secret",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaSecretName:          "ca-secret",
+				CaBundleConfigMapName: "ca-configmap",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"ca.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"ca.crt": "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-oauth-minimal",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				OAuth: &command.OAuth{
+					TokenURL:     "https://oauth.example.com/token",
+					ClientID:     "client-id",
+					ClientSecret: "client-secret",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-oauth-with-scopes-and-audience",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+						commandissuer.OAuthScopesKey:       []byte("scope1,scope2,scope3"),
+						commandissuer.OAuthAudienceKey:     []byte("https://api.example.com"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				OAuth: &command.OAuth{
+					TokenURL:     "https://oauth.example.com/token",
+					ClientID:     "client-id",
+					ClientSecret: "client-secret",
+					Scopes:       []string{"scope1", "scope2", "scope3"},
+					Audience:     "https://api.example.com",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-ambient-credentials-with-scopes",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				Scopes:   "scope1,scope2",
+				Audience: "https://api.example.com",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedConfig: &command.Config{
+				Hostname:                  "https://ca.example.com",
+				APIPath:                   "/api/v1",
+				AmbientCredentialScopes:   []string{"scope1", "scope2"},
+				AmbientCredentialAudience: "https://api.example.com",
+			},
+		},
+		{
+			name: "success-no-auth-secret",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedConfig: &command.Config{
+				Hostname:                  "https://ca.example.com",
+				APIPath:                   "/api/v1",
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "error-auth-secret-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "missing-secret",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetAuthSecret,
+		},
+		{
+			name: "error-ca-secret-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				CaSecretName: "missing-ca-secret",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetCaSecret,
+		},
+		{
+			name: "error-ca-secret-key-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
+		},
+		{
+			name: "error-ca-configmap-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				CaBundleConfigMapName: "missing-ca-bundle",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetCaConfigMap,
+		},
+		{
+			name: "error-ca-configmap-key-not-found",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
+		},
+		{
+			name: "error-basic-auth-no-username",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found basic auth secret with no username",
+		},
+		{
+			name: "error-basic-auth-no-password",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found basic auth secret with no password",
+		},
+		{
+			name: "error-oauth-no-token-url",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no tokenUrl",
+		},
+		{
+			name: "error-oauth-no-client-id",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no clientId",
+		},
+		{
+			name: "error-oauth-no-client-secret",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey: []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey: []byte("client-id"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no clientSecret",
+		},
+		{
+			name: "error-unsupported-secret-type",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeTLS,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("cert"),
+						"tls.key": []byte("key"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with unsupported type",
+		},
+		{
+			name: "success-cluster-scoped-secret-namespace",
+			issuerSpec: commandissuerv1alpha1.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "kube-system",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, commandissuerv1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(tc.objects...).
+				Build()
+
+			// Create a minimal issuer with the test spec
+			issuer := &commandissuerv1alpha1.Issuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-issuer",
+					Namespace: tc.secretNamespace,
+				},
+				Spec: tc.issuerSpec,
+			}
+
+			ctx := context.Background()
+			config, err := commandConfigFromIssuer(ctx, fakeClient, issuer, tc.secretNamespace)
+
+			if tc.expectedError != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expectedError)
+				if tc.expectedErrorMsg != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+				}
+				assert.Nil(t, config)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, config)
+				assert.Equal(t, tc.expectedConfig.Hostname, config.Hostname)
+				assert.Equal(t, tc.expectedConfig.APIPath, config.APIPath)
+				assert.Equal(t, tc.expectedConfig.CaCertsBytes, config.CaCertsBytes)
+				assert.Equal(t, tc.expectedConfig.BasicAuth, config.BasicAuth)
+				assert.Equal(t, tc.expectedConfig.OAuth, config.OAuth)
+				assert.Equal(t, tc.expectedConfig.AmbientCredentialScopes, config.AmbientCredentialScopes)
+				assert.Equal(t, tc.expectedConfig.AmbientCredentialAudience, config.AmbientCredentialAudience)
 			}
 		})
 	}

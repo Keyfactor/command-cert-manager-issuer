@@ -71,6 +71,7 @@ func main() {
 	var clusterResourceNamespace string
 	var disableApprovedCheck bool
 	var secretAccessGrantedAtClusterLevel bool
+	var configMapAccessGrantedAtClusterLevel bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -88,6 +89,8 @@ func main() {
 		"Disables waiting for CertificateRequests to have an approved condition before signing.")
 	flag.BoolVar(&secretAccessGrantedAtClusterLevel, "secret-access-granted-at-cluster-level", false,
 		"Set this flag to true if the secret access is granted at cluster level. This will allow the controller to access secrets in any namespace. ")
+	flag.BoolVar(&configMapAccessGrantedAtClusterLevel, "configmap-access-granted-at-cluster-level", false,
+		"Set this flag to true if the config map access is granted at cluster level. This will allow the controller to access config maps in any namespace. ")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -130,16 +133,31 @@ func main() {
 	}
 
 	var cacheOpts cache.Options
-	if secretAccessGrantedAtClusterLevel {
-		setupLog.Info("expecting SA to have Get+List+Watch permissions for corev1 Secret resources at cluster level")
-	} else {
-		setupLog.Info(fmt.Sprintf("expecting SA to have Get+List+Watch permissions for corev1 Secret resources in the %q namespace", clusterResourceNamespace))
+
+	// Build the ByObject map if either resource is namespace-scoped
+	if !secretAccessGrantedAtClusterLevel || !configMapAccessGrantedAtClusterLevel {
+		byObject := make(map[client.Object]cache.ByObject)
+
+		if !secretAccessGrantedAtClusterLevel {
+			setupLog.Info(fmt.Sprintf("expecting SA to have Get+List+Watch permissions for corev1 Secret resources in the %q namespace", clusterResourceNamespace))
+			byObject[&corev1.Secret{}] = cache.ByObject{
+				Namespaces: map[string]cache.Config{clusterResourceNamespace: {}},
+			}
+		} else {
+			setupLog.Info("expecting SA to have Get+List+Watch permissions for corev1 Secret resources at cluster level")
+		}
+
+		if !configMapAccessGrantedAtClusterLevel {
+			setupLog.Info(fmt.Sprintf("expecting SA to have Get+List+Watch permissions for corev1 ConfigMap resources in the %q namespace", clusterResourceNamespace))
+			byObject[&corev1.ConfigMap{}] = cache.ByObject{
+				Namespaces: map[string]cache.Config{clusterResourceNamespace: {}},
+			}
+		} else {
+			setupLog.Info("expecting SA to have Get+List+Watch permissions for corev1 ConfigMap resources at cluster level")
+		}
+
 		cacheOpts = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Secret{}: {
-					Namespaces: map[string]cache.Config{clusterResourceNamespace: cache.Config{}},
-				},
-			},
+			ByObject: byObject,
 		}
 	}
 

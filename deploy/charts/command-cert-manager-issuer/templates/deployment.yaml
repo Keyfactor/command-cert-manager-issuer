@@ -36,11 +36,18 @@ spec:
             {{- if .Values.secretConfig.useClusterRoleForSecretAccess}}
             - --secret-access-granted-at-cluster-level
             {{- end}}
+            {{- if .Values.secretConfig.useClusterRoleForConfigMapAccess}}
+            - --configmap-access-granted-at-cluster-level
+            {{- end}}
             {{- if .Values.defaultHealthCheckInterval }}
             - --default-health-check-interval={{ .Values.defaultHealthCheckInterval }}
             {{- end }}
           command:
             - /manager
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.Version }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           livenessProbe:
