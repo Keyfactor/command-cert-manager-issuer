@@ -39,13 +39,12 @@ const (
 )
 
 var (
-	errGetAuthSecret           = errors.New("failed to get Secret containing Issuer credentials")
-	errGetCaConfigMap          = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
-	errGetCaSecret             = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
-	errGetCaBundleKey          = errors.New("failed to get CA bundle key from CA certificate data")
-	errHealthCheckerBuilder    = errors.New("failed to build the healthchecker")
-	errHealthCheckerCheck      = errors.New("healthcheck failed")
-	defaultHealthCheckInterval = time.Minute
+	errGetAuthSecret        = errors.New("failed to get Secret containing Issuer credentials")
+	errGetCaConfigMap       = errors.New("caBundleConfigMapName specified a name, but failed to get ConfigMap containing CA certificate")
+	errGetCaSecret          = errors.New("caSecretName specified a name, but failed to get Secret containing CA certificate")
+	errGetCaBundleKey       = errors.New("failed to get CA bundle key from CA certificate data")
+	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
+	errHealthCheckerCheck   = errors.New("healthcheck failed")
 )
 
 // IssuerReconciler reconciles a Issuer object

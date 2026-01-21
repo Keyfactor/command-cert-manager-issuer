@@ -120,7 +120,7 @@ type IssuerSpec struct {
 
 	// The key in the Secret or ConfigMap containing the CA certificate bundle.
 	// Applies to both caSecretName and caBundleConfigMapName.
-	// If unspecifed, the last key alphabetically in the Secret or ConfigMap data will be used.
+	// If unspecified, the last key alphabetically in the Secret or ConfigMap data will be used.
 	// +optional
 	CaBundleKey string `json:"caBundleKey,omitempty"`
 

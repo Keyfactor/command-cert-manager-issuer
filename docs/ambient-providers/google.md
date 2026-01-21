@@ -261,7 +261,7 @@ For the below steps, configure your environment variables:
 
 ```bash
 # Get project-level metadata
-export PROJECT_ID=$(gcloud config get project) # use "gcloud projects list" to get a list of projects and "gcloud config set project " to set the project
+export PROJECT_ID=$(gcloud config get project) # use "gcloud projects list" to get a list of projects and "gcloud config set project <PROJECT_ID>" to set the project
 export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} \
   --format="value(projectNumber)")
 

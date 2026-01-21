@@ -238,7 +238,7 @@ Due to Kubernetes constraints, writing to secrets outside of trust-manager's nam
     EOF
    ```
 
-4b. Create a namepaced Role for trust-manager
+4b. Create a namespaced Role for trust-manager
 
   For each namespace that trust-manager should sync secrets to, create a role that allows trust-manager to write secrets
 
