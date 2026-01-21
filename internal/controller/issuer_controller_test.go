@@ -962,7 +962,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 		name             string
 		issuerSpec       commandissuerv1alpha1.IssuerSpec
 		secretNamespace  string
-		secrets          []client.Object
+		objects          []client.Object
 		expectedConfig   *command.Config
 		expectedError    error
 		expectedErrorMsg string
@@ -977,7 +977,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "auth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1010,7 +1010,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaSecretName: "ca-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1030,7 +1030,6 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 					},
 					Data: map[string][]byte{
 						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
-						"ca.crt":  []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
 					},
 				},
 			},
@@ -1056,7 +1055,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleKey:  "ca.crt",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1101,7 +1100,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleConfigMapName: "ca-configmap",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1119,7 +1118,6 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string]string{
-						"ca.crt":  "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
 						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
 					},
 				},
@@ -1146,7 +1144,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleKey:           "ca.crt",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1191,7 +1189,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleConfigMapName: "ca-configmap",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1243,7 +1241,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "oauth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1277,7 +1275,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "oauth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1316,7 +1314,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				Audience: "https://api.example.com",
 			},
 			secretNamespace: "ns1",
-			secrets:         []client.Object{},
+			objects:         []client.Object{},
 			expectedConfig: &command.Config{
 				Hostname:                  "https://ca.example.com",
 				APIPath:                   "/api/v1",
@@ -1331,7 +1329,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				APIPath:  "/api/v1",
 			},
 			secretNamespace: "ns1",
-			secrets:         []client.Object{},
+			objects:         []client.Object{},
 			expectedConfig: &command.Config{
 				Hostname:                  "https://ca.example.com",
 				APIPath:                   "/api/v1",
@@ -1346,7 +1344,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "missing-secret",
 			},
 			secretNamespace: "ns1",
-			secrets:         []client.Object{},
+			objects:         []client.Object{},
 			expectedError:   errGetAuthSecret,
 		},
 		{
@@ -1356,7 +1354,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaSecretName: "missing-ca-secret",
 			},
 			secretNamespace: "ns1",
-			secrets:         []client.Object{},
+			objects:         []client.Object{},
 			expectedError:   errGetCaSecret,
 		},
 		{
@@ -1367,7 +1365,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleKey:  "ca.crt",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1388,7 +1386,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleConfigMapName: "missing-ca-bundle",
 			},
 			secretNamespace: "ns1",
-			secrets:         []client.Object{},
+			objects:         []client.Object{},
 			expectedError:   errGetCaConfigMap,
 		},
 		{
@@ -1399,7 +1397,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				CaBundleKey:           "ca.crt",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "ca-configmap",
@@ -1419,7 +1417,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "auth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1441,7 +1439,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "auth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1463,7 +1461,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "oauth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1486,7 +1484,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "oauth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1509,7 +1507,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "oauth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeOpaque,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1532,7 +1530,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "auth-secret",
 			},
 			secretNamespace: "ns1",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeTLS,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1555,7 +1553,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 				SecretName: "auth-secret",
 			},
 			secretNamespace: "kube-system",
-			secrets: []client.Object{
+			objects: []client.Object{
 				&corev1.Secret{
 					Type: corev1.SecretTypeBasicAuth,
 					ObjectMeta: metav1.ObjectMeta{
@@ -1588,7 +1586,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithObjects(tc.secrets...).
+				WithObjects(tc.objects...).
 				Build()
 
 			// Create a minimal issuer with the test spec
