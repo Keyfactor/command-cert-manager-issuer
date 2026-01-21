@@ -106,9 +106,23 @@ type IssuerSpec struct {
 
 	// The name of the secret containing the CA bundle to use when verifying
 	// Command's server certificate. If specified, the CA bundle will be added to
-	// the client trust roots for the Command issuer.
+	// the client trust roots for the Command issuer. If both caSecretName and caBundleConfigMapName
+	// are specified, caBundleConfigMapName will take precedence.
 	// +optional
 	CaSecretName string `json:"caSecretName,omitempty"`
+
+	// The name of the ConfigMap containing the CA bundle to use when verifying
+	// Command's server certificate. If specified, the CA bundle will be added to
+	// the client trust roots for the Command issuer. If both caSecretName and caBundleConfigMapName
+	// are specified, caBundleConfigMapName will take precedence.
+	// +optional
+	CaBundleConfigMapName string `json:"caBundleConfigMapName,omitempty"`
+
+	// The key in the Secret or ConfigMap containing the CA certificate bundle.
+	// Applies to both caSecretName and caBundleConfigMapName.
+	// If unspecifed, the last key alphabetically in the Secret or ConfigMap data will be used.
+	// +optional
+	CaBundleKey string `json:"caBundleKey,omitempty"`
 
 	// A list of comma separated scopes used when requesting a Bearer token from an ambient token provider implied
 	// by the environment, rather than by commandSecretName. For example, could be set to
