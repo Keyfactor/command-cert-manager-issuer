@@ -254,6 +254,8 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | apiPath                 | (optional) The base path of the Command REST API. Defaults to `KeyfactorAPI`.                                                                                                           |
     | commandSecretName          | (optional) The name of the Kubernetes secret containing basic auth credentials or OAuth 2.0 credentials. Omit if using ambient credentials.                                         |
     | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
+    | caBundleConfigMapName       | (optional) The name of the Kubernetes ConfigMap containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
+    | caBundleKey | (optional) The name of the key in the ConfigMap or Secret specified by `caSecretName` or `caBundleConfigMapName` that contains the CA bundle. If omitted, the last key of the ConfigMap / Secret resource will be used. |
     | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
     | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
@@ -283,7 +285,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically
           commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
-          caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
+          # caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
+          # caBundleConfigMapName: "command-ca-configmap" # references a configmap containing the CA trust chain (see CA Bundle docs for more info)
+          # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
@@ -313,7 +317,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           hostname: "$HOSTNAME"
           apiPath: "/KeyfactorAPI" # Preceding & trailing slashes are handled automatically 
           commandSecretName: "command-secret" # references the secret created above. Omit if using ambient credentials.
-          caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
+          # caSecretName: "command-ca-secret" # references a secret containing the CA trust chain (see CA Bundle docs for more info)
+          # caBundleConfigMapName: "command-ca-configmap" # references a configmap containing the CA trust chain (see CA Bundle docs for more info)
+          # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
           certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
