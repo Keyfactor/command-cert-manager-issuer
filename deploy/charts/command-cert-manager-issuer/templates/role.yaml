@@ -40,3 +40,19 @@ rules:
       - get
       - list
       - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: {{ if .Values.secretConfig.useClusterRoleForConfigMapAccess }}ClusterRole{{ else }}Role{{ end }}
+metadata:
+  labels:
+    {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
+  name: {{ include "command-cert-manager-issuer.name" . }}-configmap-reader-role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch

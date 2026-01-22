@@ -12,8 +12,6 @@ The test suite does the following:
 
 This is currently configured as a Bash script, so it is necessary to run this on a UNIX-compatible machine.
 
-Instructions on how to run the e2e test suite are within the [run_tests.sh](./run_tests.sh) file.
-
 ## Requirements
 - An available Command instance is running and configured as described in the [root README](../README.md#configuring-command)
     - OAuth is used to communicate with Command
@@ -22,6 +20,10 @@ Instructions on how to run the e2e test suite are within the [run_tests.sh](./ru
 - kubectl (>= v1.32.2)
 - helm (>= v3.17.1)
 - cmctl (>= v2.1.1)
+
+On the Command side:
+- An enrollment pattern is created called "Test Enrollment Pattern" that is has CSR Enrollment, CSR Generation, and PFX Enrollment enabled
+- A security role by the name of "InstanceOwner" exists and has the ability to perform Enrollment
 
 ## Configuring the environment variables
 command-cert-manager-issuer interacts with an external Command instance. An environment variable file `.env` can be used to store the environment variables to be used to talk to the Command instance.
@@ -34,6 +36,13 @@ cp .env.example .env
 ```
 
 Modify the fields as needed.
+
+## Configuring the trusted certificate store
+The issuer created in the end-to-end tests can leverage the `caSecretName` specification to determine a collection of CAs to trust in order to establish a trusted connection with the remote Keyfactor Command instance. The certificates defined in this secret will be pulled from the `certs` folder in this directory.
+
+Please place the CA certificates for the Keyfactor Command instance you'd like to connect to (the intermediate and/or root CAs) under `certs` directory.
+
+> NOTE: This check can be disabled by setting the env variable `DISABLE_CA_CHECK=true`.
 
 ## Running the script
 
