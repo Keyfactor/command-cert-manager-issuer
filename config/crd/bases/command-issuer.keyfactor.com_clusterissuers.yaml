@@ -52,11 +52,25 @@ spec:
                   the URL of your Command environment.Has no effect on OAuth 2.0 Client Credential configuration - please specify
                   the audience for this method in an Opaque secret.
                 type: string
+              caBundleConfigMapName:
+                description: |-
+                  The name of the ConfigMap containing the CA bundle to use when verifying
+                  Command's server certificate. If specified, the CA bundle will be added to
+                  the client trust roots for the Command issuer. If both caSecretName and caBundleConfigMapName
+                  are specified, caBundleConfigMapName will take precedence.
+                type: string
+              caBundleKey:
+                description: |-
+                  The key in the Secret or ConfigMap containing the CA certificate bundle.
+                  Applies to both caSecretName and caBundleConfigMapName.
+                  If unspecified, the last key alphabetically in the Secret or ConfigMap data will be used.
+                type: string
               caSecretName:
                 description: |-
                   The name of the secret containing the CA bundle to use when verifying
                   Command's server certificate. If specified, the CA bundle will be added to
-                  the client trust roots for the Command issuer.
+                  the client trust roots for the Command issuer. If both caSecretName and caBundleConfigMapName
+                  are specified, caBundleConfigMapName will take precedence.
                 type: string
               certificateAuthorityHostname:
                 description: |-
