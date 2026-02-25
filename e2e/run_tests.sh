@@ -36,15 +36,17 @@
 ## ===========================================================================
 
 
-IMAGE_REPO="keyfactor"
-IMAGE_NAME="command-cert-manager-issuer"
-# IMAGE_TAG="2.2.0-rc.9" # Uncomment if you want to use an existing image from the repository
-IMAGE_TAG="local" # Uncomment if you want to build the image locally
+# Image configuration - can be overridden via environment variables
+# Set IMAGE_TAG=local to build locally, or use a published version (default: 2.5.0)
+IMAGE_REPO="${IMAGE_REPO:-keyfactor}"
+IMAGE_NAME="${IMAGE_NAME:-command-cert-manager-issuer}"
+IMAGE_TAG="${IMAGE_TAG:-2.5.0}"
 FULL_IMAGE_NAME="${IMAGE_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
 
+# Helm chart configuration - can be overridden via environment variables
+# Set HELM_CHART_VERSION=local to use the local chart, or use a published version (default: 2.5.0)
 HELM_CHART_NAME="command-cert-manager-issuer"
-# HELM_CHART_VERSION="2.1.0" # Uncomment if you want to use a specific version from the Helm repository
-HELM_CHART_VERSION="local" # Uncomment if you want to use the local Helm chart
+HELM_CHART_VERSION="${HELM_CHART_VERSION:-2.5.0}"
 
 IS_LOCAL_DEPLOYMENT=$([ "$IMAGE_TAG" = "local" ] && echo "true" || echo "false")
 IS_LOCAL_HELM=$([ "$HELM_CHART_VERSION" = "local" ] && echo "true" || echo "false")
@@ -58,11 +60,11 @@ ISSUER_CR_NAME="issuer"
 ISSUER_CRD_FQTN="issuers.command-issuer.keyfactor.com"
 CLUSTER_ISSUER_CRD_FQTN="clusterissuers.command-issuer.keyfactor.com"
 
-ENROLLMENT_PATTERN_ID=1
-ENROLLMENT_PATTERN_NAME="Test Enrollment Pattern"
+ENROLLMENT_PATTERN_ID=${E2E_ENROLLMENT_PATTERN_ID:-1}
+ENROLLMENT_PATTERN_NAME="${E2E_ENROLLMENT_PATTERN_NAME:-Default Pattern}"
 
-OWNER_ROLE_ID=2
-OWNER_ROLE_NAME="InstanceOwner"
+OWNER_ROLE_ID=${E2E_OWNER_ROLE_ID:-2}
+OWNER_ROLE_NAME="${E2E_OWNER_ROLE_NAME:-InstanceOwner}"
 
 CHART_PATH="./deploy/charts/command-cert-manager-issuer"
 
@@ -854,18 +856,20 @@ cd ..
 echo "⚙️ Local image deployment: ${IS_LOCAL_DEPLOYMENT}"
 echo "⚙️ Local Helm chart: ${IS_LOCAL_HELM}"
 
-if ! minikube status &> /dev/null; then
-    echo "Error: Minikube is not running. Please start it with 'minikube start'"
-    exit 1
+# Use existing kubeconfig context (set USE_MINIKUBE=true to use minikube)
+if [ "${USE_MINIKUBE:-false}" = "true" ]; then
+    if ! minikube status &> /dev/null; then
+        echo "Error: Minikube is not running. Please start it with 'minikube start'"
+        exit 1
+    fi
+    kubectl config use-context minikube
+    echo "📡 Connecting to Minikube Docker environment..."
+    eval $(minikube docker-env)
+else
+    echo "📡 Using current kubeconfig context..."
 fi
-
-kubectl config use-context minikube
 echo "Connected to Kubernetes context: $(kubectl config current-context)..."
-
-# 1. Connect to minikube Docker env
-echo "📡 Connecting to Minikube Docker environment..."
-eval $(minikube docker-env)
-echo "🚀 Starting deployment to Minikube..."
+echo "🚀 Starting deployment..."
 
 # 2. Deploy cert-manager Helm chart if not exists
 echo "🔐 Checking for cert-manager installation..."
@@ -883,10 +887,24 @@ kubectl create namespace ${MANAGER_NAMESPACE} --dry-run=client -o yaml | kubectl
 
 # 4. Build the command-cert-manager-issuer Docker image
 # This step is only needed if the image tag is "local"
-if "$IS_LOCAL_DEPLOYMENT" = "true"; then
+if [ "$IS_LOCAL_DEPLOYMENT" = "true" ]; then
+    if [ "${USE_MINIKUBE:-false}" != "true" ]; then
+        echo "⚠️  WARNING: Local deployment without minikube requires pushing the image to a registry."
+        echo "⚠️  Set IMAGE_REGISTRY env var to push, or use a published IMAGE_TAG instead."
+    fi
     echo "🐳 Building ${FULL_IMAGE_NAME} Docker image..."
     docker build -t ${FULL_IMAGE_NAME} .
     echo "✅ Docker image built successfully"
+
+    # If IMAGE_REGISTRY is set, push the image
+    if [ -n "${IMAGE_REGISTRY:-}" ]; then
+        REMOTE_IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        echo "📤 Tagging and pushing image to ${REMOTE_IMAGE}..."
+        docker tag ${FULL_IMAGE_NAME} ${REMOTE_IMAGE}
+        docker push ${REMOTE_IMAGE}
+        FULL_IMAGE_NAME="${REMOTE_IMAGE}"
+        echo "✅ Image pushed successfully"
+    fi
 
     echo "📦 Listing Docker images..."
     docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" | head -5

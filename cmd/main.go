@@ -196,10 +196,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if defaultHealthCheckInterval < time.Duration(30) * time.Second {
+	if defaultHealthCheckInterval < time.Duration(30)*time.Second {
 		setupLog.Error(errors.New(fmt.Sprintf("interval %s is invalid, must be greater than or equal to '30s'", healthCheckInterval)), "invalid health check interval")
 		os.Exit(1)
 	}
+
+	// Create a shared client cache to avoid re-authenticating (fetching new OAuth tokens)
+	// for every certificate request. Clients are cached by configuration hash.
+	clientCache := command.NewClientCache()
+	setupLog.Info("initialized Command client cache for OAuth token reuse")
 
 	if err = (&controller.IssuerReconciler{
 		Client:                            mgr.GetClient(),
@@ -207,7 +212,7 @@ func main() {
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
 		Scheme:                            mgr.GetScheme(),
-		HealthCheckerBuilder:              command.NewHealthChecker,
+		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
 		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
@@ -219,7 +224,7 @@ func main() {
 		Kind:                              "ClusterIssuer",
 		ClusterResourceNamespace:          clusterResourceNamespace,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
-		HealthCheckerBuilder:              command.NewHealthChecker,
+		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
 		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
@@ -229,7 +234,7 @@ func main() {
 		Client:                            mgr.GetClient(),
 		Scheme:                            mgr.GetScheme(),
 		ClusterResourceNamespace:          clusterResourceNamespace,
-		SignerBuilder:                     command.NewSignerBuilder,
+		SignerBuilder:                     clientCache.GetOrCreateSigner,
 		CheckApprovedCondition:            !disableApprovedCheck,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
 		Clock:                             clock.RealClock{},
