@@ -37,16 +37,16 @@
 
 
 # Image configuration - can be overridden via environment variables
-# Set IMAGE_TAG=local to build locally, or use a published version (default: 2.5.0)
+# Set IMAGE_TAG=local to build locally, or use a published version (default: local)
 IMAGE_REPO="${IMAGE_REPO:-keyfactor}"
 IMAGE_NAME="${IMAGE_NAME:-command-cert-manager-issuer}"
-IMAGE_TAG="${IMAGE_TAG:-2.5.0}"
+IMAGE_TAG="${IMAGE_TAG:-local}"
 FULL_IMAGE_NAME="${IMAGE_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # Helm chart configuration - can be overridden via environment variables
-# Set HELM_CHART_VERSION=local to use the local chart, or use a published version (default: 2.5.0)
+# Set HELM_CHART_VERSION=local to use the local chart, or use a published version (default: local)
 HELM_CHART_NAME="command-cert-manager-issuer"
-HELM_CHART_VERSION="${HELM_CHART_VERSION:-2.5.0}"
+HELM_CHART_VERSION="${HELM_CHART_VERSION:-local}"
 
 IS_LOCAL_DEPLOYMENT=$([ "$IMAGE_TAG" = "local" ] && echo "true" || echo "false")
 IS_LOCAL_HELM=$([ "$HELM_CHART_VERSION" = "local" ] && echo "true" || echo "false")
