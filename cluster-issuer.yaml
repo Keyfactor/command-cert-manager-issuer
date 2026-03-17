@@ -1,0 +1,12 @@
+apiVersion: command-issuer.keyfactor.com/v1alpha1
+kind: ClusterIssuer
+metadata:
+  name: cluster-issuer
+spec:
+  apiPath: Keyfactor/API
+  caSecretName: ca-trust-secret
+  certificateAuthorityHostname: ''
+  certificateAuthorityLogicalName: Sub-CA
+  certificateTemplate: Server_tlsServerAuth-1y
+  commandSecretName: auth-secret
+  hostname: matthew-irby-1.kftestlab.com

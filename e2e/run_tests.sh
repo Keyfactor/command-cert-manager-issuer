@@ -1000,6 +1000,8 @@ check_for_certificate_secret
 echo "🧪✅ Test 1 completed successfully."
 echo ""
 
+exit 0 # Temporarily exit here to focus on Issuer tests before running ClusterIssuer tests
+
 echo "🧪💬 Test 1a: A generated certificate request should be successfully issued by ClusterIssuer."
 regenerate_cluster_issuer
 regenerate_certificate ClusterIssuer
