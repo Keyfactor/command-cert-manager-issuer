@@ -207,37 +207,40 @@ func main() {
 	setupLog.Info("initialized Command client cache for OAuth token reuse")
 
 	if err = (&controller.IssuerReconciler{
-		Client:                            mgr.GetClient(),
-		Kind:                              "Issuer",
-		ClusterResourceNamespace:          clusterResourceNamespace,
-		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
-		Scheme:                            mgr.GetScheme(),
-		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
-		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
+		Client:                              mgr.GetClient(),
+		Kind:                                "Issuer",
+		ClusterResourceNamespace:            clusterResourceNamespace,
+		SecretAccessGrantedAtClusterLevel:   secretAccessGrantedAtClusterLevel,
+		ConfigMapAccessGrantedAtClusterLevel: configmapAccessGrantedAtClusterLevel,
+		Scheme:                              mgr.GetScheme(),
+		HealthCheckerBuilder:                clientCache.GetOrCreateHealthChecker,
+		DefaultHealthCheckInterval:          defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
 		os.Exit(1)
 	}
 	if err = (&controller.IssuerReconciler{
-		Client:                            mgr.GetClient(),
-		Scheme:                            mgr.GetScheme(),
-		Kind:                              "ClusterIssuer",
-		ClusterResourceNamespace:          clusterResourceNamespace,
-		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
-		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
-		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
+		Client:                              mgr.GetClient(),
+		Scheme:                              mgr.GetScheme(),
+		Kind:                                "ClusterIssuer",
+		ClusterResourceNamespace:            clusterResourceNamespace,
+		SecretAccessGrantedAtClusterLevel:   secretAccessGrantedAtClusterLevel,
+		ConfigMapAccessGrantedAtClusterLevel: configmapAccessGrantedAtClusterLevel,
+		HealthCheckerBuilder:                clientCache.GetOrCreateHealthChecker,
+		DefaultHealthCheckInterval:          defaultHealthCheckInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
 		os.Exit(1)
 	}
 	if err = (&controller.CertificateRequestReconciler{
-		Client:                            mgr.GetClient(),
-		Scheme:                            mgr.GetScheme(),
-		ClusterResourceNamespace:          clusterResourceNamespace,
-		SignerBuilder:                     clientCache.GetOrCreateSigner,
-		CheckApprovedCondition:            !disableApprovedCheck,
-		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
-		Clock:                             clock.RealClock{},
+		Client:                              mgr.GetClient(),
+		Scheme:                              mgr.GetScheme(),
+		ClusterResourceNamespace:            clusterResourceNamespace,
+		SignerBuilder:                       clientCache.GetOrCreateSigner,
+		CheckApprovedCondition:              !disableApprovedCheck,
+		SecretAccessGrantedAtClusterLevel:   secretAccessGrantedAtClusterLevel,
+		ConfigMapAccessGrantedAtClusterLevel: configmapAccessGrantedAtClusterLevel,
+		Clock:                               clock.RealClock{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertificateRequest")
 		os.Exit(1)
