@@ -1,3 +1,7 @@
+# v2.5.1
+## Fixes
+- Fixes an issue where OAuth 2.0 client credentials were being regenerated on every API call.
+
 # v2.5.0
 ## Features
 - Add support to specify a ConfigMap for CA trust bundles in Issuer / ClusterIssuer resources via the `caBundleConfigMapName` specification.
