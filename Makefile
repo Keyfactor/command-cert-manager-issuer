@@ -187,7 +187,7 @@ CONFTEST = $(LOCALBIN)/conftest-$(CONFTEST_VERSION)
 KUSTOMIZE_VERSION ?= v5.3.0
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= v1.60.1
+GOLANGCI_LINT_VERSION ?= v2.4.0
 KUBE_LINTER_VERSION ?= v0.6.8
 CONFTEST_VERSION ?= v0.60.0
 
@@ -219,7 +219,12 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+	@[ -f $(GOLANGCI_LINT) ] || { \
+	set -e; \
+	echo "Downloading golangci-lint $(GOLANGCI_LINT_VERSION)" ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION) ;\
+	mv $(LOCALBIN)/golangci-lint $(GOLANGCI_LINT) ;\
+	}
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary (ideally with version)
