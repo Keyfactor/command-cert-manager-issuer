@@ -4,6 +4,7 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-leader-election-role
+  namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups:
       - coordination.k8s.io
@@ -31,6 +32,9 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-secret-reader-role
+  {{- if not .Values.secretConfig.useClusterRoleForSecretAccess }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
 rules:
   - apiGroups:
       - ""
@@ -47,6 +51,9 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-configmap-reader-role
+  {{- if not .Values.secretConfig.useClusterRoleForConfigMapAccess }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
 rules:
   - apiGroups:
       - ""
