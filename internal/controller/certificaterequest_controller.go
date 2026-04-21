@@ -69,7 +69,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	var certificateRequest cmapi.CertificateRequest
 	if err := r.Get(ctx, req.NamespacedName, &certificateRequest); err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
-			return ctrl.Result{}, fmt.Errorf("unexpected get error: %v", err)
+			return ctrl.Result{}, fmt.Errorf("unexpected get error: %w", err)
 		}
 		log.Info("CertificateRequest not found. ignoring.")
 		return ctrl.Result{}, nil
@@ -159,7 +159,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	issuerGVK := commandissuer.GroupVersion.WithKind(certificateRequest.Spec.IssuerRef.Kind)
 	issuerRO, err := r.Scheme.New(issuerGVK)
 	if err != nil {
-		err = fmt.Errorf("%w: %v", errIssuerRef, err)
+		err = fmt.Errorf("%w: %w", errIssuerRef, err)
 		log.Error(err, "Unrecognized kind. Ignoring.")
 		setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionFalse, cmapi.CertificateRequestReasonFailed, err.Error())
 		return ctrl.Result{}, nil
@@ -215,7 +215,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	commandSigner, err := r.SignerBuilder(ctx, config)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("%w: %v", errSignerBuilder, err)
+		return ctrl.Result{}, fmt.Errorf("%w: %w", errSignerBuilder, err)
 	}
 
 	// Assign metadata
@@ -254,6 +254,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	certificateRequest.Status.CA = chain
 
 	setCertificateRequestReadyCondition(&certificateRequest, cmmeta.ConditionTrue, cmapi.CertificateRequestReasonIssued, "Signed")
+	log.Info(fmt.Sprintf("CertificateRequest %s/%s successfully signed", certificateRequest.Namespace, certificateRequest.Name))
 	return ctrl.Result{}, nil
 }
 

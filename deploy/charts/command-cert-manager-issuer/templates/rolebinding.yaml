@@ -4,6 +4,7 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-leader-election-rolebinding
+  namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -19,6 +20,9 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-secret-reader-rolebinding
+  {{- if not .Values.secretConfig.useClusterRoleForSecretAccess }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: {{ if .Values.secretConfig.useClusterRoleForSecretAccess }}ClusterRole{{ else }}Role{{ end }}
@@ -34,6 +38,9 @@ metadata:
   labels:
     {{- include "command-cert-manager-issuer.labels" . | nindent 4 }}
   name: {{ include "command-cert-manager-issuer.name" . }}-configmap-reader-rolebinding
+  {{- if not .Values.secretConfig.useClusterRoleForConfigMapAccess }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: {{ if .Values.secretConfig.useClusterRoleForConfigMapAccess }}ClusterRole{{ else }}Role{{ end }}
