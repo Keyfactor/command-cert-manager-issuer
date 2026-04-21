@@ -18,15 +18,8 @@ package controller
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
-	"math/big"
 	"testing"
-	"time"
 
 	commandissuerv1alpha1 "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
@@ -805,40 +798,4 @@ func assertCertificateRequestHasReadyCondition(t *testing.T, status cmmeta.Condi
 	)
 	assert.Contains(t, validReasons, reason, "unexpected condition reason")
 	assert.Equal(t, reason, condition.Reason, "unexpected condition reason")
-}
-
-func issueTestCertificate(t *testing.T, cn string, parent *x509.Certificate, signingKey any) (*x509.Certificate, *ecdsa.PrivateKey) {
-	var err error
-	var key *ecdsa.PrivateKey
-	now := time.Now()
-
-	key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	publicKey := &key.PublicKey
-	signerPrivateKey := key
-	if signingKey != nil {
-		signerPrivateKey = signingKey.(*ecdsa.PrivateKey)
-	}
-
-	serial, _ := rand.Int(rand.Reader, big.NewInt(1337))
-	certTemplate := &x509.Certificate{
-		Subject:               pkix.Name{CommonName: cn},
-		SerialNumber:          serial,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-		NotBefore:             now,
-		NotAfter:              now.Add(time.Hour * 24),
-	}
-
-	if parent == nil {
-		parent = certTemplate
-	}
-
-	certData, err := x509.CreateCertificate(rand.Reader, certTemplate, parent, publicKey, signerPrivateKey)
-	require.NoError(t, err)
-
-	cert, err := x509.ParseCertificate(certData)
-	require.NoError(t, err)
-
-	return cert, key
 }

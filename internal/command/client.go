@@ -49,7 +49,7 @@ func setAmbientTokenCredentialSource(source TokenCredentialSource) {
 
 type Client interface {
 	EnrollCSR(v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
-	GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error)
+	GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, error)
 	GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error)
 	TestConnection() error
 }
@@ -65,14 +65,18 @@ type clientAdapter struct {
 	testConnection        func() error
 }
 
+// GetAllMetadataFields implements Client. Closes the response body internally so callers don't need to.
+func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, error) {
+	fields, resp, err := c.getAllMetadataFields(r)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	return fields, err
+}
+
 // EnrollCSR implements CertificateClient.
 func (c *clientAdapter) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error) {
 	return c.enrollCSR(r)
-}
-
-// GetAllMetadataFields implements Client.
-func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
-	return c.getAllMetadataFields(r)
 }
 
 func (c *clientAdapter) GetEnrollmentPatterns(r v1.ApiGetEnrollmentPatternsRequest) ([]v1.EnrollmentPatternsEnrollmentPatternResponse, *http.Response, error) {
@@ -189,7 +193,7 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
-		log.Info(fmt.Sprintf("generating a Google OIDC ID token..."))
+		log.Info("generating a Google OIDC ID token...")
 
 		// Default audience to "command" if not provided
 		aud := getValueOrDefault(g.audience, "command")
@@ -220,7 +224,9 @@ func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
 		// Only want to output this once, don't want to output this every time the JWT is generated
 
 		log.Info("==== BEGIN DEBUG: Default Google ID Token JWT ======")
+
 		printClaims(log, token.AccessToken, []string{"aud", "iss", "sub", "email"})
+
 		log.Info("==== END DEBUG:  Default Google ID Token JWT ======")
 	}
 
@@ -242,11 +248,11 @@ func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes 
 	return source, nil
 }
 
-func printClaims(log logr.Logger, token string, claimsToPrint []string) error {
+func printClaims(log logr.Logger, token string, claimsToPrint []string) {
 	tokenRaw, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
 		log.Error(err, "failed to parse JWT")
-		return fmt.Errorf("failed to parse JWT: %w", err)
+		return
 	}
 
 	claims, _ := tokenRaw.Claims.(jwt.MapClaims)
@@ -261,6 +267,4 @@ func printClaims(log logr.Logger, token string, claimsToPrint []string) error {
 	if issuer, err := claims.GetIssuer(); err != nil {
 		log.Info(fmt.Sprintf("\nNOTE: If you are receiving a HTTP 401 on requests to Command, make sure an identity provider in Command is configured with '%s' as the authority.\nThe discovery endpoint for your issuer can be found at %s/.well-known/openid-configuration.", issuer, issuer))
 	}
-
-	return nil
 }

@@ -68,7 +68,7 @@ func TestIssuerStatus_SetCondition_UpdateConditionStatus(t *testing.T) {
 	assert.Equal(t, "NewMessage", cond.Message)
 
 	// LastTransitionTime should be updated because status changed from ConditionFalse -> ConditionTrue
-	assert.True(t, cond.LastTransitionTime.Time.After(now.Time), "LastTransitionTime should be more recent if the status changed.")
+	assert.True(t, cond.LastTransitionTime.After(now.Time), "LastTransitionTime should be more recent if the status changed.")
 }
 
 func TestIssuerStatus_SetCondition_NoStatusChange(t *testing.T) {

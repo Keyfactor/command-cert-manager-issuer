@@ -262,26 +262,6 @@ func TestSignConfigValidate(t *testing.T) {
 	}
 }
 
-type fakeCommandAuthenticator struct {
-	client *http.Client
-	config *auth_providers.Server
-}
-
-// Authenticate implements api.AuthConfig.
-func (f *fakeCommandAuthenticator) Authenticate() error {
-	return nil
-}
-
-// GetHttpClient implements api.AuthConfig.
-func (f *fakeCommandAuthenticator) GetHttpClient() (*http.Client, error) {
-	return f.client, nil
-}
-
-// GetServerConfig implements api.AuthConfig.
-func (f *fakeCommandAuthenticator) GetServerConfig() *auth_providers.Server {
-	return f.config
-}
-
 func TestNewServerConfig(t *testing.T) {
 
 	testCases := map[string]struct {
@@ -387,8 +367,8 @@ func (f *fakeClient) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDa
 }
 
 // GetAllMetadataFields implements Client.
-func (f *fakeClient) GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, *http.Response, error) {
-	return f.metadataFields, nil, f.err
+func (f *fakeClient) GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, error) {
+	return f.metadataFields, f.err
 }
 
 // GetEnrollmentPatterns implements Client.
@@ -648,7 +628,7 @@ func TestSign(t *testing.T) {
 				client: &client,
 			}
 
-			csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+			csrBytes, err := generateCSR("CN=command.example.org", []string{"dns.example.com"}, []string{}, []string{})
 			require.NoError(t, err)
 			csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
 
@@ -859,7 +839,6 @@ func TestGetMetadataOverrideOrCurrentValue(t *testing.T) {
 }
 
 func TestBuildCsrEnrollRequest_Success(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -868,7 +847,7 @@ func TestBuildCsrEnrollRequest_Success(t *testing.T) {
 	}
 
 	// Create test CSR
-	csrBytes, err := generateCSR("CN=command.example.org", nil, nil, nil)
+	csrBytes, err := generateCSR("CN=command1.example.org", nil, nil, nil)
 	require.NoError(t, err)
 	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
 
@@ -894,7 +873,7 @@ func TestBuildCsrEnrollRequest_Success(t *testing.T) {
 		},
 	}
 
-	req, result, caBuilder, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	req, result, caBuilder, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 
@@ -947,7 +926,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateTemplate(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -962,7 +940,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateTemplate(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.Template.Get(), *result.Template.Get())
@@ -997,7 +975,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityLogicalName(t *
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1012,7 +989,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityLogicalName(t *
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.CertificateAuthority.Get(), *result.CertificateAuthority.Get())
@@ -1047,7 +1024,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityHostname(t *tes
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1062,7 +1038,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_CertificateAuthorityHostname(t *tes
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.CertificateAuthority.Get(), *result.CertificateAuthority.Get())
@@ -1097,7 +1073,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_EnrollmentPatternId(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1112,7 +1087,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_EnrollmentPatternId(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.EnrollmentPatternId.Get(), *result.EnrollmentPatternId.Get())
@@ -1147,7 +1122,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleId(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1162,7 +1136,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleId(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.OwnerRoleId.Get(), *result.OwnerRoleId.Get())
@@ -1197,7 +1171,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleName(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1212,7 +1185,7 @@ func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleName(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, result, _, err := signer.buildCsrEnrollRequest(ctx, &tc.config, logger, csrPem)
+			_, result, _, err := signer.buildCsrEnrollRequest(&tc.config, logger, csrPem)
 
 			assert.NoError(t, err)
 			assert.Equal(t, *tc.expected.OwnerRoleName.Get(), *result.OwnerRoleName.Get())
@@ -1221,7 +1194,6 @@ func TestBuildCsrEnrollRequest_WithOverrides_OwnerRoleName(t *testing.T) {
 }
 
 func TestBuildCsrEnrollRequest_NoCertificateTemplate_TemplatePropertyIsNil(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1238,7 +1210,7 @@ func TestBuildCsrEnrollRequest_NoCertificateTemplate_TemplatePropertyIsNil(t *te
 		CertificateTemplate: "",
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1246,7 +1218,6 @@ func TestBuildCsrEnrollRequest_NoCertificateTemplate_TemplatePropertyIsNil(t *te
 }
 
 func TestBuildCsrEnrollRequest_EnrollmentPatternNameAndEnrollmentPatternIdPopulated_UsesEnrollmentPatternIdValue(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1264,7 +1235,7 @@ func TestBuildCsrEnrollRequest_EnrollmentPatternNameAndEnrollmentPatternIdPopula
 		EnrollmentPatternName: "TestEnrollmentPatternId",
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1272,7 +1243,6 @@ func TestBuildCsrEnrollRequest_EnrollmentPatternNameAndEnrollmentPatternIdPopula
 }
 
 func TestBuildCsrEnrollRequest_EnrollmentPatternNameIsPopulated_GetsEnrollmentPatternFromClient(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{
@@ -1295,7 +1265,7 @@ func TestBuildCsrEnrollRequest_EnrollmentPatternNameIsPopulated_GetsEnrollmentPa
 		EnrollmentPatternName: "TestEnrollmentPatternId",
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1303,7 +1273,6 @@ func TestBuildCsrEnrollRequest_EnrollmentPatternNameIsPopulated_GetsEnrollmentPa
 }
 
 func TestBuildCsrEnrollRequest_OwnerRoleIdIsPopulated_UsesOwnerRoleIdValue(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1320,7 +1289,7 @@ func TestBuildCsrEnrollRequest_OwnerRoleIdIsPopulated_UsesOwnerRoleIdValue(t *te
 		OwnerRoleId: 123,
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1328,7 +1297,6 @@ func TestBuildCsrEnrollRequest_OwnerRoleIdIsPopulated_UsesOwnerRoleIdValue(t *te
 }
 
 func TestBuildCsrEnrollRequest_OwnerRoleNameIsPopulated_UsesOwnerRoleNameValue(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1345,7 +1313,7 @@ func TestBuildCsrEnrollRequest_OwnerRoleNameIsPopulated_UsesOwnerRoleNameValue(t
 		OwnerRoleName: "TestOwnerRole",
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -1353,7 +1321,6 @@ func TestBuildCsrEnrollRequest_OwnerRoleNameIsPopulated_UsesOwnerRoleNameValue(t
 }
 
 func TestBuildCsrEnrollRequest_OwnerRoleIdAndNameArePopulated_UsesOwnerRoleIdValue(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.FromContextOrDiscard(context.Background())
 
 	client := fakeClient{}
@@ -1371,7 +1338,7 @@ func TestBuildCsrEnrollRequest_OwnerRoleIdAndNameArePopulated_UsesOwnerRoleIdVal
 		OwnerRoleName: "TestOwnerRole",
 	}
 
-	_, result, _, err := signer.buildCsrEnrollRequest(ctx, config, logger, csrPem)
+	_, result, _, err := signer.buildCsrEnrollRequest(config, logger, csrPem)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
