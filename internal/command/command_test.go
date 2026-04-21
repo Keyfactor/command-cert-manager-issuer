@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -27,6 +28,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -366,8 +368,9 @@ var (
 )
 
 type fakeClient struct {
-	enrollCallback func(v1.ApiCreateEnrollmentCSRRequest)
-	enrollResponse *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse
+	enrollCallback     func(v1.ApiCreateEnrollmentCSRRequest)
+	enrollResponse     *v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse
+	enrollHTTPResponse *http.Response
 
 	metadataFields     []v1.CSSCMSDataModelModelsMetadataType
 	enrollmentPatterns []v1.EnrollmentPatternsEnrollmentPatternResponse
@@ -380,7 +383,7 @@ func (f *fakeClient) EnrollCSR(r v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDa
 	if f.enrollCallback != nil {
 		f.enrollCallback(r)
 	}
-	return f.enrollResponse, nil, f.err
+	return f.enrollResponse, f.enrollHTTPResponse, f.err
 }
 
 // GetAllMetadataFields implements Client.
@@ -427,13 +430,15 @@ func TestSign(t *testing.T) {
 
 	testCases := map[string]struct {
 		enrollCSRFunctionError error
+		enrollHTTPResponse     *http.Response
 		enrollmentPatterns     []v1.EnrollmentPatternsEnrollmentPatternResponse
 
 		// Request
 		config *SignConfig
 
 		// Expected
-		expectedSignError error
+		expectedSignError    error
+		expectedErrorContent *string
 	}{
 		"success-no-meta-certificate-template": {
 			// Request
@@ -444,8 +449,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-id": {
 			// Request
@@ -456,8 +459,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-name": {
 			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
@@ -475,8 +476,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-no-meta-enrollment-pattern-id-overwrites-pattern-name": {
 			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{}, // This would fail if enrollment pattern name was used
@@ -489,8 +488,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-annotation-config-override-pattern-id": {
 			// Request
@@ -507,8 +504,6 @@ func TestSign(t *testing.T) {
 					"command-issuer.keyfactor.com/enrollmentPatternId":             "12345",
 				},
 			},
-
-			expectedSignError: nil,
 		},
 		"success-annotation-config-override-pattern-name": {
 			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{
@@ -532,8 +527,6 @@ func TestSign(t *testing.T) {
 					"command-issuer.keyfactor.com/enrollmentPatternName":           "enrollment-pattern-override",
 				},
 			},
-
-			expectedSignError: nil,
 		},
 		"success-no-meta-owner-role-id": {
 			// Request
@@ -545,8 +538,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-no-meta-owner-role-name": {
 			// Request
@@ -558,8 +549,6 @@ func TestSign(t *testing.T) {
 				Meta:                            nil,
 				Annotations:                     nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-predefined-meta": {
 			// Request
@@ -579,8 +568,6 @@ func TestSign(t *testing.T) {
 				},
 				Annotations: nil,
 			},
-
-			expectedSignError: nil,
 		},
 		"success-custom-meta": {
 			// Request
@@ -593,8 +580,6 @@ func TestSign(t *testing.T) {
 					fmt.Sprintf("%s%s", commandMetadataAnnotationPrefix, "testMetadata"): "test",
 				},
 			},
-
-			expectedSignError: nil,
 		},
 		"enroll-csr-err": {
 			enrollCSRFunctionError: errors.New("an error from Command"),
@@ -607,7 +592,27 @@ func TestSign(t *testing.T) {
 				Annotations:                     nil,
 			},
 
-			expectedSignError: errCommandEnrollmentFailure,
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr("an error from Command"),
+		},
+		"enroll-csr-err-response-body-included-in-error": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			enrollHTTPResponse: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     http.Header{},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"Message":"certificate template not found"}`))),
+			},
+			// Request
+			config: &SignConfig{
+				CertificateTemplate:             certificateTemplateName,
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateAuthorityHostname:    certificateAuthorityHostname,
+				Meta:                            nil,
+				Annotations:                     nil,
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr("certificate template not found"),
 		},
 		"enroll-csr-err-enrollment-pattern-not-found": {
 			enrollmentPatterns: []v1.EnrollmentPatternsEnrollmentPatternResponse{},
@@ -635,6 +640,7 @@ func TestSign(t *testing.T) {
 				err: tc.enrollCSRFunctionError,
 
 				enrollResponse:     certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
+				enrollHTTPResponse: tc.enrollHTTPResponse,
 				enrollmentPatterns: tc.enrollmentPatterns,
 				enrollCallback:     cb,
 			}
@@ -649,6 +655,10 @@ func TestSign(t *testing.T) {
 			leafAndCA, root, err := signer.Sign(context.Background(), csrPem, tc.config)
 			if tc.expectedSignError != nil {
 				assertErrorIs(t, tc.expectedSignError, err)
+
+				if tc.expectedErrorContent != nil {
+					assert.Contains(t, err.Error(), *tc.expectedErrorContent, "error message should contain content from response body when enrollCSR returns an error")
+				}
 			} else {
 				assert.NoError(t, err)
 

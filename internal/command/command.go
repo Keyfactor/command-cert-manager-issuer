@@ -421,8 +421,10 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 				defer httpResp.Body.Close()
 
 				bodyBytes, err := io.ReadAll(httpResp.Body)
-				if err != nil {
-					detail += fmt.Sprintf(". Error response: %s", string(bodyBytes))
+				if err == nil {
+					detail += fmt.Sprintf(". Error response from EnrollCSR API call: %s", string(bodyBytes))
+				} else {
+					k8sLog.Error(err, "failed to read response body from failed EnrollCSR API call")
 				}
 			}
 		}
