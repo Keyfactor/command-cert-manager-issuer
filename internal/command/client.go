@@ -18,6 +18,7 @@ package command
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -69,7 +70,8 @@ type clientAdapter struct {
 func (c *clientAdapter) GetAllMetadataFields(r v1.ApiGetMetadataFieldsRequest) ([]v1.CSSCMSDataModelModelsMetadataType, error) {
 	fields, resp, err := c.getAllMetadataFields(r)
 	if resp != nil && resp.Body != nil {
-		resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
 	}
 	return fields, err
 }
