@@ -76,6 +76,6 @@ Rego policies live in [`policy/`](policy/). Each `.rego` file in that directory 
 kube-linter checks can be tuned in [.kube-linter.yaml](.kube-linter.yaml). To exclude a check, add its name under the `exclude` key.
 
 ## Running end-to-end tests
-A comprehensive end-to-end test suite is available to verify the issuer code works against cert-manager and an EJBCA instance.
+A comprehensive end-to-end test suite is available to verify the issuer code works against cert-manager and a Keyfactor Command instance.
 
 Instructions on how to run the end-to-end test suite can be found [here](./e2e/README.md).
