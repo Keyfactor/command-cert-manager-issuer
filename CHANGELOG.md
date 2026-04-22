@@ -1,3 +1,11 @@
+# v2.5.2
+## Fixes
+- Fixes an issue where a namespace may not be properly applied if applying the Helm template without a namespace specified / using `kubectl apply -f` directly with the rendered template.
+- Fixes an issue where the error message from a failed Enrollment API call is not logged.
+## Chores
+- Update GitHub Actions workflow to check for policy enforcement on Helm chart rendered manifests in addition to checking for drift in generated CRDs.
+- Fixes various linting issues in the codebase.
+
 # v2.5.1
 ## Fixes
 - Fixes an issue where OAuth 2.0 client credentials were being regenerated on every API call.

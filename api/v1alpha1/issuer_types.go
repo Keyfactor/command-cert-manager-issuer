@@ -201,10 +201,9 @@ func (is *IssuerStatus) HasCondition(conditionType IssuerConditionType, state Co
 }
 
 func (is *IssuerStatus) UnsetCondition(conditionType IssuerConditionType) {
-	conditions := is.Conditions
-	for i, c := range conditions {
+	for i, c := range is.Conditions {
 		if c.Type == conditionType {
-			is.Conditions = append(conditions[:i], conditions[i+1:]...)
+			is.Conditions = append(is.Conditions[:i], is.Conditions[i+1:]...)
 			return
 		}
 	}
