@@ -266,7 +266,7 @@ func printClaims(log logr.Logger, token string, claimsToPrint []string) {
 		}
 	}
 
-	if issuer, err := claims.GetIssuer(); err != nil {
+	if issuer, err := claims.GetIssuer(); err == nil && issuer != "" {
 		log.Info(fmt.Sprintf("\nNOTE: If you are receiving a HTTP 401 on requests to Command, make sure an identity provider in Command is configured with '%s' as the authority.\nThe discovery endpoint for your issuer can be found at %s/.well-known/openid-configuration.", issuer, issuer))
 	}
 }

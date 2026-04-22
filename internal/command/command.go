@@ -658,12 +658,14 @@ func getEnrollmentPatternByName(log logr.Logger, s *signer, enrollmentPatternNam
 
 	queryString := fmt.Sprintf("Name -eq \"%s\"", enrollmentPatternName)
 	patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.QueryString(queryString))
+	if httpResp != nil && httpResp.Body != nil {
+		defer httpResp.Body.Close()
+	}
 
 	if err != nil {
 		// Capture the error message which should indicate the failure reason
 		msg := ""
 		if httpResp != nil && httpResp.Body != nil {
-			defer httpResp.Body.Close()
 			bodyBytes, _ := io.ReadAll(httpResp.Body)
 			msg += string(bodyBytes)
 		}

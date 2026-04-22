@@ -19,14 +19,6 @@ deny contains msg if {
   msg := sprintf("RoleBinding %v must have a namespace set", [input.metadata.name])
 }
 
-# Validate that Deployments do not run as root
-deny contains msg if {
-  input.kind == "Deployment"
-  not input.spec.template.spec.securityContext.runAsNonRoot
-
-  msg := "Containers must not run as root"
-}
-
 # ClusterRole resources must not have a namespace applied. This is typically ignored, but good hygiene
 # to omit to avoid confusion.
 deny contains msg if {

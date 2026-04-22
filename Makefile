@@ -19,6 +19,7 @@ CONTAINER_TOOL ?= docker
 
 # Helm chart and Conftest policy directory for manifest linting
 HELM_CHART_DIR ?= deploy/charts/command-cert-manager-issuer
+HELM_RELEASE_NAME ?= command-cert-manager-issuer
 POLICY_DIR ?= policy
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -84,14 +85,14 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: helm-template
 helm-template: ## Render Helm chart templates to stdout (includes CRDs).
-	helm template ejbca-cert-manager-issuer $(HELM_CHART_DIR) --include-crds
+	helm template $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --include-crds
 
 .PHONY: lint-manifests
 lint-manifests: conftest ## Run Conftest policy checks against every CI values file in $(HELM_CHART_DIR)/ci/.
 	@failed=0; \
 	for f in $(HELM_CHART_DIR)/ci/*-values.yaml; do \
 		echo "==> $$(basename $$f)"; \
-		helm template ejbca-cert-manager-issuer $(HELM_CHART_DIR) --include-crds -f "$$f" \
+		helm template $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --include-crds -f "$$f" \
 			| $(CONFTEST) test --policy $(POLICY_DIR) - || failed=1; \
 	done; \
 	exit $$failed
