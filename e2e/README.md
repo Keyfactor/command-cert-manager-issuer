@@ -35,6 +35,10 @@ On the Command side:
 - An enrollment pattern is created called "Test Enrollment Pattern" that is has CSR Enrollment, CSR Generation, and PFX Enrollment enabled
 - A security role by the name of "InstanceOwner" exists and has the ability to perform Enrollment
 
+On the Command side:
+- An enrollment pattern is created called "Test Enrollment Pattern" that is has CSR Enrollment, CSR Generation, and PFX Enrollment enabled
+- A security role by the name of "InstanceOwner" exists and has the ability to perform Enrollment
+
 ## Configuring the environment variables
 
 command-cert-manager-issuer interacts with an external Command instance. An environment variable file `.env` can be used to store the environment variables to be used to talk to the Command instance.
