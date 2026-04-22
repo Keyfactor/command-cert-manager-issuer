@@ -1,11 +1,9 @@
 module github.com/Keyfactor/command-cert-manager-issuer
 
-go 1.24
-
-toolchain go1.24.0
+go 1.24.0
 
 require (
-	github.com/Keyfactor/keyfactor-auth-client-go v1.3.0
+	github.com/Keyfactor/keyfactor-auth-client-go v1.3.1
 	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2
 	github.com/cert-manager/cert-manager v1.16.2
 	github.com/go-logr/logr v1.4.2

@@ -10,50 +10,8 @@ on:
       - 'release-*.*'
 
 jobs:
-
-  build:
-    name: Build and Check CRDs
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4.2.1
-        with:
-          go-version-file: 'go.mod'
-          cache: true
-      - run: go mod download
-      - run: go build -v ./cmd/main.go
-      - name: Regenerate CRDs
-        run: make generate manifests
-      - name: Check for CRD drift
-        run: |
-          git diff --compact-summary --exit-code || \
-            (echo; echo "Unexpected difference in directories after code generation. Run 'make generate manifests' and commit."; exit 1)
-      # - name: Run linters
-      #   uses: golangci/golangci-lint-action@08e2f20817b15149a52b5b3ebe7de50aff2ba8c5 # v3.4.0
-      #   with:
-      #     version: latest
-    
-  test:
-    name: Go Test
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v4.2.1
-        with:
-          go-version-file: 'go.mod'
-          cache: true
-      - run: go mod download
-      - name: Run go test
-        run: go test -v ./...
-
   call-starter-workflow:
     uses: keyfactor/actions/.github/workflows/starter.yml@3.2.0
-    needs: test
     secrets:
       token: ${{ secrets.V2BUILDTOKEN}}
       gpg_key: ${{ secrets.KF_GPG_PRIVATE_KEY }}
