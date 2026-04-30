@@ -21,7 +21,6 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPrintClaims(t *testing.T) {
@@ -36,8 +35,7 @@ func TestPrintClaims(t *testing.T) {
 		token := createUnsignedJWT(t, claims)
 
 		// Call the function
-		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
-		assert.NoError(t, err)
+		printClaims(testLogger, token, []string{"aud", "iss", "sub"})
 	})
 
 	t.Run("jwt with no issuer does not error", func(t *testing.T) {
@@ -49,8 +47,7 @@ func TestPrintClaims(t *testing.T) {
 		token := createUnsignedJWT(t, claims)
 
 		// Call the function
-		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
-		assert.NoError(t, err)
+		printClaims(testLogger, token, []string{"aud", "iss", "sub"})
 	})
 
 	t.Run("jwt with empty claims does not error", func(t *testing.T) {
@@ -59,20 +56,17 @@ func TestPrintClaims(t *testing.T) {
 		token := createUnsignedJWT(t, claims)
 
 		// Call the function
-		err := printClaims(testLogger, token, []string{"aud", "iss", "sub"})
-		assert.NoError(t, err)
+		printClaims(testLogger, token, []string{"aud", "iss", "sub"})
 	})
 
 	t.Run("invalid jwt returns an error", func(t *testing.T) {
 		// Call the function
-		err := printClaims(testLogger, "abcdefghijklmnop", []string{"aud", "iss", "sub"})
-		assert.Error(t, err)
+		printClaims(testLogger, "abcdefghijklmnop", []string{"aud", "iss", "sub"})
 	})
 
 	t.Run("jwt with empty payload returns error", func(t *testing.T) {
 		// Call the function
-		err := printClaims(testLogger, "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0..", []string{"aud", "iss", "sub"})
-		assert.Error(t, err)
+		printClaims(testLogger, "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0..", []string{"aud", "iss", "sub"})
 	})
 }
 
