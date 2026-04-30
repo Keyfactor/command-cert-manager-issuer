@@ -42,6 +42,7 @@ rules:
   - apiGroups:
       - command-issuer.keyfactor.com
     resources:
+      - clusterissuers/finalizers
       - issuers/finalizers
     verbs:
       - update

@@ -320,7 +320,7 @@ func (s *signer) Check(ctx context.Context) error {
 
 // CommandSupportsMetadata implements HealthChecker.
 func (s *signer) CommandSupportsMetadata() (bool, error) {
-	existingFields, _, err := s.client.GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest{})
+	existingFields, err := s.client.GetAllMetadataFields(v1.ApiGetMetadataFieldsRequest{})
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch metadata fields from connected Command instance: %w", err)
 	}
@@ -373,7 +373,7 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		return nil, nil, err
 	}
 
-	request, model, caBuilder, err := s.buildCsrEnrollRequest(ctx, config, k8sLog, csrBytes)
+	request, model, caBuilder, err := s.buildCsrEnrollRequest(config, k8sLog, csrBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -409,7 +409,7 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 		}
 
 		if certificateOwnerId != nil || certificateOwnerName != nil {
-			detail += fmt.Sprintf(". Make sure the cert manager issuer's security context is assigned to the owner role name or ID.")
+			detail += ". Make sure the cert manager issuer's security context is assigned to the owner role name or ID."
 		}
 
 		if len(extractMetadataFromAnnotations(config.Annotations)) > 0 {
@@ -421,8 +421,10 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 				defer httpResp.Body.Close()
 
 				bodyBytes, err := io.ReadAll(httpResp.Body)
-				if err != nil {
-					detail += fmt.Sprintf(". Error response: %s", string(bodyBytes))
+				if err == nil {
+					detail += fmt.Sprintf(". Error response from EnrollCSR API call: %s", string(bodyBytes))
+				} else {
+					k8sLog.Error(err, "failed to read response body from failed EnrollCSR API call")
 				}
 			}
 		}
@@ -468,7 +470,7 @@ func extractMetadataFromAnnotations(annotations map[string]string) map[string]in
 }
 
 // Builds the CSR Enrollment request we will send to the /Enroll/CSR endpoint
-func (s *signer) buildCsrEnrollRequest(ctx context.Context, config *SignConfig, k8sLog logr.Logger, csrBytes []byte) (*v1.ApiCreateEnrollmentCSRRequest, *v1.EnrollmentCSREnrollmentRequest, *strings.Builder, error) {
+func (s *signer) buildCsrEnrollRequest(config *SignConfig, k8sLog logr.Logger, csrBytes []byte) (*v1.ApiCreateEnrollmentCSRRequest, *v1.EnrollmentCSREnrollmentRequest, *strings.Builder, error) {
 	// Override defaults from annotations
 	if err := updateConfigWithOverrides(config, k8sLog); err != nil {
 		return nil, nil, nil, err
@@ -517,7 +519,7 @@ func (s *signer) buildCsrEnrollRequest(ctx context.Context, config *SignConfig, 
 		k8sLog.Info(fmt.Sprintf("Using enrollment pattern ID from config. ID: %d", config.EnrollmentPatternId))
 		enrollmentPatternId = &config.EnrollmentPatternId
 	} else if config.EnrollmentPatternName != "" {
-		pattern, err := getEnrollmentPatternByName(ctx, k8sLog, s, config.EnrollmentPatternName)
+		pattern, err := getEnrollmentPatternByName(k8sLog, s, config.EnrollmentPatternName)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -613,7 +615,7 @@ func getMetadataOverrideOrCurrentValue[T any](currentValue T, annotations map[st
 			var conv int64
 			conv, err = strconv.ParseInt(value, 10, 32)
 			if err != nil {
-				return zero, fmt.Errorf("%w: failed to parse %s from annotations: %s", errInvalidSignerConfig, key, err)
+				return zero, fmt.Errorf("%w: failed to parse %s from annotations: %w", errInvalidSignerConfig, key, err)
 			}
 			result = int32(conv)
 		case string:
@@ -649,19 +651,21 @@ func ptr[T any](v T) *T {
 }
 
 // getEnrollmentPatternByName retrieves an enrollment pattern by its name from Command.
-func getEnrollmentPatternByName(ctx context.Context, log logr.Logger, s *signer, enrollmentPatternName string) (*v1.EnrollmentPatternsEnrollmentPatternResponse, error) {
+func getEnrollmentPatternByName(log logr.Logger, s *signer, enrollmentPatternName string) (*v1.EnrollmentPatternsEnrollmentPatternResponse, error) {
 	log.Info(fmt.Sprintf("Looking up enrollment pattern %q in Command...", enrollmentPatternName))
 
 	var model *v1.EnrollmentPatternsEnrollmentPatternResponse
 
 	queryString := fmt.Sprintf("Name -eq \"%s\"", enrollmentPatternName)
 	patterns, httpResp, err := s.client.GetEnrollmentPatterns(v1.ApiGetEnrollmentPatternsRequest{}.QueryString(queryString))
+	if httpResp != nil && httpResp.Body != nil {
+		defer httpResp.Body.Close()
+	}
 
 	if err != nil {
 		// Capture the error message which should indicate the failure reason
 		msg := ""
 		if httpResp != nil && httpResp.Body != nil {
-			defer httpResp.Body.Close()
 			bodyBytes, _ := io.ReadAll(httpResp.Body)
 			msg += string(bodyBytes)
 		}

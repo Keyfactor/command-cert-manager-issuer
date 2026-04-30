@@ -83,7 +83,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	}
 	if err := r.Get(ctx, req.NamespacedName, issuer); err != nil {
 		if err := client.IgnoreNotFound(err); err != nil {
-			return ctrl.Result{}, fmt.Errorf("unexpected get error: %v", err)
+			return ctrl.Result{}, fmt.Errorf("unexpected get error: %w", err)
 		}
 		log.Info(fmt.Sprintf("%s not found. Ignoring.", issuer.GetObjectKind().GroupVersionKind().Kind))
 		return ctrl.Result{}, nil
@@ -205,8 +205,8 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 			return nil, fmt.Errorf("%w, secret name: %s, reason: %w", errGetAuthSecret, issuer.GetSpec().SecretName, err)
 		}
 
-		switch {
-		case authSecret.Type == corev1.SecretTypeOpaque:
+		switch authSecret.Type {
+		case corev1.SecretTypeOpaque:
 			// We expect auth credentials for a client credential OAuth2.0 flow if the secret type is opaque
 			tokenURL, ok := authSecret.Data[commandissuer.OAuthTokenURLKey]
 			if !ok {
@@ -235,7 +235,7 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 			}
 			log.Info("Found oauth client credentials in secret", "commandSecretName", issuer.GetSpec().SecretName, "type", authSecret.Type)
 
-		case authSecret.Type == corev1.SecretTypeBasicAuth:
+		case corev1.SecretTypeBasicAuth:
 			username, ok := authSecret.Data[corev1.BasicAuthUsernameKey]
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", errGetAuthSecret, "found basic auth secret with no username")

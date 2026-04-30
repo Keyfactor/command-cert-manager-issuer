@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	commandissuer "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
-	commandissuerv1alpha1 "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
 	logrtesting "github.com/go-logr/logr/testing"
 	"github.com/stretchr/testify/assert"
@@ -71,8 +70,8 @@ func TestIssuerReconcile(t *testing.T) {
 		defaultHealthCheckInterval               *time.Duration
 		expectedResult                           ctrl.Result
 		expectedError                            error
-		expectedReadyConditionStatus             commandissuerv1alpha1.ConditionStatus
-		expectedMetadataSupportedConditionStatus commandissuerv1alpha1.ConditionStatus
+		expectedReadyConditionStatus             commandissuer.ConditionStatus
+		expectedMetadataSupportedConditionStatus commandissuer.ConditionStatus
 	}
 
 	tests := map[string]testCase{
@@ -80,23 +79,23 @@ func TestIssuerReconcile(t *testing.T) {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -114,31 +113,31 @@ func TestIssuerReconcile(t *testing.T) {
 				},
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
 		},
 		"issuer-basicauth-no-username": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -155,30 +154,30 @@ func TestIssuerReconcile(t *testing.T) {
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"issuer-basicauth-no-password": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -195,29 +194,29 @@ func TestIssuerReconcile(t *testing.T) {
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"success-clusterissuer-basicauth": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -236,27 +235,27 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
 		},
 		"success-issuer-oauth": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -268,40 +267,40 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string][]byte{
-						commandissuerv1alpha1.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
-						commandissuerv1alpha1.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
-						commandissuerv1alpha1.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
-						commandissuerv1alpha1.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
-						commandissuerv1alpha1.OAuthAudienceKey:     []byte("https://command.example.com"),
+						commandissuer.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
+						commandissuer.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
+						commandissuer.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
+						commandissuer.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
+						commandissuer.OAuthAudienceKey:     []byte("https://command.example.com"),
 					},
 				},
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
 		},
 		"issuer-oauth-no-tokenurl": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -313,38 +312,38 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string][]byte{
-						commandissuerv1alpha1.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
-						commandissuerv1alpha1.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
-						commandissuerv1alpha1.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
-						commandissuerv1alpha1.OAuthAudienceKey:     []byte("https://command.example.com"),
+						commandissuer.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
+						commandissuer.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
+						commandissuer.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
+						commandissuer.OAuthAudienceKey:     []byte("https://command.example.com"),
 					},
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"issuer-oauth-no-clientid": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -356,38 +355,38 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string][]byte{
-						commandissuerv1alpha1.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
-						commandissuerv1alpha1.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
-						commandissuerv1alpha1.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
-						commandissuerv1alpha1.OAuthAudienceKey:     []byte("https://command.example.com"),
+						commandissuer.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
+						commandissuer.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
+						commandissuer.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
+						commandissuer.OAuthAudienceKey:     []byte("https://command.example.com"),
 					},
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"issuer-oauth-no-clientsecret": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -399,33 +398,33 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "ns1",
 					},
 					Data: map[string][]byte{
-						commandissuerv1alpha1.OAuthTokenURLKey: []byte("https://dev.idp.com/oauth/token"),
-						commandissuerv1alpha1.OAuthClientIDKey: []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
-						commandissuerv1alpha1.OAuthScopesKey:   []byte("read:certificates,write:certificates"),
-						commandissuerv1alpha1.OAuthAudienceKey: []byte("https://command.example.com"),
+						commandissuer.OAuthTokenURLKey: []byte("https://dev.idp.com/oauth/token"),
+						commandissuer.OAuthClientIDKey: []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
+						commandissuer.OAuthScopesKey:   []byte("read:certificates,write:certificates"),
+						commandissuer.OAuthAudienceKey: []byte("https://command.example.com"),
 					},
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"success-clusterissuer-oauth": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -437,18 +436,18 @@ func TestIssuerReconcile(t *testing.T) {
 						Namespace: "kube-system",
 					},
 					Data: map[string][]byte{
-						commandissuerv1alpha1.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
-						commandissuerv1alpha1.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
-						commandissuerv1alpha1.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
-						commandissuerv1alpha1.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
-						commandissuerv1alpha1.OAuthAudienceKey:     []byte("https://command.example.com"),
+						commandissuer.OAuthTokenURLKey:     []byte("https://dev.idp.com/oauth/token"),
+						commandissuer.OAuthClientIDKey:     []byte("fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"),
+						commandissuer.OAuthClientSecretKey: []byte("1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"),
+						commandissuer.OAuthScopesKey:       []byte("read:certificates,write:certificates"),
+						commandissuer.OAuthAudienceKey:     []byte("https://command.example.com"),
 					},
 				},
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
 		},
 		"issuer-kind-Unrecognized": {
@@ -461,52 +460,52 @@ func TestIssuerReconcile(t *testing.T) {
 		"issuer-missing-secret": {
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
 				},
 			},
 			expectedError:                            errGetAuthSecret,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"issuer-failing-healthchecker-builder": {
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -526,29 +525,29 @@ func TestIssuerReconcile(t *testing.T) {
 			healthCheckerBuilder: newFakeHealthCheckerBuilder(errors.New("simulated health checker builder error"), nil, false),
 
 			expectedError:                            errHealthCheckerBuilder,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"issuer-failing-healthchecker-check": {
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionSupportsMetadata,
-								Status: commandissuerv1alpha1.ConditionFalse,
+								Type:   commandissuer.IssuerConditionSupportsMetadata,
+								Status: commandissuer.ConditionFalse,
 							},
 						},
 					},
@@ -567,30 +566,30 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, errors.New("simulated health check error"), false),
 			expectedError:                            errHealthCheckerCheck,
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionFalse,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
 		},
 		"success-custom-healthcheck-interval-issuer": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled:  true,
 							Interval: to.Ptr(metav1.Duration{Duration: 30 * time.Second}),
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -608,30 +607,30 @@ func TestIssuerReconcile(t *testing.T) {
 				},
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(30) * time.Second},
 		},
 		"success-custom-healthcheck-interval-clusterissuer": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled:  true,
 							Interval: to.Ptr(metav1.Duration{Duration: 120 * time.Second}),
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -650,29 +649,29 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(120) * time.Second},
 		},
 		"success-healthcheck-disabled": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled: false,
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -691,30 +690,30 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(0)},
 		},
 		"success-no-healthcheck-interval": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled:  true,
 							Interval: nil,
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -733,30 +732,30 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
 		},
 		"success-nil-healthcheck-interval-defaults": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "clusterissuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled:  true,
 							Interval: nil,
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -775,27 +774,27 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
 		},
 		"success-default-healthcheck-interval": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName:  "clusterissuer1-credentials",
 						HealthCheck: nil,
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -815,27 +814,27 @@ func TestIssuerReconcile(t *testing.T) {
 			defaultHealthCheckInterval:               to.Ptr(time.Duration(2) * time.Minute),
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(2) * time.Minute},
 		},
 		"success-nil-healthcheck-defaults": {
 			kind: "ClusterIssuer",
 			name: types.NamespacedName{Name: "clusterissuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.ClusterIssuer{
+				&commandissuer.ClusterIssuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterissuer1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName:  "clusterissuer1-credentials",
 						HealthCheck: nil,
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -854,31 +853,31 @@ func TestIssuerReconcile(t *testing.T) {
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, true),
 			clusterResourceNamespace:                 "kube-system",
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionTrue,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionTrue,
+			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
 			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
 		},
 		"error-healthcheck-minimum-value": {
 			kind: "Issuer",
 			name: types.NamespacedName{Namespace: "ns1", Name: "issuer1"},
 			objects: []client.Object{
-				&commandissuerv1alpha1.Issuer{
+				&commandissuer.Issuer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "issuer1",
 						Namespace: "ns1",
 					},
-					Spec: commandissuerv1alpha1.IssuerSpec{
+					Spec: commandissuer.IssuerSpec{
 						SecretName: "issuer1-credentials",
-						HealthCheck: &commandissuerv1alpha1.HealthCheckConfig{
+						HealthCheck: &commandissuer.HealthCheckConfig{
 							Enabled:  true,
 							Interval: to.Ptr(metav1.Duration{Duration: 29 * time.Second}),
 						},
 					},
-					Status: commandissuerv1alpha1.IssuerStatus{
-						Conditions: []commandissuerv1alpha1.IssuerCondition{
+					Status: commandissuer.IssuerStatus{
+						Conditions: []commandissuer.IssuerCondition{
 							{
-								Type:   commandissuerv1alpha1.IssuerConditionReady,
-								Status: commandissuerv1alpha1.ConditionUnknown,
+								Type:   commandissuer.IssuerConditionReady,
+								Status: commandissuer.ConditionUnknown,
 							},
 						},
 					},
@@ -896,14 +895,14 @@ func TestIssuerReconcile(t *testing.T) {
 				},
 			},
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
-			expectedReadyConditionStatus:             commandissuerv1alpha1.ConditionFalse,
-			expectedMetadataSupportedConditionStatus: commandissuerv1alpha1.ConditionUnknown,
+			expectedReadyConditionStatus:             commandissuer.ConditionFalse,
+			expectedMetadataSupportedConditionStatus: commandissuer.ConditionUnknown,
 			expectedResult:                           ctrl.Result{},
 		},
 	}
 
 	scheme := runtime.NewScheme()
-	require.NoError(t, commandissuerv1alpha1.AddToScheme(scheme))
+	require.NoError(t, commandissuer.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 
 	for name, tc := range tests {
@@ -950,8 +949,674 @@ func TestIssuerReconcile(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, fakeClient.Get(context.TODO(), tc.name, issuer))
 				require.NoError(t, err)
-				assert.True(t, issuer.GetStatus().HasCondition(commandissuerv1alpha1.IssuerConditionReady, tc.expectedReadyConditionStatus))
-				assert.True(t, issuer.GetStatus().HasCondition(commandissuerv1alpha1.IssuerConditionSupportsMetadata, tc.expectedMetadataSupportedConditionStatus))
+				assert.True(t, issuer.GetStatus().HasCondition(commandissuer.IssuerConditionReady, tc.expectedReadyConditionStatus))
+				assert.True(t, issuer.GetStatus().HasCondition(commandissuer.IssuerConditionSupportsMetadata, tc.expectedMetadataSupportedConditionStatus))
+			}
+		})
+	}
+}
+
+func TestCommandConfigFromIssuer(t *testing.T) {
+	type testCase struct {
+		name             string
+		issuerSpec       commandissuer.IssuerSpec
+		secretNamespace  string
+		objects          []client.Object
+		expectedConfig   *command.Config
+		expectedError    error
+		expectedErrorMsg string
+	}
+
+	tests := []testCase{
+		{
+			name: "success-basic-auth",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-secret",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				SecretName:   "auth-secret",
+				CaSecretName: "ca-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-secret-with-key",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				SecretName:   "auth-secret",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+						"ca.crt":  []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaBundleConfigMapName: "ca-configmap",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap-with-key",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"ca.crt":  "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-basic-auth-with-ca-cert-configmap-overwrites-secret",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				APIPath:               "/api/v1",
+				SecretName:            "auth-secret",
+				CaSecretName:          "ca-secret",
+				CaBundleConfigMapName: "ca-configmap",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"ca.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"ca.crt": "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname:     "https://ca.example.com",
+				APIPath:      "/api/v1",
+				CaCertsBytes: []byte("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-oauth-minimal",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				OAuth: &command.OAuth{
+					TokenURL:     "https://oauth.example.com/token",
+					ClientID:     "client-id",
+					ClientSecret: "client-secret",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-oauth-with-scopes-and-audience",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				APIPath:    "/api/v1",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+						commandissuer.OAuthScopesKey:       []byte("scope1,scope2,scope3"),
+						commandissuer.OAuthAudienceKey:     []byte("https://api.example.com"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				OAuth: &command.OAuth{
+					TokenURL:     "https://oauth.example.com/token",
+					ClientID:     "client-id",
+					ClientSecret: "client-secret",
+					Scopes:       []string{"scope1", "scope2", "scope3"},
+					Audience:     "https://api.example.com",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "success-ambient-credentials-with-scopes",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+				Scopes:   "scope1,scope2",
+				Audience: "https://api.example.com",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedConfig: &command.Config{
+				Hostname:                  "https://ca.example.com",
+				APIPath:                   "/api/v1",
+				AmbientCredentialScopes:   []string{"scope1", "scope2"},
+				AmbientCredentialAudience: "https://api.example.com",
+			},
+		},
+		{
+			name: "success-no-auth-secret",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname: "https://ca.example.com",
+				APIPath:  "/api/v1",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedConfig: &command.Config{
+				Hostname:                  "https://ca.example.com",
+				APIPath:                   "/api/v1",
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+		{
+			name: "error-auth-secret-not-found",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "missing-secret",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetAuthSecret,
+		},
+		{
+			name: "error-ca-secret-not-found",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				CaSecretName: "missing-ca-secret",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetCaSecret,
+		},
+		{
+			name: "error-ca-secret-key-not-found",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:     "https://ca.example.com",
+				CaSecretName: "ca-secret",
+				CaBundleKey:  "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----"),
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
+		},
+		{
+			name: "error-ca-configmap-not-found",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				CaBundleConfigMapName: "missing-ca-bundle",
+			},
+			secretNamespace: "ns1",
+			objects:         []client.Object{},
+			expectedError:   errGetCaConfigMap,
+		},
+		{
+			name: "error-ca-configmap-key-not-found",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:              "https://ca.example.com",
+				CaBundleConfigMapName: "ca-configmap",
+				CaBundleKey:           "ca.crt",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ca-configmap",
+						Namespace: "ns1",
+					},
+					Data: map[string]string{
+						"tls.crt": "-----BEGIN CERTIFICATE-----\nABCD...\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+			expectedError: errGetCaBundleKey,
+		},
+		{
+			name: "error-basic-auth-no-username",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found basic auth secret with no username",
+		},
+		{
+			name: "error-basic-auth-no-password",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found basic auth secret with no password",
+		},
+		{
+			name: "error-oauth-no-token-url",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthClientIDKey:     []byte("client-id"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no tokenUrl",
+		},
+		{
+			name: "error-oauth-no-client-id",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey:     []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientSecretKey: []byte("client-secret"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no clientId",
+		},
+		{
+			name: "error-oauth-no-client-secret",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "oauth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeOpaque,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "oauth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						commandissuer.OAuthTokenURLKey: []byte("https://oauth.example.com/token"),
+						commandissuer.OAuthClientIDKey: []byte("client-id"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with no clientSecret",
+		},
+		{
+			name: "error-unsupported-secret-type",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "ns1",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeTLS,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "ns1",
+					},
+					Data: map[string][]byte{
+						"tls.crt": []byte("cert"),
+						"tls.key": []byte("key"),
+					},
+				},
+			},
+			expectedError:    errGetAuthSecret,
+			expectedErrorMsg: "found secret with unsupported type",
+		},
+		{
+			name: "success-cluster-scoped-secret-namespace",
+			issuerSpec: commandissuer.IssuerSpec{
+				Hostname:   "https://ca.example.com",
+				SecretName: "auth-secret",
+			},
+			secretNamespace: "kube-system",
+			objects: []client.Object{
+				&corev1.Secret{
+					Type: corev1.SecretTypeBasicAuth,
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-secret",
+						Namespace: "kube-system",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("username"),
+						corev1.BasicAuthPasswordKey: []byte("password"),
+					},
+				},
+			},
+			expectedConfig: &command.Config{
+				Hostname: "https://ca.example.com",
+				BasicAuth: &command.BasicAuth{
+					Username: "username",
+					Password: "password",
+				},
+				AmbientCredentialScopes:   []string{""},
+				AmbientCredentialAudience: "",
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, commandissuer.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(tc.objects...).
+				Build()
+
+			// Create a minimal issuer with the test spec
+			issuer := &commandissuer.Issuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-issuer",
+					Namespace: tc.secretNamespace,
+				},
+				Spec: tc.issuerSpec,
+			}
+
+			ctx := context.Background()
+			config, err := commandConfigFromIssuer(ctx, fakeClient, issuer, tc.secretNamespace)
+
+			if tc.expectedError != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expectedError)
+				if tc.expectedErrorMsg != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+				}
+				assert.Nil(t, config)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, config)
+				assert.Equal(t, tc.expectedConfig.Hostname, config.Hostname)
+				assert.Equal(t, tc.expectedConfig.APIPath, config.APIPath)
+				assert.Equal(t, tc.expectedConfig.CaCertsBytes, config.CaCertsBytes)
+				assert.Equal(t, tc.expectedConfig.BasicAuth, config.BasicAuth)
+				assert.Equal(t, tc.expectedConfig.OAuth, config.OAuth)
+				assert.Equal(t, tc.expectedConfig.AmbientCredentialScopes, config.AmbientCredentialScopes)
+				assert.Equal(t, tc.expectedConfig.AmbientCredentialAudience, config.AmbientCredentialAudience)
 			}
 		})
 	}
