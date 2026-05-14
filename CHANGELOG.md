@@ -1,3 +1,10 @@
+# v2.5.3
+## Security
+- Updated dependencies to address various security vulnerabilities:
+    - google.golang.org/grpc -> v1.79.3 (CVE-2026-33186)
+    - github.com/Azure/go-ntlmssp -> v0.1.1 (CVE-2026-32952)
+    - golang.org/x/crypto -> v0.46.0 (CVE-2025-58181 & CVE-2025-47914)
+
 # v2.5.2
 ## Fixes
 - Fixes an issue where a namespace may not be properly applied if applying the Helm template without a namespace specified / using `kubectl apply -f` directly with the rendered template.
