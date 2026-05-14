@@ -1,6 +1,6 @@
-# v2.5.3 
-## Chores
-- Update dependencies to address various security vulnerabilities:
+# v2.5.3
+## Security
+- Updated dependencies to address various security vulnerabilities:
     - google.golang.org/grpc -> v1.79.3 (CVE-2026-33186)
     - github.com/Azure/go-ntlmssp -> v0.1.1 (CVE-2026-32952)
     - golang.org/x/crypto -> v0.46.0 (CVE-2025-58181 & CVE-2025-47914)
