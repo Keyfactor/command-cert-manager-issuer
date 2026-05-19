@@ -1,3 +1,22 @@
+# v2.6.0
+TODO -- add notes for other changes
+
+## Security
+- The Helm chart now defaults `serviceAccount.automountServiceAccountToken` to `false`,
+  replacing the long-lived auto-mounted token with a short-lived projected token (~1 hour, automatically rotated by kubelet). The token is still mounted at the standard path `/var/run/secrets/kubernetes.io/serviceaccount` so no application changes are required.
+
+> [!IMPORTANT]
+>
+> ### Upgrade Notes
+> 
+> - **Rolling restart**: Upgrading from v2.5.x will patch the ServiceAccount and update the Deployment spec, triggering an automatic rolling restart. Plan accordingly if downtime is a concern in your environment.
+> - **Bring-your-own ServiceAccount**: If you set `serviceAccount.create: false` and manage your own ServiceAccount, you must either set `automountServiceAccountToken: true` in your `values.yaml` to preserve the previous behavior, or manually add `automountServiceAccountToken: false` and the projected volume to your ServiceAccount and Deployment manifests.
+> - To restore the previous behavior explicitly, set in your `values.yaml`:
+> ```yaml
+> serviceAccount:
+>   automountServiceAccountToken: true
+> ```
+
 # v2.5.2
 ## Fixes
 - Fixes an issue where a namespace may not be properly applied if applying the Helm template without a namespace specified / using `kubectl apply -f` directly with the rendered template.
