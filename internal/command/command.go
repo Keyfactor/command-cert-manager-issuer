@@ -409,39 +409,41 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 
 	commandCsrResponseObject, httpResp, err := s.client.EnrollCSR(req)
 	if err != nil {
-		detail := fmt.Sprintf("error enrolling certificate with Command. Verify that the certificate authority %q (%s) is configured correctly", config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		hasPattern := enrollmentPatternId != nil
+		hasCA := config.CertificateAuthorityLogicalName != ""
+		hasTemplate := template != nil
 
-		if template != nil {
-			detail += fmt.Sprintf(" and that the certificate template %q exists in Command", *template)
-		}
+		var hints []string
 
-		if enrollmentPatternId != nil {
-			detail += fmt.Sprintf(". Make sure enrollment pattern ID %d is configured to use certificate authority %q (%s) and the security role is configured to use this enrollment pattern.", *enrollmentPatternId, config.CertificateAuthorityLogicalName, config.CertificateAuthorityHostname)
+		switch {
+		case hasPattern && !hasCA:
+			hints = append(hints, fmt.Sprintf("Ensure that enrollment pattern ID %d has CSR Enrollment enabled and the security role is configured to use this enrollment pattern.", loggedEnrollmentPatternId))
+		case hasPattern && hasCA && !hasTemplate:
+			hints = append(hints, fmt.Sprintf("Ensure that enrollment pattern ID %d has CSR Enrollment enabled, is configured to use certificate authority '%s', and the security role is configured to use this enrollment pattern.", loggedEnrollmentPatternId, config.CertificateAuthorityLogicalName))
+		case hasPattern && hasCA && hasTemplate:
+			hints = append(hints, fmt.Sprintf("Verify that certificate template '%s' exists in Command and belongs to certificate authority '%s'. Verify the configuration for Enrollment Pattern ID %d in Keyfactor Command, and ensure CSR Enrollment is enabled.", *template, config.CertificateAuthorityLogicalName, loggedEnrollmentPatternId))
+		case !hasPattern && hasCA:
+			hints = append(hints, fmt.Sprintf("Verify that certificate template '%s' exists in Command and belongs to certificate authority '%s'. If applicable, verify the Enrollment Pattern configuration in Keyfactor Command, and ensure CSR Enrollment is enabled.", *template, config.CertificateAuthorityLogicalName))
 		}
 
 		if certificateOwnerId != nil || certificateOwnerName != nil {
-			detail += ". Make sure the cert manager issuer's security context is assigned to the owner role name or ID."
+			hints = append(hints, "Verify the issuer's security role is assigned to the configured owner role.")
 		}
 
 		if len(extractMetadataFromAnnotations(config.Annotations)) > 0 {
-			detail += ". Also verify that the metadata fields provided exist in Command"
+			hints = append(hints, "Verify that the metadata fields provided exist in Command.")
 		}
 
-		if httpResp != nil {
-			if httpResp.Body != nil {
-				defer httpResp.Body.Close()
-
-				bodyBytes, err := io.ReadAll(httpResp.Body)
-				if err == nil {
-					detail += fmt.Sprintf(". Error response from EnrollCSR API call: %s", string(bodyBytes))
-				} else {
-					k8sLog.Error(err, "failed to read response body from failed EnrollCSR API call")
-				}
+		if httpResp != nil && httpResp.Body != nil {
+			defer httpResp.Body.Close()
+			if bodyBytes, readErr := io.ReadAll(httpResp.Body); readErr == nil && len(bodyBytes) > 0 {
+				hints = append(hints, fmt.Sprintf("Error response from Command: %s", string(bodyBytes)))
+			} else if readErr != nil {
+				k8sLog.Error(readErr, "failed to read response body from failed EnrollCSR API call")
 			}
 		}
 
-		err = fmt.Errorf("%w: %s: %w", errCommandEnrollmentFailure, detail, err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%w: %s: %w", errCommandEnrollmentFailure, strings.Join(hints, " "), err)
 	}
 
 	var certBytes []byte
