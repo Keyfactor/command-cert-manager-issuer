@@ -260,9 +260,11 @@ func (s *SignConfig) validate() error {
 	if s.CertificateTemplate == "" && s.EnrollmentPatternName == "" && s.EnrollmentPatternId == 0 {
 		return errors.New("either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified")
 	}
-	if s.CertificateAuthorityLogicalName == "" {
-		return errors.New("certificateAuthorityLogicalName is required")
+
+	if !s.IsCertificateAuthorityDefined() && !s.IsEnrollmentPatternDefined() {
+		return errors.New("certificateAuthorityLogicalName is required if enrollmentPatternName or enrollmentPatternId are not provided")
 	}
+
 	return nil
 }
 
@@ -371,6 +373,15 @@ func (s *signer) Sign(ctx context.Context, csrBytes []byte, config *SignConfig) 
 	err := config.validate()
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// If certificate authority is not defined alongside the enrollment pattern, Command will choose
+	// a CA within the same configuration tenant that best suits the certificate template, unless
+	// the target is a standalone CA.
+	//
+	// https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm
+	if config.IsEnrollmentPatternDefined() && !config.IsCertificateAuthorityDefined() {
+		k8sLog.Info("certificateAuthorityLogicalName is not set; the Command API may require a certificate authority if the enrollment pattern targets a standalone CA")
 	}
 
 	request, model, caBuilder, err := s.buildCsrEnrollRequest(config, k8sLog, csrBytes)
@@ -688,4 +699,12 @@ func getEnrollmentPatternByName(log logr.Logger, s *signer, enrollmentPatternNam
 	log.Info(fmt.Sprintf("Enrollment pattern %s found in Command", enrollmentPatternName))
 
 	return model, nil
+}
+
+func (s *SignConfig) IsEnrollmentPatternDefined() bool {
+	return s.EnrollmentPatternId != 0 || s.EnrollmentPatternName != ""
+}
+
+func (s *SignConfig) IsCertificateAuthorityDefined() bool {
+	return s.CertificateAuthorityLogicalName != ""
 }

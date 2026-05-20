@@ -1,5 +1,6 @@
 # v2.6.0
-TODO -- add notes for other changes
+## Features
+- Allow `certificateAuthorityLogicalName` to be optional when using an enrollment pattern.
 
 ## Security
 - The Helm chart now defaults `serviceAccount.automountServiceAccountToken` to `false`,

@@ -9,10 +9,10 @@ Before continuing, ensure that the following requirements are met:
 - [Keyfactor Command](https://www.keyfactor.com/products/command/) >= 10.5
     - Command must be properly configured according to the [product docs](https://software.keyfactor.com/Core-OnPrem/Current/Content/MasterTopics/Portal.htm). 
     - You have access to the Command REST API. The following endpoints must be available:
-        - `/Status/Endpoints`
-        - `/Enrollment/CSR`
-        - `/MetadataFields`
-        - `/EnrollmentPatterns` (Keyfactor Command 25.1 and above)
+        - [/Status/Endpoints](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/StatusGetEndpoints.htm)
+        - [/Enrollment/CSR](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm)
+        - [/MetadataFields](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/MetadataFieldsGet.htm)
+        - [/EnrollmentPatterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns-GET.htm) (Keyfactor Command 25.1 and above)
 - Kubernetes >= v1.19
     - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), etc.
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
@@ -226,7 +226,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
     | caBundleConfigMapName       | (optional) The name of the Kubernetes ConfigMap containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
     | caBundleKey | (optional) The name of the key in the ConfigMap or Secret specified by `caSecretName` or `caBundleConfigMapName` that contains the CA bundle. If omitted, the last key of the ConfigMap / Secret resource will be used. |
-    | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
+    | certificateAuthorityLogicalName | (Optional) The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`. Optional if the enrollment pattern does not target a standalone CA. When not defined, Command will choose an eligible CA within the enrollment pattern's configuration tenant.                                                               |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
     | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
     | enrollmentPatternName     | The Name of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern. If using `enrollmentPatternName`, your security role must have `/enrollment_pattern/read/` permission.                                                                       |
@@ -240,6 +240,17 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
      | healthcheck.interval | (Optional) Defines the interval between health checks. Example values: `30s`, `1m`, `5.5m`. To prevent overloading the Command instance, this interval must not be less than `30s`. Default value: `60s`. |
 
     > If a different combination of hostname/certificate authority/certificate template is required, a new Issuer or ClusterIssuer resource must be created. Each resource instantiation represents a single configuration.
+
+    > **What is a standalone CA?**
+    > A standalone CA is a Certificate Authority in Keyfactor Command that is not configured
+    > as part of a CA pool within the enrollment pattern — typically a DCOM (Microsoft CA)
+    > configured as a standalone (non-Active-Directory-integrated) CA. When an enrollment
+    > pattern targets a standalone CA, Command cannot automatically select a CA from a pool
+    > and requires `certificateAuthorityLogicalName` to be explicitly provided.
+    >
+    > If you are unsure whether your CA is a standalone CA, check the CA type and configuration
+    > in Command under **Certificate Authorities**, or contact your Keyfactor support
+    > representative.
 
 2. **Create an Issuer or ClusterIssuer**
 
@@ -263,10 +274,10 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
-          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standlone CA
+          # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
           # scopes: "openid email https://example.com/.default" # Uncomment if required
@@ -298,10 +309,10 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
-          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standlone CA
+          # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
           # scopes: "openid email https://example.com/.default" # Uncomment if required

@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Keyfactor
+Copyright © 2026 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -208,9 +208,14 @@ func TestSignConfigValidate(t *testing.T) {
 			wantErr: "either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified",
 		},
 		{
-			name:    "missing certificateAuthorityLogicalName",
-			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
-			wantErr: "certificateAuthorityLogicalName is required",
+			name:    "missing certificateAuthorityLogicalName and enrollmentPatternName",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com", EnrollmentPatternName: ""},
+			wantErr: "certificateAuthorityLogicalName is required if enrollmentPatternName or enrollmentPatternId are not provided",
+		},
+		{
+			name:    "missing certificateAuthorityLogicalName and enrollmentPatternId",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com", EnrollmentPatternId: 0},
+			wantErr: "certificateAuthorityLogicalName is required if enrollmentPatternName or enrollmentPatternId are not provided",
 		},
 		{
 			name:    "all valid fields (both certificateTemplate and enrollmentPatternName specified)",
@@ -224,12 +229,12 @@ func TestSignConfigValidate(t *testing.T) {
 		},
 		{
 			name:    "all valid fields (only enrollmentPatternName specified)",
-			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{
 			name:    "all valid fields (only enrollmentPatternId specified)",
-			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{

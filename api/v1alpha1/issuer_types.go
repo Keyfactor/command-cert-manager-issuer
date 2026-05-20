@@ -85,8 +85,11 @@ type IssuerSpec struct {
 	// + optional
 	OwnerRoleName string `json:"ownerRoleName,omitempty"`
 
-	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
+	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use. Not required if an enrollment pattern is specified,
+	// except if the enrollment pattern targets a standalone CA. If empty, an eligible certificate authority within the enrollment pattern's configuration tenant
+	// will be used.
 	// E.g. "Keyfactor Root CA" or "Intermediate CA"
+	// +optional
 	CertificateAuthorityLogicalName string `json:"certificateAuthorityLogicalName,omitempty"`
 
 	// CertificateAuthorityHostname is the hostname associated with the Certificate Authority specified by
