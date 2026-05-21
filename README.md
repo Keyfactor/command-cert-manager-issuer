@@ -56,7 +56,7 @@ Before continuing, ensure that the following requirements are met:
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template / Enrollment Pattern suitable for your use case. Additionally, you should ensure that the [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
+Command Issuer enrolls certificates by submitting certificate signing requests to the Keyfactor Command [CSR Enrollment API](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm). Before using Command Issuer, you must have a Certificate Authority and either a Certificate Template or an Enrollment Pattern configured in Keyfactor Command that is suitable for your use case. You must also configure an [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) in Keyfactor Command and map the credentials used by the Issuer or ClusterIssuer to a [security role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm) with the appropriate permissions.
 
 1. **Create or identify a Certificate Authority**
 
@@ -112,7 +112,7 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
 ## Installing Command Issuer
 
-Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
+Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](./deploy/charts/command-cert-manager-issuer).
 
 1. Verify that at least one Kubernetes node is running:
 
@@ -153,15 +153,24 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
     ```shell
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
-        --version 2.4.0
+        --version 2.4.0 \
         --create-namespace 
     ```
 
-> For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [this list](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
+> For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [the command-cert-manager-issuer Helm chart documentation](./deploy/charts/command-cert-manager-issuer/README.md#configuration).
 
 > The Helm chart installs the Command Issuer CRDs by default. The CRDs can be installed manually with the `make install` target.
 
-> A list of configurable Helm chart parameters can be found [in the Helm chart docs](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
+## Healthchecks
+
+By default, Issuer and ClusterIssuer resources are deployed with a healthcheck that queries the Keyfactor Command API every 60 seconds to verify connectivity. If the healthcheck fails, the issuer marks itself unhealthy and pauses processing certificate requests until connectivity is restored — at which point it automatically recovers without operator intervention. Healthcheck intervals can be modified according to your environment's needs.
+
+**For production environments, it is not recommended to disable healthchecks**. Although certificate requests are automatically retried if the Command API is unreachable, disabling healthchecks means the issuer remains in a `Ready` state during an outage. Requests will be forwarded to the Command API before failing, resulting in slower recovery and less actionable error messages compared to the clear `issuer is not ready` rejection produced when healthchecks are enabled.
+
+Healthcheck configuration options:
+- `healthcheck.enabled` and `healthcheck.interval` fields on the [Issuer / ClusterIssuer specification](#creating-issuer-and-clusterissuer-resources)
+- `defaultHealthCheckInterval` Helm value to configure the default interval for all Command Issuer resources in the Kubernetes cluster
+- `default-health-check-interval` argument on the command-cert-manager-issuer Deployment container
 
 # Authentication
 
@@ -172,7 +181,7 @@ Command Issuer supports explicit credentials authentication to Command using one
 - [Basic Authentication](#basic-auth) (username and password)
 - [OAuth 2.0 "client credentials" token flow](#oauth) (sometimes called two-legged OAuth 2.0)
 
-These credentials must be configured using a Kubernetes Secret. By default, the secret is expected to exist in the same namespace as the issuer controller (`command-issuer-system` by default). 
+These credentials must be configured using a [Kubernetes Secret](https://kubernetes.io/docs/concepts/configuration/secret/). By default, the secret is expected to exist in the same namespace as the issuer controller (`command-issuer-system` by default). 
 
 > Command Issuer can read secrets in the Issuer namespace if `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag is set when installing the Helm chart.
 
@@ -267,7 +276,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | ownerRoleName     | The name of the security role assigned as the certificate owner. The security role must be assigned to the identity context of the issuer. If `ownerRoleId` and `ownerRoleName` are both specified, `ownerRoleId` will take precedence. This field is **required** if the enrollment pattern, certificate template, or system-wide setting requires it. |
     | scopes     | (Optional) Required if using ambient credentials with Azure AKS. If using ambient credentials, these scopes will be put on the access token generated by the ambient credentials' token provider, if applicable.   |
      | audience     | (Optional) If using ambient credentials, this audience will be put on the access token generated by the ambient credentials' token provider, if applicable. Google's ambient credential token provider generates an OIDC ID Token. If this value is not provided, it will default to `command`.  |
-     | healthcheck | (Optional) Defines the health check configuration for the issuer. If omitted, health checks will be enabled and default to 60 seconds. If left disabled, the issuer will not perform a health check when the issuer is healthy and may cause CertificateRequest resources to silently fail. |
+     | healthcheck | (Optional) Defines the health check configuration for the issuer. If omitted, health checks will be enabled and default to 60 seconds. If disabled, the issuer will remain in a Ready state during outages and forward requests to the Command API before failing. Although requests are retried automatically, issues are harder to diagnose without health checks. |
      | healthcheck.enabled | (Required if health check block provided) Boolean to enable / disable health checks. By default, health checks are enabled. |
      | healthcheck.interval | (Optional) Defines the interval between health checks. Example values: `30s`, `1m`, `5.5m`. To prevent overloading the Command instance, this interval must not be less than `30s`. Default value: `60s`. |
 
@@ -306,9 +315,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standlone CA
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standalone CA
           # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment and set if using Keyfactor Command 24.4 and below.
           enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
@@ -341,9 +350,9 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standlone CA
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standalone CA
           # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment and set if using Keyfactor Command 24.4 and below.
           enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
