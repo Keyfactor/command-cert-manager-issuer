@@ -60,6 +60,8 @@ var newFakeHealthCheckerBuilder = func(builderErr error, checkerErr error, suppo
 	}
 }
 
+const defaultHealthcheckInterval = time.Minute * 10
+
 func TestIssuerReconcile(t *testing.T) {
 	type testCase struct {
 		kind                                     string
@@ -115,7 +117,7 @@ func TestIssuerReconcile(t *testing.T) {
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"issuer-basicauth-no-username": {
 			kind: "Issuer",
@@ -237,7 +239,7 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"success-issuer-oauth": {
 			kind: "Issuer",
@@ -278,7 +280,7 @@ func TestIssuerReconcile(t *testing.T) {
 			healthCheckerBuilder:                     newFakeHealthCheckerBuilder(nil, nil, false),
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"issuer-oauth-no-tokenurl": {
 			kind: "Issuer",
@@ -448,7 +450,7 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionFalse,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"issuer-kind-Unrecognized": {
 			kind: "UnrecognizedType",
@@ -734,7 +736,7 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Minute},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"success-nil-healthcheck-interval-defaults": {
 			kind: "ClusterIssuer",
@@ -776,7 +778,7 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"success-default-healthcheck-interval": {
 			kind: "ClusterIssuer",
@@ -855,7 +857,7 @@ func TestIssuerReconcile(t *testing.T) {
 			clusterResourceNamespace:                 "kube-system",
 			expectedReadyConditionStatus:             commandissuer.ConditionTrue,
 			expectedMetadataSupportedConditionStatus: commandissuer.ConditionTrue,
-			expectedResult:                           ctrl.Result{RequeueAfter: time.Duration(60) * time.Second},
+			expectedResult:                           ctrl.Result{RequeueAfter: defaultHealthcheckInterval},
 		},
 		"error-healthcheck-minimum-value": {
 			kind: "Issuer",
@@ -916,10 +918,10 @@ func TestIssuerReconcile(t *testing.T) {
 				tc.kind = "Issuer"
 			}
 
-			defaultHealthcheckInterval := time.Minute
+			testCaseHealthcheckInterval := defaultHealthcheckInterval
 
 			if tc.defaultHealthCheckInterval != nil {
-				defaultHealthcheckInterval = *tc.defaultHealthCheckInterval
+				testCaseHealthcheckInterval = *tc.defaultHealthCheckInterval
 			}
 
 			controller := IssuerReconciler{
@@ -929,7 +931,7 @@ func TestIssuerReconcile(t *testing.T) {
 				HealthCheckerBuilder:              tc.healthCheckerBuilder,
 				ClusterResourceNamespace:          tc.clusterResourceNamespace,
 				SecretAccessGrantedAtClusterLevel: true,
-				DefaultHealthCheckInterval:        defaultHealthcheckInterval,
+				DefaultHealthCheckInterval:        testCaseHealthcheckInterval,
 			}
 
 			result, err := controller.Reconcile(

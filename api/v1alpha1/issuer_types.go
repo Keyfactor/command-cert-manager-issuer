@@ -304,7 +304,7 @@ type HealthCheckConfig struct {
 	// Determines whether to enable the health check when the issuer is healthy. Default: true
 	Enabled bool `json:"enabled"`
 
-	// The interval at which to health check the issuer when healthy. Defaults to 1 minute. Must not be less than "30s".
+	// The interval at which to health check the issuer when healthy. Defaults to 10 minutes. Must not be less than "30s".
 	// +kubebuilder:validation:Optional
 	Interval *metav1.Duration `json:"interval,omitempty"`
 }

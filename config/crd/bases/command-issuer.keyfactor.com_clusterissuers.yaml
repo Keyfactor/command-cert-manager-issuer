@@ -129,7 +129,8 @@ spec:
                     type: boolean
                   interval:
                     description: The interval at which to health check the issuer
-                      when healthy. Defaults to 1 minute. Must not be less than "30s".
+                      when healthy. Defaults to 10 minutes. Must not be less than
+                      "30s".
                     type: string
                 required:
                 - enabled

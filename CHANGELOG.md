@@ -1,6 +1,7 @@
 # v2.6.0
 ## Features
 - Allow `certificateAuthorityLogicalName` to be optional when using an enrollment pattern.
+- The default healthcheck interval has been bumped from 1 minute to 10 minutes.
 
 ## Security
 - The Helm chart now defaults `serviceAccount.automountServiceAccountToken` to `false`,
