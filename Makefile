@@ -83,6 +83,10 @@ lint: golangci-lint ## Run golangci-lint linter & yamllint
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
+.PHONY: fix
+fix:
+	go fix ./...
+
 .PHONY: helm-template
 helm-template: ## Render Helm chart templates to stdout (includes CRDs).
 	helm template $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --include-crds
