@@ -6,6 +6,7 @@
 ## Security
 - The Helm chart now defaults `serviceAccount.automountServiceAccountToken` to `false`,
   replacing the long-lived auto-mounted token with a short-lived projected token (~1 hour, automatically rotated by kubelet). The token is still mounted at the standard path `/var/run/secrets/kubernetes.io/serviceaccount` so no application changes are required.
+- Go version has been bumped from 1.24 to 1.26.2+ to fix CVE-2026-27143 (affects Go compiler versions below 1.25.9, and 1.26.0-1.26.1).
 
 > [!IMPORTANT]
 >
