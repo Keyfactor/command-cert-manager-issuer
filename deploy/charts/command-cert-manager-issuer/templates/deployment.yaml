@@ -26,6 +26,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "command-cert-manager-issuer.serviceAccountName" . }}
+      {{- if not .Values.serviceAccount.automountServiceAccountToken }}
+      automountServiceAccountToken: false
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if not .Values.serviceAccount.automountServiceAccountToken }}
