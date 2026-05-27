@@ -1096,6 +1096,16 @@ check_certificate_request_status
 echo "🧪✅ Test 6 completed successfully."
 echo ""
 
+echo "🧪💬 Test 7: Certificate Authority is optional when Enrollment Pattern is used"
+regenerate_issuer
+delete_issuer_specification_field certificateAuthorityLogicalName Issuer
+add_issuer_specification_field enrollmentPatternName "$ENROLLMENT_PATTERN_NAME" Issuer
+regenerate_certificate_request Issuer
+approve_certificate_request
+check_certificate_request_status
+echo "🧪✅ Test 7 completed successfully."
+echo ""
+
 ## ===================  END: Issuer & ClusterIssuer Tests    ============================
 
 ## ===================  BEGIN: Annotation Tests    ============================

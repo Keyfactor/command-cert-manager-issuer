@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: issuers.command-issuer.keyfactor.com
 spec:
   group: command-issuer.keyfactor.com
@@ -79,7 +79,9 @@ spec:
                 type: string
               certificateAuthorityLogicalName:
                 description: |-
-                  CertificateAuthorityLogicalName is the logical name of the certificate authority to use
+                  CertificateAuthorityLogicalName is the logical name of the certificate authority to use. Not required if an enrollment pattern is specified,
+                  except if the enrollment pattern targets a standalone CA. If empty, an eligible certificate authority within the enrollment pattern's configuration tenant
+                  will be used.
                   E.g. "Keyfactor Root CA" or "Intermediate CA"
                 type: string
               certificateTemplate:
@@ -127,7 +129,8 @@ spec:
                     type: boolean
                   interval:
                     description: The interval at which to health check the issuer
-                      when healthy. Defaults to 1 minute. Must not be less than "30s".
+                      when healthy. Defaults to 10 minutes. Must not be less than
+                      "30s".
                     type: string
                 required:
                 - enabled

@@ -42,10 +42,10 @@ Before continuing, ensure that the following requirements are met:
 - [Keyfactor Command](https://www.keyfactor.com/products/command/) >= 10.5
     - Command must be properly configured according to the [product docs](https://software.keyfactor.com/Core-OnPrem/Current/Content/MasterTopics/Portal.htm). 
     - You have access to the Command REST API. The following endpoints must be available:
-        - `/Status/Endpoints`
-        - `/Enrollment/CSR`
-        - `/MetadataFields`
-        - `/EnrollmentPatterns` (Keyfactor Command 25.1 and above)
+        - [/Status/Endpoints](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/StatusGetEndpoints.htm)
+        - [/Enrollment/CSR](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm)
+        - [/MetadataFields](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/MetadataFieldsGet.htm)
+        - [/EnrollmentPatterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns-GET.htm) (Keyfactor Command 25.1 and above)
 - Kubernetes >= v1.19
     - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), etc.
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
@@ -56,7 +56,7 @@ Before continuing, ensure that the following requirements are met:
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting a POST request to the Command CSR Enrollment endpoint. Before using Command Issuer, you must create or identify a Certificate Authority _and_ Certificate Template / Enrollment Pattern suitable for your use case. Additionally, you should ensure that the [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) used by the Issuer/ClusterIssuer has the appropriate permissions in Command.
+Command Issuer enrolls certificates by submitting certificate signing requests to the Keyfactor Command [CSR Enrollment API](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm). Before using Command Issuer, you must have a Certificate Authority and either a Certificate Template or an Enrollment Pattern configured in Keyfactor Command that is suitable for your use case. You must also configure an [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) in Keyfactor Command and map the credentials used by the Issuer or ClusterIssuer to a [security role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm) with the appropriate permissions.
 
 1. **Create or identify a Certificate Authority**
 
@@ -112,7 +112,7 @@ Command Issuer enrolls certificates by submitting a POST request to the Command 
 
 ## Installing Command Issuer
 
-Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](https://keyfactor.github.io/command-cert-manager-issuer/).
+Command Issuer is installed using a Helm chart. The chart is available in the [Command cert-manager Helm repository](./deploy/charts/command-cert-manager-issuer).
 
 1. Verify that at least one Kubernetes node is running:
 
@@ -153,15 +153,27 @@ Command Issuer is installed using a Helm chart. The chart is available in the [C
     ```shell
     helm install command-cert-manager-issuer command-issuer/command-cert-manager-issuer \
         --namespace command-issuer-system \
-        --version 2.4.0
+        --version 2.4.0 \
         --create-namespace 
     ```
 
-> For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [this list](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
+> For all possible configuration values for the command-cert-manager-issuer Helm chart, please refer to [the command-cert-manager-issuer Helm chart documentation](./deploy/charts/command-cert-manager-issuer/README.md#configuration).
 
 > The Helm chart installs the Command Issuer CRDs by default. The CRDs can be installed manually with the `make install` target.
 
-> A list of configurable Helm chart parameters can be found [in the Helm chart docs](./deploy/charts/command-cert-manager-issuer/README.md#configuration)
+## Healthchecks
+
+By default, Issuer and ClusterIssuer resources are deployed with a healthcheck that queries the Keyfactor Command API every 10 minutes to verify connectivity. If the healthcheck fails, the issuer marks itself unhealthy and pauses processing certificate requests until connectivity is restored — at which point it automatically recovers without operator intervention. Healthcheck intervals can be modified according to your environment's needs.
+
+**For production environments, it is not recommended to disable healthchecks**. Although certificate requests are automatically retried if the Command API is unreachable, disabling healthchecks means the issuer remains in a `Ready` state during an outage. Requests will be forwarded to the Command API before failing, resulting in slower recovery and less actionable error messages compared to the clear `issuer is not ready` rejection produced when healthchecks are enabled.
+
+Healthcheck configuration options:
+- `healthcheck.enabled` and `healthcheck.interval` fields on the [Issuer / ClusterIssuer specification](#creating-issuer-and-clusterissuer-resources)
+- `defaultHealthCheckInterval` Helm value to configure the default interval for all Command Issuer resources in the Kubernetes cluster
+- `default-health-check-interval` argument on the command-cert-manager-issuer Deployment container
+
+> [!NOTE]
+> The interval format for healthchecks is a decimal number with unit syntax ([docs](https://pkg.go.dev/time#ParseDuration)). Examples: `10m`, `30s`, `1.5h`. The minimum allowed interval is 30 seconds (`30s`).
 
 # Authentication
 
@@ -172,7 +184,7 @@ Command Issuer supports explicit credentials authentication to Command using one
 - [Basic Authentication](#basic-auth) (username and password)
 - [OAuth 2.0 "client credentials" token flow](#oauth) (sometimes called two-legged OAuth 2.0)
 
-These credentials must be configured using a Kubernetes Secret. By default, the secret is expected to exist in the same namespace as the issuer controller (`command-issuer-system` by default). 
+These credentials must be configured using a [Kubernetes Secret](https://kubernetes.io/docs/concepts/configuration/secret/). By default, the secret is expected to exist in the same namespace as the issuer controller (`command-issuer-system` by default). 
 
 > Command Issuer can read secrets in the Issuer namespace if `--set "secretConfig.useClusterRoleForSecretAccess=true"` flag is set when installing the Helm chart.
 
@@ -258,7 +270,7 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | caSecretName       | (optional) The name of the Kubernetes secret containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
     | caBundleConfigMapName       | (optional) The name of the Kubernetes ConfigMap containing the CA certificate trust chain. See the [CA Bundle docs](./docs/ca-bundle/README.md) for more information.      |
     | caBundleKey | (optional) The name of the key in the ConfigMap or Secret specified by `caSecretName` or `caBundleConfigMapName` that contains the CA bundle. If omitted, the last key of the ConfigMap / Secret resource will be used. |
-    | certificateAuthorityLogicalName | The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`                                                              |
+    | certificateAuthorityLogicalName | (Optional) The logical name of the Certificate Authority to use in Command. For example, `Sub-CA`. Optional if the enrollment pattern does not target a standalone CA. When not defined, Command will choose an eligible CA within the enrollment pattern's configuration tenant.                                                               |
     | certificateAuthorityHostname   | (optional) The hostname of the Certificate Authority specified by `certificateAuthorityLogicalName`. This field is usually only required if the CA in Command is a DCOM (MSCA-like) CA.                                                                     |
     | enrollmentPatternId     | The ID of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternId` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern.                                                                        |
     | enrollmentPatternName     | The Name of the [Enrollment Pattern](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) to use when this Issuer/ClusterIssuer enrolls CSRs. **Supported by Keyfactor Command 25.1 and above**. If `certificateTemplate` and `enrollmentPatternName` are both specified, the enrollment pattern parameter will take precedence. If `enrollmentPatternId` and `enrollmentPatternName` are both specified, `enrollmentPatternId` will take precedence. Enrollment will fail if the specified certificate template is not compatible with the enrollment pattern. If using `enrollmentPatternName`, your security role must have `/enrollment_pattern/read/` permission.                                                                       |
@@ -267,11 +279,22 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
     | ownerRoleName     | The name of the security role assigned as the certificate owner. The security role must be assigned to the identity context of the issuer. If `ownerRoleId` and `ownerRoleName` are both specified, `ownerRoleId` will take precedence. This field is **required** if the enrollment pattern, certificate template, or system-wide setting requires it. |
     | scopes     | (Optional) Required if using ambient credentials with Azure AKS. If using ambient credentials, these scopes will be put on the access token generated by the ambient credentials' token provider, if applicable.   |
      | audience     | (Optional) If using ambient credentials, this audience will be put on the access token generated by the ambient credentials' token provider, if applicable. Google's ambient credential token provider generates an OIDC ID Token. If this value is not provided, it will default to `command`.  |
-     | healthcheck | (Optional) Defines the health check configuration for the issuer. If omitted, health checks will be enabled and default to 60 seconds. If left disabled, the issuer will not perform a health check when the issuer is healthy and may cause CertificateRequest resources to silently fail. |
+     | healthcheck | (Optional) Defines the health check configuration for the issuer. If omitted, health checks will be enabled and default to 10 minutes. If disabled, the issuer will remain in a Ready state during outages and forward requests to the Command API before failing. Although requests are retried automatically, issues are harder to diagnose without health checks. |
      | healthcheck.enabled | (Required if health check block provided) Boolean to enable / disable health checks. By default, health checks are enabled. |
-     | healthcheck.interval | (Optional) Defines the interval between health checks. Example values: `30s`, `1m`, `5.5m`. To prevent overloading the Command instance, this interval must not be less than `30s`. Default value: `60s`. |
+     | healthcheck.interval | (Optional) Defines the interval between health checks. Example values: `30s`, `1m`, `5.5m`. To prevent overloading the Command instance, this interval must not be less than `30s`. Default value: `10m`. |
 
     > If a different combination of hostname/certificate authority/certificate template is required, a new Issuer or ClusterIssuer resource must be created. Each resource instantiation represents a single configuration.
+
+    > **What is a standalone CA?**
+    > A standalone CA is a Certificate Authority in Keyfactor Command that is not configured
+    > as part of a CA pool within the enrollment pattern — typically a DCOM (Microsoft CA)
+    > configured as a standalone (non-Active-Directory-integrated) CA. When an enrollment
+    > pattern targets a standalone CA, Command cannot automatically select a CA from a pool
+    > and requires `certificateAuthorityLogicalName` to be explicitly provided.
+    >
+    > If you are unsure whether your CA is a standalone CA, check the CA type and configuration
+    > in Command under **Certificate Authorities**, or contact your Keyfactor support
+    > representative.
 
 2. **Create an Issuer or ClusterIssuer**
 
@@ -295,10 +318,10 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
-          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standalone CA
+          # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment and set if using Keyfactor Command 24.4 and below.
+          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
           # scopes: "openid email https://example.com/.default" # Uncomment if required
@@ -330,10 +353,10 @@ For example, ClusterIssuer resources can be used to issue certificates for resou
           # caBundleKey: "ca.crt" # references the key in the secret/configmap containing the CA trust chain (see CA Bundle docs for more info)
 
           # certificateAuthorityHostname: "$COMMAND_CA_HOSTNAME" # Uncomment if required
-          certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME"
-          enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
-          certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Required if using Keyfactor Command 24.4 and below.
-          # enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateAuthorityLogicalName: "$COMMAND_CA_LOGICAL_NAME" # Required if using Keyfactor Command 24.4 and below or if enrollment pattern is associated with a standalone CA
+          # enrollmentPatternId: "$ENROLLMENT_PATTERN_ID" # Only supported on Keyfactor Command 25.1 and above.
+          # certificateTemplate: "$CERTIFICATE_TEMPLATE_SHORT_NAME" # Uncomment and set if using Keyfactor Command 24.4 and below.
+          enrollmentPatternName: "$ENROLLMENT_PATTERN_NAME" # Only supported on Keyfactor Command 25.1 and above.
           # ownerRoleId: "$OWNER_ROLE_ID" # Uncomment if required
           # ownerRoleName: "$OWNER_ROLE_NAME" # Uncomment if required
           # scopes: "openid email https://example.com/.default" # Uncomment if required
