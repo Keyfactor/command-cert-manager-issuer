@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Keyfactor
+Copyright © 2026 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -208,9 +208,14 @@ func TestSignConfigValidate(t *testing.T) {
 			wantErr: "either certificateTemplate, enrollmentPatternName, or enrollmentPatternId must be specified",
 		},
 		{
-			name:    "missing certificateAuthorityLogicalName",
-			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
-			wantErr: "certificateAuthorityLogicalName is required",
+			name:    "missing certificateAuthorityLogicalName and enrollmentPatternName",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com", EnrollmentPatternName: ""},
+			wantErr: "certificateAuthorityLogicalName is required if enrollmentPatternName or enrollmentPatternId are not provided",
+		},
+		{
+			name:    "missing certificateAuthorityLogicalName and enrollmentPatternId",
+			config:  &SignConfig{CertificateTemplate: "myTemplate", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com", EnrollmentPatternId: 0},
+			wantErr: "certificateAuthorityLogicalName is required if enrollmentPatternName or enrollmentPatternId are not provided",
 		},
 		{
 			name:    "all valid fields (both certificateTemplate and enrollmentPatternName specified)",
@@ -224,12 +229,12 @@ func TestSignConfigValidate(t *testing.T) {
 		},
 		{
 			name:    "all valid fields (only enrollmentPatternName specified)",
-			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			config:  &SignConfig{EnrollmentPatternName: "My Enrollment Pattern", CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{
 			name:    "all valid fields (only enrollmentPatternId specified)",
-			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "ca-logical", CertificateAuthorityHostname: "ca.example.com"},
+			config:  &SignConfig{EnrollmentPatternId: 123, CertificateAuthorityLogicalName: "", CertificateAuthorityHostname: "ca.example.com"},
 			wantErr: "",
 		},
 		{
@@ -645,6 +650,139 @@ func TestSign(t *testing.T) {
 				require.Equal(t, leafAndCA, append(leafCertPem, issuingCertPem...))
 				require.Equal(t, root, caCertPem)
 			}
+		})
+	}
+}
+
+func TestSign_ErrorMessages(t *testing.T) {
+	caCert, rootKey := issueTestCertificate(t, "Root-CA", nil, nil)
+	issuingCert, issuingKey := issueTestCertificate(t, "Sub-CA", caCert, rootKey)
+	leafCert, _ := issueTestCertificate(t, "LeafCert", issuingCert, issuingKey)
+
+	expectedLeafAndChain := append([]*x509.Certificate{leafCert}, issuingCert)
+
+	// enrollmentPatternName := "fake-enrollment-pattern"
+	certificateTemplateName := "fake-cert-template"
+	certificateAuthorityLogicalName := "fake-issuing-ca"
+	enrollmentPatternId := 123
+
+	testCases := map[string]struct {
+		enrollCSRFunctionError error
+		enrollHTTPResponse     *http.Response
+		enrollmentPatterns     []v1.EnrollmentPatternsEnrollmentPatternResponse
+
+		// Request
+		config *SignConfig
+
+		// Expected
+		expectedSignError    error
+		expectedErrorContent *string
+	}{
+		"enroll-csr-err-enrollment-pattern": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId: int32(enrollmentPatternId),
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr(fmt.Sprintf("Ensure that enrollment pattern ID %d has CSR Enrollment enabled and the security role is configured to use this enrollment pattern.", enrollmentPatternId)),
+		},
+		"enroll-csr-err-certificate-authority-and-enrollment-pattern": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId:             int32(enrollmentPatternId),
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr(fmt.Sprintf("Ensure that enrollment pattern ID %d has CSR Enrollment enabled, is configured to use certificate authority '%s', and the security role is configured to use this enrollment pattern.", enrollmentPatternId, certificateAuthorityLogicalName)),
+		},
+		"enroll-csr-err-certificate-authority-and-template-name": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateTemplate:             certificateTemplateName,
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr(fmt.Sprintf("Verify that certificate template '%s' exists in Command and belongs to certificate authority '%s'. If applicable, verify the Enrollment Pattern configuration in Keyfactor Command, and ensure CSR Enrollment is enabled.", certificateTemplateName, certificateAuthorityLogicalName)),
+		},
+		"enroll-csr-err-certificate-authority-and-template-name-and-enrollment-pattern": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				CertificateAuthorityLogicalName: certificateAuthorityLogicalName,
+				CertificateTemplate:             certificateTemplateName,
+				EnrollmentPatternId:             int32(enrollmentPatternId),
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr(fmt.Sprintf("Verify that certificate template '%s' exists in Command and belongs to certificate authority '%s'. Verify the configuration for Enrollment Pattern ID %d in Keyfactor Command, and ensure CSR Enrollment is enabled.", certificateTemplateName, certificateAuthorityLogicalName, enrollmentPatternId)),
+		},
+		"enroll-csr-err-certificateOwnerId": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId: 10,
+				OwnerRoleId:         1000,
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr("Verify the issuer's security role is assigned to the configured owner role"),
+		},
+		"enroll-csr-err-certificateOwnerName": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId: 10,
+				OwnerRoleName:       "foobar",
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr("Verify the issuer's security role is assigned to the configured owner role"),
+		},
+		"enroll-csr-err-annotations": {
+			enrollCSRFunctionError: errors.New("an error from Command"),
+			// Request
+			config: &SignConfig{
+				EnrollmentPatternId: 10,
+				Annotations: map[string]string{
+					"metadata.command-issuer.keyfactor.com/fizz": "buzz",
+				},
+			},
+
+			expectedSignError:    errCommandEnrollmentFailure,
+			expectedErrorContent: ptr("Verify that the metadata fields provided exist in Command"),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			cb := func(req v1.ApiCreateEnrollmentCSRRequest) {
+				require.NotNil(t, req)
+			}
+
+			client := fakeClient{
+				err: tc.enrollCSRFunctionError,
+
+				enrollResponse:     certificateRestResponseFromExpectedCerts(t, expectedLeafAndChain, []*x509.Certificate{caCert}),
+				enrollHTTPResponse: tc.enrollHTTPResponse,
+				enrollCallback:     cb,
+			}
+			signer := signer{
+				client: &client,
+			}
+
+			csrBytes, err := generateCSR("CN=command.example.org", []string{"dns.example.com"}, []string{}, []string{})
+			require.NoError(t, err)
+			csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes.Raw})
+
+			_, _, err = signer.Sign(context.Background(), csrPem, tc.config)
+			assert.ErrorIs(t, err, errCommandEnrollmentFailure)
+			assert.Contains(t, err.Error(), *tc.expectedErrorContent, "error message should contain content from response body when enrollCSR returns an error")
 		})
 	}
 }

@@ -82,7 +82,7 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.StringVar(&healthCheckInterval, "default-health-check-interval", "60s",
+	flag.StringVar(&healthCheckInterval, "default-health-check-interval", "10m", // 10 minutes
 		"If set, it is the default health check interval for issuers.")
 	flag.StringVar(&clusterResourceNamespace, "cluster-resource-namespace", "", "The namespace for secrets in which cluster-scoped resources are found.")
 	flag.BoolVar(&disableApprovedCheck, "disable-approved-check", false,
