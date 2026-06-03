@@ -85,8 +85,11 @@ type IssuerSpec struct {
 	// + optional
 	OwnerRoleName string `json:"ownerRoleName,omitempty"`
 
-	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use
+	// CertificateAuthorityLogicalName is the logical name of the certificate authority to use. Not required if an enrollment pattern is specified,
+	// except if the enrollment pattern targets a standalone CA. If empty, an eligible certificate authority within the enrollment pattern's configuration tenant
+	// will be used.
 	// E.g. "Keyfactor Root CA" or "Intermediate CA"
+	// +optional
 	CertificateAuthorityLogicalName string `json:"certificateAuthorityLogicalName,omitempty"`
 
 	// CertificateAuthorityHostname is the hostname associated with the Certificate Authority specified by
@@ -301,7 +304,7 @@ type HealthCheckConfig struct {
 	// Determines whether to enable the health check when the issuer is healthy. Default: true
 	Enabled bool `json:"enabled"`
 
-	// The interval at which to health check the issuer when healthy. Defaults to 1 minute. Must not be less than "30s".
+	// The interval at which to health check the issuer when healthy. Defaults to 10 minutes. Must not be less than "30s".
 	// +kubebuilder:validation:Optional
 	Interval *metav1.Duration `json:"interval,omitempty"`
 }
