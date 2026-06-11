@@ -89,6 +89,8 @@ nodeSelector: {}
 
 tolerations: []
 
+priorityClassName: ""
+
 defaultHealthCheckInterval: ""
 
 env: {}
