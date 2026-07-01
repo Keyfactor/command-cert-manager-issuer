@@ -13,7 +13,7 @@ We have an internal review process for every release we make. This process can s
 ## Development
 
 ### Requirements
-- Go (>= 1.24)
+- Go (>= 1.26.2)
 - golangci-lint (>= 2.4.0) ([installation notes](https://github.com/golangci/golangci-lint?tab=readme-ov-file#install-golangci-lint))
 - helm (>= 3.x) — required to render chart templates for manifest linting ([installation notes](https://helm.sh/docs/intro/install/))
 - conftest — policy testing tool powered by Open Policy Agent; installed automatically by `make lint-manifests`
