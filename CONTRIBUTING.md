@@ -1,12 +1,24 @@
 # Command Cert Manager Issuer Contribution Guide
 
-## Requirements
+## How to contribute
+
+### External Contributors - Submitting a PR
+
+Since external contributors can't create branches directly on our repositories, go ahead and open your PR against `main`. Our team will handle retargeting it to the appropriate release branch as part of our internal review process. You may see your PR retargeted or, in some cases, closed and replaced with an internal PR carrying your commits. In either case, your contribution will be preserved.
+
+### Release cadence
+
+We have an internal review process for every release we make. This process can sometimes take a few days or weeks depending on resourcing.
+
+## Development
+
+### Requirements
 - Go (>= 1.24)
 - golangci-lint (>= 2.4.0) ([installation notes](https://github.com/golangci/golangci-lint?tab=readme-ov-file#install-golangci-lint))
 - helm (>= 3.x) — required to render chart templates for manifest linting ([installation notes](https://helm.sh/docs/intro/install/))
 - conftest — policy testing tool powered by Open Policy Agent; installed automatically by `make lint-manifests`
 
-## Installing dependencies
+### Installing dependencies
 Project dependencies can be installed by running the following:
 
 ```bash
@@ -19,14 +31,14 @@ The following command can be used to add missing requirements or remove unused m
 go mod tidy
 ```
 
-## Running unit tests
+### Running unit tests
 The following command can be run to run the project unit tests:
 
 ```bash
 go test -v ./...
 ```
 
-## Running linters
+### Running linters
 The project uses golangci-lint to lint the codebase. The following command can be run to run the linters:
 
 ```bash
@@ -39,7 +51,7 @@ or, alternatively:
 make lint
 ```
 
-## Updating generated manifests
+### Updating generated manifests
 
 This command will update the generated custom resource definitions under `config/crd/bases`:
 
@@ -50,7 +62,7 @@ make generate manifests
 > [!IMPORTANT]
 > There is no automated process to automatically update the CRDs under `deploy/charts/command-cert-manager-issuer`. If any changes are made to the CRDs, the generated CRDs under `config/crd/bases` must be copied to `deploy/charts/command-cert-manager-issuer/crds` to ensure the Helm chart is up to date.
 
-## Linting Helm manifests
+### Linting Helm manifests
 
 The Helm chart under `deploy/charts/command-cert-manager-issuer` is linted with two tools on every PR:
 - **conftest** — runs custom Rego policies located in the [`policy/`](policy/) directory against the rendered manifests
@@ -69,13 +81,13 @@ To inspect the rendered templates without linting:
 make helm-template
 ```
 
-### Adding or modifying policies
+#### Adding or modifying policies
 
 Rego policies live in [`policy/`](policy/). Each `.rego` file in that directory is evaluated by conftest against every resource in the rendered chart. Add a new `.rego` file to enforce additional rules. For example, `policy/roles.rego` enforces that all `Role` resources declare an explicit namespace.
 
 kube-linter checks can be tuned in [.kube-linter.yaml](.kube-linter.yaml). To exclude a check, add its name under the `exclude` key.
 
-## Running end-to-end tests
+### Running end-to-end tests
 A comprehensive end-to-end test suite is available to verify the issuer code works against cert-manager and a Keyfactor Command instance.
 
 Instructions on how to run the end-to-end test suite can be found [here](./e2e/README.md).
