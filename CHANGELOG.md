@@ -1,3 +1,9 @@
+# v2.6.1
+## Features
+- Added [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/) as an optional specification on the Deployment resource.
+## Chores
+- Updated the `CONTRIBUTING.md` guide with notes for how external contributors can contribute to this project.
+
 # v2.6.0
 ## Features
 - Allow `certificateAuthorityLogicalName` to be optional when using an enrollment pattern.
