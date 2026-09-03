@@ -32,6 +32,7 @@ import (
 	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
 	"github.com/go-logr/logr"
+	"github.com/golang-jwt/jwt/v5"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -231,6 +232,18 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 		if err != nil {
 			return nil, err
 		}
+
+		if parsed, _, parseErr := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{}); parseErr == nil {
+			if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
+				if exp, expErr := claims.GetExpirationTime(); expErr == nil && exp != nil {
+					log.Info("ambient access token expiry",
+						"expiresAt", exp.UTC().Format(time.RFC3339),
+						"validFor", time.Until(exp.Time).String())
+				}
+			}
+		}
+
+		log.Info("generating OAuth configuration using access token generated from ambient credentials")
 
 		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
 			WithAccessToken(token).
