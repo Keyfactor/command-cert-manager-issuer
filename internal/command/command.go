@@ -207,33 +207,23 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	// If direct basic-auth/OAuth credentials were configured, continue. Otherwise,
 	// we look for ambient credentials configured on the environment where we're running.
 	if !nonAmbientCredentialsConfigured {
-		source := getAmbientTokenCredentialSource()
-		if source == nil {
-			log.Info("no direct credentials provided; attempting to use ambient credentials. trying Azure DefaultAzureCredential first")
+		log.Info("no direct credentials provided; attempting to use ambient credentials. trying Azure DefaultAzureCredential first")
 
-			var err error
-			source, err = newAzureDefaultCredentialSource(ctx, config.AmbientCredentialScopes)
-			if err != nil {
-				log.Info("couldn't obtain Azure DefaultAzureCredential. trying GCP ApplicationDefaultCredentials", "error", err)
-
-				var innerErr error
-				source, innerErr = newGCPDefaultCredentialSource(ctx, config.AmbientCredentialAudience, config.AmbientCredentialScopes)
-				if innerErr != nil {
-					return nil, fmt.Errorf("%w: azure err: %w. gcp err: %w", errAmbientCredentialCreationFailure, err, innerErr)
-				}
-			}
-
-			// Set the credential source globally
-			setAmbientTokenCredentialSource(source)
-		}
-
-		token, err := source.GetAccessToken(ctx)
+		source, err := newAzureTokenSource(ctx, config.AmbientCredentialScopes)
 		if err != nil {
-			return nil, err
+			log.Info("couldn't obtain Azure DefaultAzureCredential. trying GCP ApplicationDefaultCredentials", "error", err)
+
+			var innerErr error
+			source, innerErr = newGCPTokenSource(ctx, config.AmbientCredentialAudience, config.AmbientCredentialScopes)
+			if innerErr != nil {
+				return nil, fmt.Errorf("%w: azure err: %w. gcp err: %w", errAmbientCredentialCreationFailure, err, innerErr)
+			}
 		}
+
+		log.Info("generating OAuth configuration using an external token source generated from ambient credentials")
 
 		oauthConfig := auth_providers.NewOAuthAuthenticatorBuilder().
-			WithAccessToken(token).
+			WithExternalTokenSource(source).
 			WithCaCertificatePath("")
 		oauthConfig.CommandAuthConfig = authConfig
 

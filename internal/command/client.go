@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"sync"
 	"time"
 
 	"context"
@@ -36,18 +36,6 @@ import (
 	"google.golang.org/api/idtoken"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
-
-var (
-	tokenCredentialSource TokenCredentialSource
-)
-
-func getAmbientTokenCredentialSource() TokenCredentialSource {
-	return tokenCredentialSource
-}
-
-func setAmbientTokenCredentialSource(source TokenCredentialSource) {
-	tokenCredentialSource = source
-}
 
 type Client interface {
 	EnrollCSR(v1.ApiCreateEnrollmentCSRRequest) (*v1.CSSCMSDataModelModelsEnrollmentCSREnrollmentResponse, *http.Response, error)
@@ -91,14 +79,6 @@ func (c *clientAdapter) TestConnection() error {
 	return c.testConnection()
 }
 
-type TokenCredentialSource interface {
-	GetAccessToken(context.Context) (string, error)
-}
-
-var (
-	_ TokenCredentialSource = &azure{}
-)
-
 func getValueOrDefault(configValue string, defaultValue string) string {
 	if configValue != "" {
 		return configValue
@@ -106,149 +86,169 @@ func getValueOrDefault(configValue string, defaultValue string) string {
 	return defaultValue
 }
 
-type azure struct {
+type azureTokenSource struct {
+	ctx    context.Context
 	cred   azcore.TokenCredential
 	scopes []string
-}
 
-// GetAccessToken implements TokenCredential.
-func (a *azure) GetAccessToken(ctx context.Context) (string, error) {
-	log := log.FromContext(ctx)
-
-	// Try Azure with a short timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	// To prevent clogging logs every time JWT is generated
-	initializing := a.cred == nil
-
-	// Lazily create the credential if needed
-	if a.cred == nil {
-		c, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return "", fmt.Errorf("%w: failed to set up Azure Default Credential: %w", errTokenFetchFailure, err)
-		}
-		a.cred = c
-	}
-
-	log.Info(fmt.Sprintf("generating Default Azure Credentials with scopes %s", strings.Join(a.scopes, " ")))
-
-	// Request a token with the provided scopes
-	token, err := a.cred.GetToken(timeoutCtx, policy.TokenRequestOptions{
-		Scopes: a.scopes,
-	})
-	if err != nil {
-		return "", fmt.Errorf("%w: failed to fetch token: %w", errTokenFetchFailure, err)
-	}
-
-	tokenString := token.Token
-
-	if initializing {
-		// Only want to output this once, don't want to output this every time the JWT is generated
-
-		log.Info("==== BEGIN DEBUG: DefaultAzureCredential JWT ======")
-
-		printClaims(log, tokenString, []string{"aud", "appid", "azp", "iss", "sub", "oid"})
-
-		log.Info("==== END DEBUG: DefaultAzureCredential JWT ======")
-	}
-
-	log.Info("fetched token using Azure DefaultAzureCredential")
-	return tokenString, nil
-}
-
-func newAzureDefaultCredentialSource(ctx context.Context, scopes []string) (*azure, error) {
-	source := &azure{
-		scopes: scopes,
-	}
-	_, err := source.GetAccessToken(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	tokenCredentialSource = source
-
-	return source, nil
+	mu          sync.Mutex
+	last        string // last issued token, used to detect rotation
+	claimsShown bool   // whether the JWT claims debug block has been printed yet
 }
 
 var (
-	_ TokenCredentialSource = &gcp{}
+	_ oauth2.TokenSource = &azureTokenSource{}
 )
 
-type gcp struct {
-	tokenSource oauth2.TokenSource
-	audience    string
-	scopes      []string
+func (a *azureTokenSource) Token() (*oauth2.Token, error) {
+	// Try Azure with a short timeout
+	timeoutCtx, cancel := context.WithTimeout(a.ctx, 10*time.Second)
+	defer cancel()
+
+	tok, err := a.cred.GetToken(timeoutCtx, policy.TokenRequestOptions{
+		Scopes: a.scopes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to fetch token from Azure Default Credential: %w", errTokenFetchFailure, err)
+	}
+
+	// Only log when the underlying token has actually rotated - azidentity
+	// already caches and renews internally, so most calls return the same
+	// token and would otherwise flood the logs since Token() is called on
+	// every outbound request.
+	a.mu.Lock()
+	l := log.FromContext(a.ctx)
+	if tok.Token != a.last {
+		l.Info(fmt.Sprintf("Access token issued from Azure. Token expires at UTC time %s", tok.ExpiresOn.UTC().Format(time.RFC3339)))
+		a.last = tok.Token
+	}
+	// The claims below (identity, issuer, audience, etc.) are tied to the
+	// underlying identity, not the individual token, so they don't change
+	// across rotations - only print them once per source instantiation.
+	if !a.claimsShown {
+		l.Info("==== BEGIN DEBUG: DefaultAzureCredential JWT ======")
+		printClaims(l, tok.Token, []string{"aud", "appid", "azp", "iss", "sub", "oid"})
+		l.Info("==== END DEBUG: DefaultAzureCredential JWT ======")
+		a.claimsShown = true
+	}
+	a.mu.Unlock()
+
+	return &oauth2.Token{
+		AccessToken: tok.Token,
+		TokenType:   "Bearer",
+		Expiry:      tok.ExpiresOn,
+	}, nil
 }
 
-// GetAccessToken implements TokenCredential.
-func (g *gcp) GetAccessToken(ctx context.Context) (string, error) {
+func newAzureTokenSource(ctx context.Context, scopes []string) (oauth2.TokenSource, error) {
 	log := log.FromContext(ctx)
+	log.Info("creating new Azure Default Token Source")
 
-	// To prevent clogging logs every time JWT is generated
-	initializing := g.tokenSource == nil
-
-	// Lazily create the TokenSource if it's nil.
-	if g.tokenSource == nil {
-		log.Info(fmt.Sprintf("generating default Google credentials with scopes: %s", strings.Join(g.scopes, " ")))
-
-		credentials, err := google.FindDefaultCredentials(ctx, g.scopes...)
-		if err != nil {
-			return "", fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
-		}
-		log.Info("generating a Google OIDC ID token...")
-
-		// Default audience to "command" if not provided
-		aud := getValueOrDefault(g.audience, "command")
-
-		log.Info(fmt.Sprintf("generating Google id token with audience %s", aud))
-
-		// Use credentials to generate a JWT (requires a service account)
-		tokenSource, err := idtoken.NewTokenSource(ctx, aud, idtoken.WithCredentialsJSON(credentials.JSON))
-		if err != nil {
-			return "", fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
-		}
-
-		_, err = tokenSource.Token()
-		if err != nil {
-			return "", fmt.Errorf("%w: failed to generate GCP JWT Token from token source: %w", errTokenFetchFailure, err)
-		}
-
-		g.tokenSource = tokenSource
-	}
-
-	// Retrieve the token from the token source.
-	token, err := g.tokenSource.Token()
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		return "", fmt.Errorf("%w: failed to fetch token from GCP ADC token source: %w", errTokenFetchFailure, err)
+		return nil, fmt.Errorf("%w: failed to set up Azure Default Credential: %w", errTokenFetchFailure, err)
 	}
 
-	if initializing {
-		// Only want to output this once, don't want to output this every time the JWT is generated
+	// ctx is captured here and reused for every future Token() call for the
+	// lifetime of this source, since the resulting client is cached
+	// indefinitely by ClientCache.
+	ctx = context.WithoutCancel(ctx)
 
-		log.Info("==== BEGIN DEBUG: Default Google ID Token JWT ======")
-
-		printClaims(log, token.AccessToken, []string{"aud", "iss", "sub", "email"})
-
-		log.Info("==== END DEBUG:  Default Google ID Token JWT ======")
+	src := &azureTokenSource{
+		ctx:    ctx,
+		cred:   cred,
+		scopes: scopes,
 	}
 
-	log.Info("fetched token using GCP ApplicationDefaultCredential")
-
-	return token.AccessToken, nil
-}
-
-func newGCPDefaultCredentialSource(ctx context.Context, audience string, scopes []string) (*gcp, error) {
-	source := &gcp{
-		scopes:   scopes,
-		audience: audience,
-	}
-	_, err := source.GetAccessToken(ctx)
-	if err != nil {
+	// Fail fast if the credentials/scopes are wrong
+	if _, err := src.Token(); err != nil {
 		return nil, err
 	}
-	tokenCredentialSource = source
-	return source, nil
+
+	return src, nil
+}
+
+type gcpTokenSource struct {
+	ctx      context.Context
+	mu       sync.Mutex
+	inner    oauth2.TokenSource
+	last     string // last issued token, used to detect rotation
+	audience string
+	scopes   []string
+
+	claimsShown bool // whether the JWT claims debug block has been printed yet
+}
+
+var (
+	_ oauth2.TokenSource = &gcpTokenSource{}
+)
+
+func (g *gcpTokenSource) Token() (*oauth2.Token, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	log := log.FromContext(g.ctx)
+
+	if g.inner == nil {
+		log.Info("initializing GCP token source")
+		// Try GCP with a short timeout
+		timeoutCtx, cancel := context.WithTimeout(g.ctx, 10*time.Second)
+		defer cancel()
+		creds, err := google.FindDefaultCredentials(timeoutCtx, g.scopes...)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
+		}
+
+		aud := getValueOrDefault(g.audience, "command")
+		ts, err := idtoken.NewTokenSource(g.ctx, aud, idtoken.WithCredentialsJSON(creds.JSON))
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
+		}
+
+		g.inner = ts
+	}
+
+	token, err := g.inner.Token()
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to fetch token from GCP ADC token source: %w", errTokenFetchFailure, err)
+	}
+
+	if token.AccessToken != g.last {
+		log.Info(fmt.Sprintf("Access token issued from GCP. Token expires at UTC time %s", token.Expiry.UTC().Format(time.RFC3339)))
+		g.last = token.AccessToken
+	}
+
+	// The claims below (identity, issuer, audience, etc.) are tied to the
+	// underlying identity, not the individual token, so they don't change
+	// across rotations - only print them once per source instantiation.
+	if !g.claimsShown {
+		log.Info("==== BEGIN DEBUG: Default Google ID Token JWT ======")
+		printClaims(log, token.AccessToken, []string{"aud", "iss", "sub", "email"})
+		log.Info("==== END DEBUG:  Default Google ID Token JWT ======")
+		g.claimsShown = true
+	}
+
+	return token, nil
+}
+
+func newGCPTokenSource(ctx context.Context, audience string, scopes []string) (oauth2.TokenSource, error) {
+
+	// ctx is captured here and reused for every future Token() call for the
+	// lifetime of this source, since the resulting client is cached
+	// indefinitely by ClientCache.
+	ctx = context.WithoutCancel(ctx)
+
+	src := &gcpTokenSource{
+		ctx:      ctx,
+		audience: audience,
+		scopes:   scopes,
+	}
+
+	// Fail fast if the credentials/scopes are wrong
+	if _, err := src.Token(); err != nil {
+		return nil, err
+	}
+
+	return src, nil
 }
 
 func printClaims(log logr.Logger, token string, claimsToPrint []string) {
