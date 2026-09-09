@@ -109,7 +109,7 @@ func (a *azureTokenSource) Token() (*oauth2.Token, error) {
 		Scopes: a.scopes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to fetch token from Azure Default Credential: %w", errTokenFetchFailure, err)
 	}
 
 	// Only log when the underlying token has actually rotated - azidentity
@@ -151,20 +151,16 @@ func newAzureTokenSource(ctx context.Context, scopes []string) (oauth2.TokenSour
 
 	// ctx is captured here and reused for every future Token() call for the
 	// lifetime of this source, since the resulting client is cached
-	// indefinitely by ClientCache. This is only safe because ctx is the
-	// manager's root context (passed through unmodified from Reconcile),
-	// not a per-reconcile-scoped one - see IssuerReconciler.Reconcile and
-	// cmd/main.go, neither of which set a ReconciliationTimeout. If a
-	// per-reconcile timeout is ever introduced, every cached source will
-	// start failing with "context canceled" on its next call.
+	// indefinitely by ClientCache.
+	ctx = context.WithoutCancel(ctx)
+
 	src := &azureTokenSource{
 		ctx:    ctx,
 		cred:   cred,
 		scopes: scopes,
 	}
 
-	// Fail fast if the credentials/scopes are wrong, same as
-	// newAzureDefaultCredentialSource does today.
+	// Fail fast if the credentials/scopes are wrong
 	if _, err := src.Token(); err != nil {
 		return nil, err
 	}
@@ -194,7 +190,10 @@ func (g *gcpTokenSource) Token() (*oauth2.Token, error) {
 
 	if g.inner == nil {
 		log.Info("initializing GCP token source")
-		creds, err := google.FindDefaultCredentials(g.ctx, g.scopes...)
+		// Try GCP with a short timeout
+		timeoutCtx, cancel := context.WithTimeout(g.ctx, 10*time.Second)
+		defer cancel()
+		creds, err := google.FindDefaultCredentials(timeoutCtx, g.scopes...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to find GCP ADC: %w", errTokenFetchFailure, err)
 		}
@@ -232,14 +231,19 @@ func (g *gcpTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func newGCPTokenSource(ctx context.Context, audience string, scopes []string) (oauth2.TokenSource, error) {
+
+	// ctx is captured here and reused for every future Token() call for the
+	// lifetime of this source, since the resulting client is cached
+	// indefinitely by ClientCache.
+	ctx = context.WithoutCancel(ctx)
+
 	src := &gcpTokenSource{
 		ctx:      ctx,
 		audience: audience,
 		scopes:   scopes,
 	}
 
-	// Fail fast if the credentials/scopes are wrong, same as your
-	// newAzureDefaultCredentialSource does today.
+	// Fail fast if the credentials/scopes are wrong
 	if _, err := src.Token(); err != nil {
 		return nil, err
 	}
