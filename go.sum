@@ -23,8 +23,8 @@ github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJ
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/Keyfactor/keyfactor-auth-client-go v1.5.0-rc.2 h1:4AsADUisvlpmUrWpva8pcW28W9qykNJYTHbsSd1QIME=
-github.com/Keyfactor/keyfactor-auth-client-go v1.5.0-rc.2/go.mod h1:rFBZPMSHWwWuUwE1kXhLsDaOxjGiHMbXTTEni8Dmufo=
+github.com/Keyfactor/keyfactor-auth-client-go v1.5.1 h1:tDyURVkUQ9EBJwqygcCxV7CXBXrksua8lo1m+Pu9LnE=
+github.com/Keyfactor/keyfactor-auth-client-go v1.5.1/go.mod h1:rFBZPMSHWwWuUwE1kXhLsDaOxjGiHMbXTTEni8Dmufo=
 github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2-rc.1 h1:DWTH0HUaHhxrF4y2XBioL8lXsgU9wwcVCGozBoPaE54=
 github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2-rc.1/go.mod h1:G2VliVSObRN6ciajsmmFLyASUvPWFEe1WjOgxCLileg=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa h1:LHTHcTQiSGT7VVbI0o4wBRNQIgn917usHWOd6VAffYI=

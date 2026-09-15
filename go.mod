@@ -3,7 +3,7 @@ module github.com/Keyfactor/command-cert-manager-issuer
 go 1.26.2
 
 require (
-	github.com/Keyfactor/keyfactor-auth-client-go v1.5.0-rc.2
+	github.com/Keyfactor/keyfactor-auth-client-go v1.5.1
 	github.com/Keyfactor/keyfactor-go-client-sdk/v25 v25.0.2-rc.1
 	github.com/cert-manager/cert-manager v1.16.2
 	github.com/go-logr/logr v1.4.3
