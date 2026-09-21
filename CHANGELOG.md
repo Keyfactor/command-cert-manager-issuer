@@ -1,3 +1,7 @@
+# v2.6.2
+## Fixes
+- Fixes an issue where ambient credentials expired with no automatic refresh, causing authentication failures.
+
 # v2.6.1
 ## Features
 - Added [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/) as an optional specification on the Deployment resource.
