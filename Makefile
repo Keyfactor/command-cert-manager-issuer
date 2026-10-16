@@ -66,14 +66,33 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+test: ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./...
 
+# Legacy Bash e2e suite, subject to deprecation. See e2e/README.md.
 # Run e2e tests against the current kubeconfig context (set USE_MINIKUBE=true to use minikube instead)
 # Configure e2e/.env with Command instance credentials before running
 .PHONY: test-e2e
-test-e2e: ## Run e2e tests against a Kubernetes cluster
+test-e2e: ## Run the legacy Bash e2e tests against a Kubernetes cluster
 	cd e2e && source .env && ./run_tests.sh
+
+# Provision a cluster for the e2e suite (cert-manager, the issuer, and its Secrets). See e2e/README.md.
+# Example: make e2e-setup E2E_SETUP_ARGS="--env-file e2e.env --context kind-e2e"
+E2E_SETUP_ARGS ?=
+
+.PHONY: e2e-setup
+e2e-setup: ## Deploy cert-manager and the issuer to a Kubernetes cluster for e2e testing
+	cd e2e && go run ./cmd/setup setup $(E2E_SETUP_ARGS)
+
+# Run the Go e2e tests against a cluster already prepared by e2e-setup. Kept separate from `make test`.
+# Example: make e2e E2E_KUBE_CONTEXT=kind-e2e
+.PHONY: e2e
+e2e: ## Run the Go e2e tests (requires `make e2e-setup` first)
+	cd e2e && go test -tags e2e ./tests/... -v -count=1 -timeout 15m
+
+.PHONY: e2e-teardown
+e2e-teardown: ## Remove the issuer and Secrets created by e2e-setup
+	cd e2e && go run ./cmd/setup teardown $(E2E_SETUP_ARGS)
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter & yamllint
