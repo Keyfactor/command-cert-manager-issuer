@@ -1,4 +1,218 @@
-# End-to-End Test Suite
+# End-to-End Tests
+
+This directory holds two end-to-end suites for command-cert-manager-issuer:
+
+1. [**The Go e2e suite**](#go-e2e-suite) (current). Split into a setup tool that prepares a cluster and a Go test suite that runs against it.
+2. [**The legacy Bash suite**](#legacy-bash-e2e-suite-deprecated) (`run_tests.sh`), which will be deprecated once the Go suite reaches parity.
+
+---
+
+# Go e2e suite
+
+The suite has two independent parts:
+
+| Part | Responsibility | Where |
+|------|----------------|-------|
+| **Setup tool** | Prepares a cluster: cert-manager, the issuer deployment, and the Secrets the issuer needs. | `cmd/setup` |
+| **Test suite** | Runs the tests. It assumes the cluster is already prepared and does not deploy anything. | `tests` |
+
+Both parts live in their own Go module (`e2e/go.mod`), separate from the issuer's, so their dependencies never leak into the issuer build. They share the names and defaults in `internal/e2econfig` and the env file loader in `internal/envfile` (namespace, release name, Secret names), so the setup tool and the tests always agree on where things are.
+
+The setup tool never creates `Issuer` or `ClusterIssuer` resources. The test suite owns those.
+
+## Requirements
+
+**Local tools** (the setup tool shells out to these, so it works the same on macOS, Linux and Windows):
+- Go (see `go.mod`)
+- `kubectl`
+- `helm` (v3)
+- `docker` — only when deploying a local build of the issuer image
+- `minikube` or `kind` — only when deploying a local image to a cluster of that type
+
+**Kubernetes cluster:** any cluster you can reach with a kubeconfig context. You bring your own; the tool does not create one.
+
+**Command instance:** a Keyfactor Command instance configured as described in the [root README](../README.md#configuring-command), and an OAuth client that can enroll certificates.
+
+## What `setup` does
+
+Running `setup` performs these steps, in this order. Nothing is changed until you confirm the cluster in step 2.
+
+1. **Validates inputs.** Checks that the required credentials are set and that the tools it needs are on your `PATH`, and works out how a local image would reach the cluster. It fails here, before touching anything, if it can't.
+2. **Asks you to confirm the target.** Prints the kubeconfig context, the cluster's API server URL, and every input (credential values are never printed; secrets are shown only as `set` / `not set`). You must **type the context name** to continue. Without a terminal (for example in CI), it refuses unless you pass `--yes`.
+3. **Checks the cluster is reachable.**
+4. **Ensures cert-manager is installed.** If a `cert-manager` Helm release exists in the `cert-manager` namespace, or the cert-manager CRDs exist, it is left untouched. Otherwise it is installed from the Jetstack chart (`--cert-manager-version`).
+5. **Ensures the namespace exists** (`command-issuer-system` by default).
+6. **Creates the Secrets** in that namespace, applied idempotently, so re-running updates them:
+   - the **auth Secret** (`auth-secret`) with the OAuth credentials the issuer uses to talk to Command. Credentials are sent to `kubectl` over stdin and never appear in command lines or logs.
+   - the **CA trust Secret** (`ca-trust-secret`), only if there are certificate files in `e2e/certs` (or `--ca-certs-dir`). Put the CA certificates for your Command instance there if it uses a private CA. They are bundled into the `ca.crt` key.
+7. **Deploys the issuer** (see [Deployment modes](#deployment-modes)) with `helm upgrade --install`, so re-running is safe, then waits for the Deployment to roll out. The Deployment is named after the Helm release.
+
+Every `kubectl` and `helm` call is made with an explicit `--context`, so nothing depends on or changes your kubeconfig's current context.
+
+`setup` does **not**: create a cluster, create Issuer/ClusterIssuer resources, modify an existing cert-manager installation, or write anything outside the cluster (other than a local Docker image build when deploying a local build).
+
+## What `teardown` does
+
+After the same context confirmation, it uninstalls the Helm release and deletes the auth and CA trust Secrets. It leaves cert-manager and the namespace in place, since it can't know whether it was the one to install them.
+
+## Configuration
+
+### Command credentials (required for `setup`)
+
+These are read from environment variables only, never from flags, so they can't leak into shell history or process listings.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `E2E_OAUTH_TOKEN_URL` | yes | OAuth token endpoint URL |
+| `E2E_OAUTH_CLIENT_ID` | yes | OAuth client ID |
+| `E2E_OAUTH_CLIENT_SECRET` | yes | OAuth client secret |
+| `E2E_OAUTH_AUDIENCE` | no | OAuth audience |
+| `E2E_OAUTH_SCOPES` | no | OAuth scopes |
+
+Either export them yourself, or put them in a file. `e2e/e2e.env` is loaded automatically if it exists (use `--env-file` for another path). The same file configures the tests, so you only maintain one:
+
+```bash
+cp e2e.env.example e2e.env   # e2e.env is gitignored
+# edit e2e.env
+```
+
+The file takes `KEY=VALUE` lines (a leading `export ` is accepted). Variables already set in your shell are not overridden by the file.
+
+### Shared settings (optional)
+
+The test suite reads these too, so set them the same way for both.
+
+| Variable | Flag | Default |
+|----------|------|---------|
+| `E2E_NAMESPACE` | `--namespace` | `command-issuer-system` |
+| `E2E_RELEASE_NAME` | `--release-name` | `command-cert-manager-issuer` |
+| `E2E_AUTH_SECRET_NAME` | `--auth-secret-name` | `auth-secret` |
+| `E2E_CA_SECRET_NAME` | `--ca-secret-name` | `ca-trust-secret` |
+
+Flags take priority over environment variables, which take priority over defaults.
+
+> The Secrets are created in the issuer's own namespace because, with the chart's default settings (`secretConfig.useClusterRoleForSecretAccess: false`), that is the only place the issuer looks for them.
+
+### Flags
+
+Run `go run ./cmd/setup setup -h` for the full list. The most useful:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--context` | current context | kubeconfig context to deploy to |
+| `--yes` | `false` | Skip the confirmation. Required without a terminal. |
+| `--chart-version` | `local` | `local` for the chart in this repository, or a published chart version |
+| `--image-tag` | `local` | `local` to build the image from this repository, or a published tag |
+| `--image-repository` | `keyfactor/command-cert-manager-issuer` | Image repository |
+| `--push` | `false` | Push a local build to `--image-repository` instead of loading it into the cluster |
+| `--cert-manager-version` | `v1.17.0` | Version installed only if cert-manager is absent |
+| `--ca-certs-dir` | `e2e/certs` | Directory of CA certificates to trust |
+| `--env-file` | | File of `KEY=VALUE` lines to load |
+
+## Deployment modes
+
+| Mode | Flags | Behavior |
+|------|-------|----------|
+| **Local build** (default) | _(none)_ | Builds the image from this repository, gets it onto the cluster, and installs the local chart from `deploy/charts`. |
+| **Published release** | `--chart-version 2.5.0 --image-tag 2.5.0` | Installs a released chart and image from the public repositories. Pre-release versions (such as `2.6.0-rc1`) are supported. |
+| **Mixed** | e.g. `--chart-version local --image-tag 2.5.0` | The local chart with a published image, or the reverse. |
+
+### How a local image reaches the cluster
+
+The tool picks a method from the kubeconfig context name:
+
+| Context | Method |
+|---------|--------|
+| `minikube` | `minikube image load` |
+| `kind-<name>` | `kind load docker-image` |
+| `docker-desktop` | Uses the local Docker daemon directly |
+| anything else | Not supported automatically. The tool stops before changing anything and asks you to use `--push` or a published tag. |
+
+For other clusters, push to a registry the cluster can pull from. `--image-repository` must be set explicitly with `--push`, so a local build can't be pushed to the default public repository by accident:
+
+```bash
+go run ./cmd/setup setup --push --image-repository registry.example.com/me/command-cert-manager-issuer
+```
+
+A local build always restarts the Deployment, so you get your latest code even though the tag is still `local`.
+
+## Running the setup
+
+From the `e2e` directory:
+
+```bash
+# Local build to a kind or minikube cluster, confirming the context interactively
+go run ./cmd/setup --env-file e2e.env --context kind-e2e
+
+# A published release
+go run ./cmd/setup --env-file e2e.env --chart-version 2.5.0 --image-tag 2.5.0
+
+# Non-interactive (CI)
+go run ./cmd/setup --env-file e2e.env --context kind-e2e --yes
+
+# Remove what setup deployed
+go run ./cmd/setup teardown --context kind-e2e
+```
+
+Or from the repository root, with `make` (arguments go in `E2E_SETUP_ARGS`; `--env-file` paths are relative to `e2e/`):
+
+```bash
+make e2e-setup E2E_SETUP_ARGS="--env-file e2e.env --context kind-e2e"
+make e2e-teardown E2E_SETUP_ARGS="--context kind-e2e"
+```
+
+`setup` can be re-run at any time to update the Secrets or redeploy.
+
+## Running the tests
+
+The tests assume `setup` has already prepared the cluster. They never install or deploy anything.
+
+```bash
+make e2e                              # from the repository root
+make e2e E2E_KUBE_CONTEXT=kind-e2e    # against a specific context
+
+# or directly
+cd e2e && go test -tags e2e ./tests/... -v -count=1 -timeout 15m
+```
+
+The suite is kept apart from the unit tests in three ways: it is its own Go module, its files carry the `e2e` build tag, and `make test` does not run it. Use the same `--context` for `setup` and `E2E_KUBE_CONTEXT` for the tests so both target the same cluster. The tests print the context and API server they use before doing anything.
+
+### Test configuration
+
+The tests read `e2e.env` (or the file named by `E2E_ENV_FILE`) like setup does. In addition to the shared settings above, they need to know which Command instance the test Issuer should talk to. The credentials for it are in the auth Secret from setup, which the tests never read.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `E2E_COMMAND_HOSTNAME` | yes | | Command instance hostname |
+| `E2E_CERTIFICATE_TEMPLATE` | yes | | Certificate template short name |
+| `E2E_CERTIFICATE_AUTHORITY_LOGICAL_NAME` | yes | | CA logical name in Command |
+| `E2E_COMMAND_API_PATH` | no | `KeyfactorAPI` | API path |
+| `E2E_CERTIFICATE_AUTHORITY_HOSTNAME` | no | | CA hostname |
+| `E2E_ENROLLMENT_PATTERN_NAME` | no | | Enrollment pattern for the Issuer |
+| `E2E_OWNER_ROLE_NAME` | no | | Owner role for the Issuer |
+| `E2E_CERTIFICATE_COMMON_NAME` | no | `example.com` | Common name requested in the test Certificate |
+| `E2E_KUBE_CONTEXT` | no | current context | kubeconfig context to test against |
+| `E2E_KEEP_RESOURCES` | no | `false` | `true` leaves test namespaces in place for debugging |
+
+### Preflight
+
+Before any test runs, the suite checks that cert-manager and the Issuer CRDs are installed, that the issuer Deployment has an available replica, and that the auth Secret exists. If anything is missing it lists every problem and tells you to run `make e2e-setup`, rather than failing in the middle of a test. The CA trust Secret is optional; if setup created it, the test Issuer uses it.
+
+### Tests
+
+Each test creates its own `e2e-*` namespace and deletes it afterwards, so tests don't share state and a re-run starts clean.
+
+| Test | What it verifies |
+|------|------------------|
+| `TestCertificateRequestIsIssued` | Creates an Issuer and waits for it to be Ready. Creates a Certificate, waits for cert-manager to create the CertificateRequest, and approves it. Waits for the request to be issued and the Certificate to be Ready. Then checks that the Secret holds a certificate matching its private key, with the requested common name and a currently valid lifetime. |
+
+Approving a CertificateRequest needs permission to `approve` for the `issuers.command-issuer.keyfactor.com` signer, which cert-manager does not grant by default. A cluster-admin kubeconfig has it. If the approval is rejected, the failure message says so.
+
+---
+
+# Legacy Bash e2e suite (deprecated)
+
+> **This suite is subject to deprecation** once the Go suite covers the same cases. It is kept working in the meantime. It is separate from the Go suite and shares no configuration with it: it uses `.env` and the variables below, not `e2e.env` and the `E2E_*` variables above.
 
 This is a test suite intended to make it easy to run end-to-end tests on the command-cert-manager-issuer project. This suite can test the local changes of the Command issuer, and it is able to test existing Docker images.
 
