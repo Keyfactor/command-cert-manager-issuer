@@ -36,9 +36,6 @@ import (
 
 const (
 	issuerReadyConditionReason = "command-issuer.IssuerController.Reconcile"
-
-	providerAzure = "azure"
-	providerGCP   = "gcp"
 )
 
 var (
@@ -357,23 +354,16 @@ func validateServiceAccountRef(log logr.Logger, issuer commandissuer.IssuerLike)
 		return fmt.Errorf("%w: an Issuer may only reference a ServiceAccount in its own namespace", errInvalidServiceAccountRef)
 	}
 
-	switch ref.Provider {
-	case "", providerAzure, providerGCP:
-	default:
-		return fmt.Errorf("%w: unsupported provider %q", errInvalidServiceAccountRef, ref.Provider)
+	identityRef := &command.ServiceAccountRef{Provider: ref.Provider}
+	if ref.Azure != nil {
+		identityRef.Azure = &command.AzureIdentity{ClientID: ref.Azure.ClientID, TenantID: ref.Azure.TenantID}
 	}
-
-	if ref.Azure != nil && ref.GCP != nil {
-		return fmt.Errorf("%w: only one of azure or gcp may be set", errInvalidServiceAccountRef)
+	if ref.GCP != nil {
+		identityRef.GCP = &command.GCPIdentity{ServiceAccountEmail: ref.GCP.ServiceAccountEmail}
 	}
-	if ref.Azure != nil && ref.Provider != "" && ref.Provider != providerAzure {
-		return fmt.Errorf("%w: azure may only be set when provider is azure or unset", errInvalidServiceAccountRef)
+	if err := command.ValidateIdentityConfig(identityRef); err != nil {
+		return fmt.Errorf("%w: %w", errInvalidServiceAccountRef, err)
 	}
-	if ref.GCP != nil && ref.Provider != "" && ref.Provider != providerGCP {
-		return fmt.Errorf("%w: gcp may only be set when provider is gcp or unset", errInvalidServiceAccountRef)
-	}
-
-	log.Info("ServiceAccountRef validation passed", "name", ref.Name, "namespace", ref.Namespace)
 
 	return nil
 }
