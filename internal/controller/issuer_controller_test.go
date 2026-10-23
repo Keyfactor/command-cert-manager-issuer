@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	commandissuer "github.com/Keyfactor/command-cert-manager-issuer/api/v1alpha1"
 	"github.com/Keyfactor/command-cert-manager-issuer/internal/command"
+	"github.com/go-logr/logr"
 	logrtesting "github.com/go-logr/logr/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1622,4 +1623,248 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// These tests cover the tenant-isolation rules for spec.serviceAccountRef. Several of them (enum, one-of, name)
+// are also enforced by the CRD. However, we additionally exercise here with an invalid spec to prove
+// the controller still rejects the spec even if the CRD validation is outdated, disabled or bypassed.
+func TestValidateServiceAccountRef(t *testing.T) {
+	const (
+		issuerNS = "tenant-a"
+		otherNS  = "tenant-b" // Another namespace to ensure tenant isolation is enforced
+	)
+
+	azure := &commandissuer.AzureIdentity{ClientID: "client", TenantID: "tenant"}
+	gcp := &commandissuer.GCPIdentity{ServiceAccountEmail: "service-account@example.iam.gserviceaccount.com"}
+
+	type testCase struct {
+		name             string
+		clusterScoped    bool
+		spec             commandissuer.IssuerSpec
+		expectedErrorMsg string // empty means the reference must be accepted
+	}
+
+	tests := []testCase{
+		// no reference, legacy behavior untouched
+		{
+			name: "nil-ref-namespaced",
+			spec: commandissuer.IssuerSpec{Hostname: "h", SecretName: "auth-secret"},
+		},
+		{
+			name:          "nil-ref-cluster",
+			clusterScoped: true,
+			spec:          commandissuer.IssuerSpec{Hostname: "h"},
+		},
+
+		// --- namespace scoping (the core isolation guarantee) ---
+		{
+			name: "namespaced-ref-namespace-omitted",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa"}},
+		},
+		{
+			name: "namespaced-ref-namespace-equals-own",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: issuerNS}},
+		},
+		{
+			name:             "namespaced-ref-other-namespace-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: otherNS}},
+			expectedErrorMsg: "own namespace",
+		},
+		{
+			name:             "namespaced-ref-cluster-resource-namespace-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: "kube-system"}},
+			expectedErrorMsg: "own namespace",
+		},
+		{
+			// Namespace names are case-sensitive; a case variant is a different namespace.
+			name:             "namespaced-ref-case-variant-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: "Tenant-A"}},
+			expectedErrorMsg: "own namespace",
+		},
+		{
+			// No trimming or normalisation: a padded value must not match.
+			name:             "namespaced-ref-whitespace-padded-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: " tenant-a"}},
+			expectedErrorMsg: "own namespace",
+		},
+		{
+			name:          "cluster-ref-namespace-required",
+			clusterScoped: true,
+			spec:          commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa"}},
+
+			expectedErrorMsg: "namespace is required",
+		},
+		{
+			name:          "cluster-ref-explicit-namespace",
+			clusterScoped: true,
+			spec:          commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: otherNS}},
+		},
+
+		// --- ambiguous credential configuration ---
+		{
+			name:             "ref-with-secret-name-rejected",
+			spec:             commandissuer.IssuerSpec{SecretName: "auth-secret", ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa"}},
+			expectedErrorMsg: "mutually exclusive",
+		},
+		{
+			name:             "cluster-ref-with-secret-name-rejected",
+			clusterScoped:    true,
+			spec:             commandissuer.IssuerSpec{SecretName: "auth-secret", ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: issuerNS}},
+			expectedErrorMsg: "mutually exclusive",
+		},
+
+		// --- fallbacks for CRD validation that is missing or disabled ---
+		{
+			name:             "empty-name-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{}},
+			expectedErrorMsg: "name is required",
+		},
+		{
+			name:             "unknown-provider-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "aws"}},
+			expectedErrorMsg: "unsupported provider",
+		},
+		{
+			name:             "provider-case-variant-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "Azure"}},
+			expectedErrorMsg: "unsupported provider",
+		},
+		{
+			name:             "provider-azure-with-gcp-block-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "azure", GCP: gcp}},
+			expectedErrorMsg: "gcp may only be set",
+		},
+		{
+			name:             "provider-gcp-with-azure-block-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "gcp", Azure: azure}},
+			expectedErrorMsg: "azure may only be set",
+		},
+		{
+			name:             "no-provider-both-blocks-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Azure: azure, GCP: gcp}},
+			expectedErrorMsg: "only one of azure or gcp",
+		},
+		{
+			name:             "provider-azure-both-blocks-rejected",
+			spec:             commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "azure", Azure: azure, GCP: gcp}},
+			expectedErrorMsg: "only one of azure or gcp",
+		},
+
+		// --- valid combinations stay valid ---
+		{
+			name: "provider-azure-with-azure-block",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "azure", Azure: azure}},
+		},
+		{
+			name: "provider-gcp-with-gcp-block",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "gcp", GCP: gcp}},
+		},
+		{
+			name: "no-provider-azure-block-only",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Azure: azure}},
+		},
+		{
+			name: "no-provider-gcp-block-only",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", GCP: gcp}},
+		},
+		{
+			name: "provider-only-no-blocks",
+			spec: commandissuer.IssuerSpec{ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Provider: "gcp"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var issuer commandissuer.IssuerLike
+			if tc.clusterScoped {
+				issuer = &commandissuer.ClusterIssuer{ObjectMeta: metav1.ObjectMeta{Name: "test"}, Spec: tc.spec}
+			} else {
+				issuer = &commandissuer.Issuer{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: issuerNS}, Spec: tc.spec}
+			}
+
+			err := validateServiceAccountRef(logr.Discard(), issuer)
+
+			if tc.expectedErrorMsg == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.ErrorIs(t, err, errInvalidServiceAccountRef)
+			assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+		})
+	}
+
+}
+
+// The namespace of a namespaced Issuer must come from the Issuer, not from the secret
+// namespace. When the controller is not granted cluster-level secret access, the secret
+// namespace is the cluster resource namespace for every Issuer, so comparing against it
+// would let a tenant reference a ServiceAccount in that shared namespace.
+func TestCommandConfigFromIssuerServiceAccountRefNamespace(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, commandissuer.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	tests := []struct {
+		name             string
+		refNamespace     string
+		expectedErrorMsg string
+	}{
+		{name: "own-namespace-accepted", refNamespace: "tenant-a"},
+		{name: "omitted-accepted", refNamespace: ""},
+		{name: "secret-namespace-rejected", refNamespace: "kube-system", expectedErrorMsg: "own namespace"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			issuer := &commandissuer.Issuer{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "tenant-a"},
+				Spec: commandissuer.IssuerSpec{
+					Hostname:          "https://ca.example.com",
+					ServiceAccountRef: &commandissuer.ServiceAccountReference{Name: "sa", Namespace: tc.refNamespace},
+				},
+			}
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+			// secretNamespace differs from the Issuer's namespace, as with SecretAccessGrantedAtClusterLevel=false.
+			config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "kube-system")
+
+			if tc.expectedErrorMsg == "" {
+				require.NoError(t, err)
+				require.NotNil(t, config)
+				return
+			}
+			require.Error(t, err)
+			assert.ErrorIs(t, err, errInvalidServiceAccountRef)
+			assert.Contains(t, err.Error(), tc.expectedErrorMsg)
+			assert.Nil(t, config)
+		})
+	}
+}
+
+// A rejected reference must fail before any Secret or ConfigMap lookups. Pointing the spec at
+// resources that do not exist proves the validation error wins over a lookup error.
+func TestCommandConfigFromIssuerServiceAccountRefValidatedBeforeLookups(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, commandissuer.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	issuer := &commandissuer.Issuer{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "tenant-a"},
+		Spec: commandissuer.IssuerSpec{
+			Hostname:              "https://ca.example.com",
+			SecretName:            "missing-secret",
+			CaBundleConfigMapName: "missing-configmap",
+			ServiceAccountRef:     &commandissuer.ServiceAccountReference{Name: "sa"},
+		},
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "tenant-a")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidServiceAccountRef)
+	assert.NotErrorIs(t, err, errGetAuthSecret)
+	assert.NotErrorIs(t, err, errGetCaConfigMap)
+	assert.Nil(t, config)
 }

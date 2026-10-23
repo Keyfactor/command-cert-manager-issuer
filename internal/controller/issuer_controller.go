@@ -36,6 +36,9 @@ import (
 
 const (
 	issuerReadyConditionReason = "command-issuer.IssuerController.Reconcile"
+
+	providerAzure = "azure"
+	providerGCP   = "gcp"
 )
 
 var (
@@ -45,6 +48,8 @@ var (
 	errGetCaBundleKey       = errors.New("failed to get CA bundle key from CA certificate data")
 	errHealthCheckerBuilder = errors.New("failed to build the healthchecker")
 	errHealthCheckerCheck   = errors.New("healthcheck failed")
+
+	errInvalidServiceAccountRef = errors.New("invalid serviceAccountRef")
 )
 
 // IssuerReconciler reconciles a Issuer object
@@ -190,6 +195,11 @@ func (r *IssuerReconciler) getHealthCheckInterval(log logr.Logger, issuer comman
 func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer commandissuer.IssuerLike, secretNamespace string) (*command.Config, error) {
 	log := ctrl.LoggerFrom(ctx)
 
+	// Validate before any API reads so a rejected reference never triggers lookups.
+	if err := validateServiceAccountRef(log, issuer); err != nil {
+		return nil, err
+	}
+
 	var basicAuth *command.BasicAuth
 	var oauth *command.OAuth
 
@@ -312,6 +322,60 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 		AmbientCredentialScopes:   strings.Split(issuer.GetSpec().Scopes, ","),
 		AmbientCredentialAudience: issuer.GetSpec().Audience,
 	}, nil
+}
+
+// validateServiceAccountRef enforces the tenant-isolation rules for spec.serviceAccountRef.
+// The CRD already rejects some of these at admission (enum, CEL, minLength), but they are
+// re-checked here in case the CRD is outdated or validation is not enforced.
+//
+// The namespace of a namespaced Issuer is read from the Issuer itself, never from the
+// secret namespace, which can be the cluster resource namespace depending on controller flags.
+func validateServiceAccountRef(log logr.Logger, issuer commandissuer.IssuerLike) error {
+	spec := issuer.GetSpec()
+	ref := spec.ServiceAccountRef
+	if ref == nil {
+		// If no ServiceAccountRef is specified, there is nothing to validate.
+		log.Info("No ServiceAccountRef specified, skipping validation")
+		return nil
+	}
+
+	log.Info("Validating ServiceAccountRef", "name", ref.Name, "namespace", ref.Namespace)
+
+	if ref.Name == "" {
+		return fmt.Errorf("%w: name is required", errInvalidServiceAccountRef)
+	}
+
+	if spec.SecretName != "" {
+		return fmt.Errorf("%w: serviceAccountRef and commandSecretName are mutually exclusive", errInvalidServiceAccountRef)
+	}
+
+	if issuer.IsClusterScoped() {
+		if ref.Namespace == "" {
+			return fmt.Errorf("%w: namespace is required for a ClusterIssuer", errInvalidServiceAccountRef)
+		}
+	} else if ref.Namespace != "" && ref.Namespace != issuer.GetNamespace() {
+		return fmt.Errorf("%w: an Issuer may only reference a ServiceAccount in its own namespace", errInvalidServiceAccountRef)
+	}
+
+	switch ref.Provider {
+	case "", providerAzure, providerGCP:
+	default:
+		return fmt.Errorf("%w: unsupported provider %q", errInvalidServiceAccountRef, ref.Provider)
+	}
+
+	if ref.Azure != nil && ref.GCP != nil {
+		return fmt.Errorf("%w: only one of azure or gcp may be set", errInvalidServiceAccountRef)
+	}
+	if ref.Azure != nil && ref.Provider != "" && ref.Provider != providerAzure {
+		return fmt.Errorf("%w: azure may only be set when provider is azure or unset", errInvalidServiceAccountRef)
+	}
+	if ref.GCP != nil && ref.Provider != "" && ref.Provider != providerGCP {
+		return fmt.Errorf("%w: gcp may only be set when provider is gcp or unset", errInvalidServiceAccountRef)
+	}
+
+	log.Info("ServiceAccountRef validation passed", "name", ref.Name, "namespace", ref.Namespace)
+
+	return nil
 }
 
 // SetupWithManager registers the IssuerReconciler with the controller manager.
