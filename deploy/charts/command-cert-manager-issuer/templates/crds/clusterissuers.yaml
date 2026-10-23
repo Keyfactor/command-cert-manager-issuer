@@ -142,6 +142,7 @@ spec:
                   with the given name in the configured 'cluster resource namespace', which
                   is set as a flag on the controller component (and defaults to the
                   namespace that the controller runs in).
+                  If this is set, serviceAccountRef must not be set.
                 type: string
               hostname:
                 description: Hostname is the hostname of a Keyfactor Command instance.
@@ -161,6 +162,72 @@ spec:
                   the URL of your Command environment. Has no effect on OAuth 2.0 Client Credential configuration - please specify 
                   the audience for this method in an Opaque secret.
                 type: string
+              serviceAccountRef:
+                description: |-
+                  ServiceAccountRef, if set, causes ambient credential resolution to use
+                  the Workload Identity bound to the referenced Kubernetes ServiceAccount instead
+                  of the operator's own ServiceAccount. If this is set, commandSecretName must not be set.
+                properties:
+                  azure:
+                    description: |-
+                      Azure holds explicit Azure identity values that override the
+                      ServiceAccount's annotations. Only valid when the provider is Azure.
+                    properties:
+                      clientId:
+                        description: |-
+                          ClientID is the client (application) ID of the Entra ID identity to
+                          authenticate as. Overrides the azure.workload.identity/client-id annotation.
+                        type: string
+                      tenantId:
+                        description: |-
+                          TenantID is the Entra ID tenant, as a GUID or domain name. Overrides the
+                          azure.workload.identity/tenant-id annotation; falls back to the
+                          controller-level default flag if unset here and not annotated on the
+                          ServiceAccount.
+                        type: string
+                    type: object
+                  gcp:
+                    description: |-
+                      GCP holds explicit GCP identity values that override the ServiceAccount's
+                      annotations. Only valid when the provider is GCP.
+                    properties:
+                      serviceAccountEmail:
+                        description: |-
+                          ServiceAccountEmail is the GCP service account to impersonate. Overrides
+                          the iam.gke.io/gcp-service-account annotation.
+                          Exact field set to be finalized with the GCP WIF validation.
+                        type: string
+                    type: object
+                  name:
+                    description: Name is the name of the Kubernetes ServiceAccount.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace is required for ClusterIssuer (cluster-scoped, no implicit namespace).
+                      For a namespaced Issuer it must be omitted or equal to the Issuer's own
+                      namespace.
+                    type: string
+                  provider:
+                    description: |-
+                      Provider explicitly selects the cloud provider, overriding annotation inference
+                      on the ServiceAccount. Optional.
+                    enum:
+                    - azure
+                    - gcp
+                    type: string
+                required:
+                - name
+                type: object
+                x-kubernetes-validations:
+                - message: only one of azure or gcp may be set
+                  rule: '!(has(self.azure) && has(self.gcp))'
+                - message: azure may only be set when provider is azure or unset
+                  rule: '!has(self.azure) || !has(self.provider) || self.provider
+                    == ''azure'''
+                - message: gcp may only be set when provider is gcp or unset
+                  rule: '!has(self.gcp) || !has(self.provider) || self.provider ==
+                    ''gcp'''
             type: object
           status:
             description: IssuerStatus defines the observed state of Issuer

@@ -104,6 +104,7 @@ type IssuerSpec struct {
 	// with the given name in the configured 'cluster resource namespace', which
 	// is set as a flag on the controller component (and defaults to the
 	// namespace that the controller runs in).
+	// If this is set, serviceAccountRef must not be set.
 	// +optional
 	SecretName string `json:"commandSecretName,omitempty"`
 
@@ -141,6 +142,12 @@ type IssuerSpec struct {
 	// the audience for this method in an Opaque secret.
 	// +optional
 	Audience string `json:"audience,omitempty"`
+
+	// ServiceAccountRef, if set, causes ambient credential resolution to use
+	// the Workload Identity bound to the referenced Kubernetes ServiceAccount instead
+	// of the operator's own ServiceAccount. If this is set, commandSecretName must not be set.
+	// +optional
+	ServiceAccountRef *ServiceAccountReference `json:"serviceAccountRef,omitempty"`
 }
 
 func (i *Issuer) GetStatus() *IssuerStatus {
@@ -307,6 +314,61 @@ type HealthCheckConfig struct {
 	// The interval at which to health check the issuer when healthy. Defaults to 10 minutes. Must not be less than "30s".
 	// +kubebuilder:validation:Optional
 	Interval *metav1.Duration `json:"interval,omitempty"`
+}
+
+// ServiceAccountReference identifies the Kubernetes ServiceAccount whose bound
+// cloud identity is used for ambient credential resolution.
+// +kubebuilder:validation:XValidation:rule="!(has(self.azure) && has(self.gcp))",message="only one of azure or gcp may be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.azure) || !has(self.provider) || self.provider == 'azure'",message="azure may only be set when provider is azure or unset"
+// +kubebuilder:validation:XValidation:rule="!has(self.gcp) || !has(self.provider) || self.provider == 'gcp'",message="gcp may only be set when provider is gcp or unset"
+type ServiceAccountReference struct {
+	// Name is the name of the Kubernetes ServiceAccount.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Namespace is required for ClusterIssuer (cluster-scoped, no implicit namespace).
+	// For a namespaced Issuer it must be omitted or equal to the Issuer's own
+	// namespace.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// Provider explicitly selects the cloud provider, overriding annotation inference
+	// on the ServiceAccount. Optional.
+	// +kubebuilder:validation:Enum=azure;gcp
+	// +optional
+	Provider string `json:"provider,omitempty"`
+
+	// Azure holds explicit Azure identity values that override the
+	// ServiceAccount's annotations. Only valid when the provider is Azure.
+	// +optional
+	Azure *AzureIdentity `json:"azure,omitempty"`
+
+	// GCP holds explicit GCP identity values that override the ServiceAccount's
+	// annotations. Only valid when the provider is GCP.
+	// +optional
+	GCP *GCPIdentity `json:"gcp,omitempty"`
+}
+
+type AzureIdentity struct {
+	// ClientID is the client (application) ID of the Entra ID identity to
+	// authenticate as. Overrides the azure.workload.identity/client-id annotation.
+	// +optional
+	ClientID string `json:"clientId,omitempty"`
+
+	// TenantID is the Entra ID tenant, as a GUID or domain name. Overrides the
+	// azure.workload.identity/tenant-id annotation; falls back to the
+	// controller-level default flag if unset here and not annotated on the
+	// ServiceAccount.
+	// +optional
+	TenantID string `json:"tenantId,omitempty"`
+}
+
+type GCPIdentity struct {
+	// ServiceAccountEmail is the GCP service account to impersonate. Overrides
+	// the iam.gke.io/gcp-service-account annotation.
+	// Exact field set to be finalized with the GCP WIF validation.
+	// +optional
+	ServiceAccountEmail string `json:"serviceAccountEmail,omitempty"`
 }
 
 func init() {
