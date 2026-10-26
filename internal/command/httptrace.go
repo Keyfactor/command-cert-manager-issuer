@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 Keyfactor
+Copyright © 2025 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package command
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -88,9 +89,11 @@ func (t *tracingAuthConfig) Authenticate() error {
 	if err != nil {
 		return err
 	}
-	if t.server.ClientTimeout > 0 {
-		hc.Timeout = time.Duration(t.server.ClientTimeout) * time.Second
+	timeout := t.inner.GetServerConfig().ClientTimeout
+	if timeout <= 0 {
+		timeout = auth_providers.DefaultClientTimeout
 	}
+	hc.Timeout = time.Duration(timeout) * time.Second
 
 	endpoint := fmt.Sprintf("%s://%s/%s/Status/Endpoints", auth_providers.DefaultHttpProtocol, t.server.Host, t.server.APIPath)
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
@@ -115,7 +118,10 @@ func (t *tracingAuthConfig) Authenticate() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to authenticate, received status code %d from Keyfactor Command: %s", resp.StatusCode, string(body))
 	}
-	return nil
+	// Upstream also requires the body to be a JSON string array; keep that so an
+	// HTML login/error page served with 200 still fails the check.
+	var endpoints []string
+	return json.Unmarshal(body, &endpoints)
 }
 
 // traceTransport attaches an httptrace.ClientTrace to each request and logs a
@@ -157,7 +163,7 @@ type traceRecord struct {
 	dnsStart, dnsDone                     time.Time
 	connectStart, connectDone             time.Time
 	connectAddr                           string
-	connectErr                            error
+	connectErrs                           []string // one per failed dial attempt (dials can race)
 	tlsStart, tlsDone                     time.Time
 	tlsErr                                error
 	wroteHeaders, wroteRequest, firstByte time.Time
@@ -186,7 +192,13 @@ func (r *traceRecord) clientTrace() *httptrace.ClientTrace {
 		},
 		ConnectDone: func(_, _ string, err error) {
 			r.mu.Lock()
-			r.connectDone, r.connectErr = now(), err
+			// Dial attempts can run in parallel (Happy Eyeballs); a losing attempt may
+			// fail after another succeeded, so only a success marks the connect done.
+			if err != nil {
+				r.connectErrs = append(r.connectErrs, err.Error())
+			} else {
+				r.connectDone = now()
+			}
 			r.mu.Unlock()
 		},
 		TLSHandshakeStart: func() { r.mu.Lock(); r.tlsStart = now(); r.mu.Unlock() },
@@ -215,17 +227,19 @@ func (r *traceRecord) span(from, to time.Time) string {
 // stage reports the last stage the request reached, which for a failed
 // request identifies the phase in which the peer (or a middlebox) dropped it.
 func (r *traceRecord) stage() string {
+	// Later successful stages take precedence over errors from other attempts
+	// (a losing dial, or a first connection that net/http retried past).
 	switch {
-	case r.connectErr != nil:
-		return "tcp-connect-failed"
-	case r.tlsErr != nil:
-		return "tls-handshake-failed"
 	case !r.firstByte.IsZero():
 		return "response-received"
 	case !r.wroteRequest.IsZero():
 		return "request-written-awaiting-response"
 	case len(r.conns) > 0:
 		return "got-conn-writing-request"
+	case len(r.connectErrs) > 0 && r.connectDone.IsZero():
+		return "tcp-connect-failed"
+	case r.tlsErr != nil:
+		return "tls-handshake-failed"
 	case !r.tlsStart.IsZero() && r.tlsDone.IsZero():
 		return "tls-handshake"
 	case !r.tlsDone.IsZero():
@@ -270,8 +284,8 @@ func (r *traceRecord) fields(req *http.Request, proxy string, resp *http.Respons
 			p+"atOffset", c.at.Round(time.Millisecond).String(),
 		)
 	}
-	if r.connectErr != nil {
-		f = append(f, "connectErr", r.connectErr.Error())
+	if len(r.connectErrs) > 0 {
+		f = append(f, "connectErrs", strings.Join(r.connectErrs, "; "))
 	}
 	if r.tlsErr != nil {
 		f = append(f, "tlsErr", r.tlsErr.Error())
