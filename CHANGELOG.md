@@ -1,3 +1,9 @@
+# v2.6.3
+## Security
+- Updated dependencies to address various security vulnerabilities:
+    - github.com/klauspost/compress v1.17.9 -> v1.18.7
+    - go.opentelemetry.io/otel v1.39.0 -> v1.44.0
+    - google.golang.org/grpc v1.79.3 -> 1.83.1
 # v2.6.2
 ## Fixes
 - Fixes an issue where ambient credentials expired with no automatic refresh, causing authentication failures.
