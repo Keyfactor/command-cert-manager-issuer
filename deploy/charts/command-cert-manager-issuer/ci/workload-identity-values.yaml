@@ -1,0 +1,6 @@
+# Workload identity configuration — exercises the namespace-scoped Role/RoleBinding path
+# for serviceAccountRef across more than one namespace.
+workloadIdentity:
+  namespaces:
+    - tenant-a
+    - tenant-b

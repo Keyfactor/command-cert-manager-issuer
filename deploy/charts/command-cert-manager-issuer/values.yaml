@@ -32,6 +32,25 @@ secretConfig:
   # namespace the chart is deployed in.
   useClusterRoleForConfigMapAccess: false
 
+workloadIdentity:
+  # Namespaces whose ServiceAccounts may be referenced by Issuer/ClusterIssuer resources through
+  # `serviceAccountRef`. For each namespace listed, the controller's ServiceAccount is granted [get] on the
+  # serviceaccounts API (to read provider annotations) and [create] on the serviceaccounts/token API (to request
+  # a short-lived token for the referenced ServiceAccount) with a Role and RoleBinding in that namespace only.
+  #
+  # Granting [create] on serviceaccounts/token allows the controller to authenticate as any ServiceAccount in the
+  # namespaces it is granted for, so list only the namespaces that use this feature and keep the ServiceAccounts
+  # in them minimally privileged.
+  #
+  # Empty by default: nothing is granted, and `serviceAccountRef` cannot be used.
+  namespaces: []
+
+  # If true, the permissions above are granted with a ClusterRole and ClusterRoleBinding instead, so a
+  # `serviceAccountRef` may reference a ServiceAccount in any namespace. This allows the controller to authenticate
+  # as ANY ServiceAccount in the cluster, which undermines tenant isolation. Not recommended on shared clusters.
+  # When true, `namespaces` is ignored.
+  useClusterRoleForServiceAccountAccess: false
+
 crd:
   # Specifies whether CRDs will be created
   create: true

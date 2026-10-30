@@ -87,9 +87,10 @@ func getValueOrDefault(configValue string, defaultValue string) string {
 }
 
 type azureTokenSource struct {
-	ctx    context.Context
-	cred   azcore.TokenCredential
-	scopes []string
+	ctx      context.Context
+	cred     azcore.TokenCredential
+	credName string // used in logs and errors, e.g. DefaultAzureCredential
+	scopes   []string
 
 	mu          sync.Mutex
 	last        string // last issued token, used to detect rotation
@@ -109,7 +110,7 @@ func (a *azureTokenSource) Token() (*oauth2.Token, error) {
 		Scopes: a.scopes,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to fetch token from Azure Default Credential: %w", errTokenFetchFailure, err)
+		return nil, fmt.Errorf("%w: failed to fetch token from Azure %s: %w", errTokenFetchFailure, a.credName, err)
 	}
 
 	// Only log when the underlying token has actually rotated - azidentity
@@ -126,9 +127,9 @@ func (a *azureTokenSource) Token() (*oauth2.Token, error) {
 	// underlying identity, not the individual token, so they don't change
 	// across rotations - only print them once per source instantiation.
 	if !a.claimsShown {
-		l.Info("==== BEGIN DEBUG: DefaultAzureCredential JWT ======")
+		l.Info(fmt.Sprintf("==== BEGIN DEBUG: %s JWT ======", a.credName))
 		printClaims(l, tok.Token, []string{"aud", "appid", "azp", "iss", "sub", "oid"})
-		l.Info("==== END DEBUG: DefaultAzureCredential JWT ======")
+		l.Info(fmt.Sprintf("==== END DEBUG: %s JWT ======", a.credName))
 		a.claimsShown = true
 	}
 	a.mu.Unlock()
@@ -149,15 +150,60 @@ func newAzureTokenSource(ctx context.Context, scopes []string) (oauth2.TokenSour
 		return nil, fmt.Errorf("%w: failed to set up Azure Default Credential: %w", errTokenFetchFailure, err)
 	}
 
+	return newAzureTokenSourceFromCredential(ctx, cred, "DefaultAzureCredential", scopes)
+}
+
+// newAzureWorkloadIdentityTokenSource authenticates as the Azure identity federated with the
+// referenced ServiceAccount. It never consults the operator pod's own identity: the only
+// credential material is a short-lived token minted for the referenced ServiceAccount, requested
+// anew each time the Azure SDK needs an assertion.
+func newAzureWorkloadIdentityTokenSource(ctx context.Context, ref *ServiceAccountRef, identity *AzureIdentity, requester TokenRequester, scopes []string) (oauth2.TokenSource, error) {
+	if ref == nil || identity == nil || requester == nil {
+		return nil, fmt.Errorf("%w: serviceAccountRef, azure identity and token requester are required - this is a bug", errInvalidConfig)
+	}
+
+	log := log.FromContext(ctx)
+	log.Info("creating new Azure Workload Identity Token Source", "serviceAccount", ref.Namespace+"/"+ref.Name, "clientId", identity.ClientID)
+
+	// The SDK validates the tenant ID before it is used to build any URL.
+	cred, err := newAzureAssertionCredential(identity.TenantID, identity.ClientID, serviceAccountAssertion(requester, ref.Namespace, ref.Name))
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to set up Azure Workload Identity credential: %w", errTokenFetchFailure, err)
+	}
+
+	return newAzureTokenSourceFromCredential(ctx, cred, "WorkloadIdentityCredential", scopes)
+}
+
+// newAzureAssertionCredential is a variable so tests can observe how the credential is wired
+// without contacting Entra ID.
+var newAzureAssertionCredential = func(tenantID, clientID string, getAssertion func(context.Context) (string, error)) (azcore.TokenCredential, error) {
+	return azidentity.NewClientAssertionCredential(tenantID, clientID, getAssertion, nil)
+}
+
+// serviceAccountAssertion returns the callback the Azure SDK invokes whenever it needs a client
+// assertion. Each call mints a new short-lived token for the ServiceAccount, scoped to the Azure
+// token exchange audience only; the token is handed to the SDK and never stored or logged here.
+func serviceAccountAssertion(requester TokenRequester, namespace, name string) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		token, err := requester.RequestToken(ctx, namespace, name, []string{AzureTokenExchangeAudience}, serviceAccountTokenTTL)
+		if err != nil {
+			return "", fmt.Errorf("%w: failed to get a token for ServiceAccount %s/%s: %w", errTokenFetchFailure, namespace, name, err)
+		}
+		return token, nil
+	}
+}
+
+func newAzureTokenSourceFromCredential(ctx context.Context, cred azcore.TokenCredential, credName string, scopes []string) (oauth2.TokenSource, error) {
 	// ctx is captured here and reused for every future Token() call for the
 	// lifetime of this source, since the resulting client is cached
 	// indefinitely by ClientCache.
 	ctx = context.WithoutCancel(ctx)
 
 	src := &azureTokenSource{
-		ctx:    ctx,
-		cred:   cred,
-		scopes: scopes,
+		ctx:      ctx,
+		cred:     cred,
+		credName: credName,
+		scopes:   scopes,
 	}
 
 	// Fail fast if the credentials/scopes are wrong

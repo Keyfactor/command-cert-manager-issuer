@@ -64,6 +64,11 @@ type IssuerReconciler struct {
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/status;clusterissuers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers/finalizers,verbs=update
 
+// NOTE: serviceaccounts (get) and serviceaccounts/token (create), used by spec.serviceAccountRef, are deliberately
+// not declared as kubebuilder RBAC markers. Markers generate a ClusterRole, and a cluster-wide serviceaccounts/token
+// grant lets the controller authenticate as any ServiceAccount in the cluster. They are granted per namespace
+// instead: see config/rbac/examples and the workloadIdentity values in the Helm chart.
+
 // newIssuer returns a new Issuer or ClusterIssuer object
 func (r *IssuerReconciler) newIssuer() (commandissuer.IssuerLike, error) {
 	issuerGVK := commandissuer.GroupVersion.WithKind(r.Kind)

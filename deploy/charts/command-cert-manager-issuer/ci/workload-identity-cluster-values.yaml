@@ -1,0 +1,4 @@
+# Workload identity configuration — exercises the ClusterRole/ClusterRoleBinding path
+# for serviceAccountRef.
+workloadIdentity:
+  useClusterRoleForServiceAccountAccess: true
