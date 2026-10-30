@@ -199,7 +199,9 @@ func (g *gcpTokenSource) Token() (*oauth2.Token, error) {
 		}
 
 		aud := getValueOrDefault(g.audience, "command")
-		ts, err := idtoken.NewTokenSource(g.ctx, aud, idtoken.WithCredentialsJSON(creds.JSON))
+
+		// TODO: migrate off idtoken.WithCredentialsJSON (deprecated upstream).
+		ts, err := idtoken.NewTokenSource(g.ctx, aud, idtoken.WithCredentialsJSON(creds.JSON)) //nolint:staticcheck // SA1019: deprecated, migration tracked separately
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to get GCP ID Token Source: %w", errTokenFetchFailure, err)
 		}
