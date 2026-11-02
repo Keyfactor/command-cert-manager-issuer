@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Keyfactor
+Copyright © 2026 Keyfactor
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import (
 	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
 	"github.com/go-logr/logr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -278,6 +279,13 @@ func newInternalSigner(ctx context.Context, config *Config, newClientFunc newCom
 	client, err := newClientFunc(serverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Command API client: %w", err)
+	}
+
+	if httpTraceEnabled() && client != nil && client.V1 != nil {
+		// Use the global logger: the client is cached for the process lifetime, so a
+		// logger derived from this reconcile's ctx would carry a stale reconcileID.
+		log.Info("HTTP tracing enabled; each request to Command will emit an 'http trace' log line", "env", EnvHTTPTrace)
+		client.V1.AuthClient = enableHTTPTrace(client.V1.AuthClient, serverConfig, ctrl.Log)
 	}
 
 	adapter := &clientAdapter{
