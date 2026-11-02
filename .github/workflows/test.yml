@@ -15,7 +15,7 @@ jobs:
       # Checkout code
       # https://github.com/actions/checkout
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Setup GoLang build environment
       # https://github.com/actions/setup-go
@@ -42,7 +42,7 @@ jobs:
       # Checkout code
       # https://github.com/actions/checkout
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Setup GoLang build environment
       # https://github.com/actions/setup-go
@@ -79,7 +79,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v5
