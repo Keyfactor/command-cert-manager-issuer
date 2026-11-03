@@ -5,12 +5,22 @@ on:
   pull_request:
     types: [opened, closed, synchronize, edited, reopened]
   push:
+    # Dependabot branches are already covered by the pull_request event.
+    branches-ignore:
+      - 'dependabot/**'
   create:
     branches:
       - 'release-*.*'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   call-starter-workflow:
+    # Dependabot PRs are reviewed manually and don't receive repository secrets.
+    # Build, test and lint still run on them via test.yml.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     uses: keyfactor/actions/.github/workflows/starter.yml@3.2.0
     secrets:
       token: ${{ secrets.V2BUILDTOKEN}}
