@@ -429,7 +429,7 @@ func TestResolveServiceAccountIdentity(t *testing.T) {
 				if tc.expectedErrSubstr != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrSubstr)
 				}
-				if tc.getterErr != nil && tc.expectedErr == errServiceAccountLookup {
+				if tc.getterErr != nil && errors.Is(tc.expectedErr, errServiceAccountLookup) {
 					assert.ErrorIs(t, err, tc.getterErr, "the underlying lookup error must stay reachable")
 				}
 				assert.Nil(t, identity, "a failed resolution must not return an identity")

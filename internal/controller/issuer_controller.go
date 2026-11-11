@@ -58,6 +58,10 @@ type IssuerReconciler struct {
 	Scheme                            *runtime.Scheme
 	HealthCheckerBuilder              command.HealthCheckerBuilder
 	DefaultHealthCheckInterval        time.Duration
+
+	// DefaultAzureTenantID is used for a serviceAccountRef when neither the Issuer nor the
+	// ServiceAccount's annotations set an Azure tenant ID.
+	DefaultAzureTenantID string
 }
 
 //+kubebuilder:rbac:groups=command-issuer.keyfactor.com,resources=issuers;clusterissuers,verbs=get;list;watch
@@ -133,7 +137,7 @@ func (r *IssuerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		secretNamespace = r.ClusterResourceNamespace
 	}
 
-	config, err := commandConfigFromIssuer(ctx, r.Client, issuer, secretNamespace)
+	config, err := commandConfigFromIssuer(ctx, r.Client, issuer, secretNamespace, r.DefaultAzureTenantID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -194,7 +198,7 @@ func (r *IssuerReconciler) getHealthCheckInterval(log logr.Logger, issuer comman
 	return healthCheckInterval.Duration, nil
 }
 
-func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer commandissuer.IssuerLike, secretNamespace string) (*command.Config, error) {
+func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer commandissuer.IssuerLike, secretNamespace string, defaultAzureTenantID string) (*command.Config, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	// Validate before any API reads so a rejected reference never triggers lookups.
@@ -315,7 +319,7 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 		}
 	}
 
-	return &command.Config{
+	config := &command.Config{
 		Hostname:                  issuer.GetSpec().Hostname,
 		APIPath:                   issuer.GetSpec().APIPath,
 		CaCertsBytes:              caCertBytes,
@@ -323,7 +327,42 @@ func commandConfigFromIssuer(ctx context.Context, c client.Client, issuer comman
 		OAuth:                     oauth,
 		AmbientCredentialScopes:   strings.Split(issuer.GetSpec().Scopes, ","),
 		AmbientCredentialAudience: issuer.GetSpec().Audience,
-	}, nil
+	}
+
+	if ref := serviceAccountRefFromIssuer(issuer); ref != nil {
+		config.ServiceAccountRef = ref
+		config.WorkloadIdentity = &command.WorkloadIdentityDeps{
+			Requester:            command.NewTokenRequester(c),
+			Getter:               command.NewServiceAccountAnnotationGetter(c),
+			DefaultAzureTenantID: defaultAzureTenantID,
+		}
+	}
+
+	return config, nil
+}
+
+// serviceAccountRefFromIssuer converts spec.serviceAccountRef to the type used by the command
+// package, or returns nil if none is set. A namespaced Issuer that omitted the namespace gets its
+// own, so the command package never sees an unresolved namespace.
+func serviceAccountRefFromIssuer(issuer commandissuer.IssuerLike) *command.ServiceAccountRef {
+	ref := issuer.GetSpec().ServiceAccountRef
+	if ref == nil {
+		return nil
+	}
+
+	namespace := ref.Namespace
+	if namespace == "" && !issuer.IsClusterScoped() {
+		namespace = issuer.GetNamespace()
+	}
+
+	out := &command.ServiceAccountRef{Name: ref.Name, Namespace: namespace, Provider: ref.Provider}
+	if ref.Azure != nil {
+		out.Azure = &command.AzureIdentity{ClientID: ref.Azure.ClientID, TenantID: ref.Azure.TenantID}
+	}
+	if ref.GCP != nil {
+		out.GCP = &command.GCPIdentity{ServiceAccountEmail: ref.GCP.ServiceAccountEmail}
+	}
+	return out
 }
 
 // validateServiceAccountRef enforces the tenant-isolation rules for spec.serviceAccountRef.
@@ -359,14 +398,7 @@ func validateServiceAccountRef(log logr.Logger, issuer commandissuer.IssuerLike)
 		return fmt.Errorf("%w: an Issuer may only reference a ServiceAccount in its own namespace", errInvalidServiceAccountRef)
 	}
 
-	identityRef := &command.ServiceAccountRef{Provider: ref.Provider}
-	if ref.Azure != nil {
-		identityRef.Azure = &command.AzureIdentity{ClientID: ref.Azure.ClientID, TenantID: ref.Azure.TenantID}
-	}
-	if ref.GCP != nil {
-		identityRef.GCP = &command.GCPIdentity{ServiceAccountEmail: ref.GCP.ServiceAccountEmail}
-	}
-	if err := command.ValidateIdentityConfig(identityRef); err != nil {
+	if err := command.ValidateIdentityConfig(serviceAccountRefFromIssuer(issuer)); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidServiceAccountRef, err)
 	}
 

@@ -31,7 +31,7 @@ import (
 const (
 	// AzureTokenExchangeAudience is the audience Azure expects on a federated credential's
 	// token for public-cloud Entra ID.
-	AzureTokenExchangeAudience = "api://AzureADTokenExchange"
+	AzureTokenExchangeAudience = "api://AzureADTokenExchange" //nolint:gosec // an audience identifier, not a credential
 
 	// serviceAccountTokenTTL is the lifetime requested for a ServiceAccount token. It is the
 	// minimum the Kubernetes API server accepts; the token is exchanged immediately and never held.

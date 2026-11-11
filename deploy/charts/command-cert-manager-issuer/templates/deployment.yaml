@@ -63,6 +63,9 @@ spec:
             {{- if .Values.secretConfig.useClusterRoleForConfigMapAccess}}
             - --configmap-access-granted-at-cluster-level
             {{- end}}
+            {{- if .Values.workloadIdentity.defaultAzureTenantID }}
+            - --default-azure-tenant-id={{ .Values.workloadIdentity.defaultAzureTenantID }}
+            {{- end }}
             {{- if .Values.defaultHealthCheckInterval }}
             - --default-health-check-interval={{ .Values.defaultHealthCheckInterval }}
             {{- end }}

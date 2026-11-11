@@ -20,6 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"golang.org/x/oauth2"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -229,4 +235,60 @@ func ValidateIdentityConfig(ref *ServiceAccountRef) error {
 		return fmt.Errorf("%w: gcp may only be set when provider is gcp or unset", errInvalidIdentityConfig)
 	}
 	return nil
+}
+
+// Indirections so tests can observe which token sources are built without cloud access.
+var (
+	newDefaultAzureTokenSource    = newAzureTokenSource
+	newDefaultGCPTokenSource      = newGCPTokenSource
+	newWorkloadIdentityAzureToken = newAzureWorkloadIdentityTokenSource
+)
+
+// newServiceAccountTokenSource builds the ambient token source for config.ServiceAccountRef.
+// Any failure is returned as-is; it never falls back to the operator's own identity.
+func newServiceAccountTokenSource(ctx context.Context, config *Config) (oauth2.TokenSource, error) {
+	deps := config.WorkloadIdentity
+	if deps == nil || deps.Requester == nil || deps.Getter == nil {
+		return nil, fmt.Errorf("%w: workload identity dependencies are required when serviceAccountRef is set - this is a bug", errInvalidConfig)
+	}
+
+	identity, err := ResolveServiceAccountIdentity(ctx, config.ServiceAccountRef, deps.Getter, deps.DefaultAzureTenantID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errAmbientCredentialCreationFailure, err)
+	}
+
+	logger := log.FromContext(ctx)
+	for _, warning := range identity.Warnings {
+		logger.Info(warning)
+	}
+
+	switch identity.Provider {
+	case ProviderAzure:
+		return newWorkloadIdentityAzureToken(ctx, config.ServiceAccountRef, identity.Azure, deps.Requester, config.AmbientCredentialScopes)
+	case ProviderGCP:
+		return nil, fmt.Errorf("%w: serviceAccountRef is not yet supported for GCP", errAmbientCredentialCreationFailure)
+	default:
+		return nil, fmt.Errorf("%w: unsupported provider %q - this is a bug", errAmbientCredentialCreationFailure, identity.Provider)
+	}
+}
+
+type kubeServiceAccountAnnotationGetter struct {
+	reader client.Reader
+}
+
+var _ ServiceAccountAnnotationGetter = &kubeServiceAccountAnnotationGetter{}
+
+// NewServiceAccountAnnotationGetter reads ServiceAccount annotations through reader. The reader
+// should not be backed by an informer cache, or a single Get would require list and watch on every
+// ServiceAccount in the cluster instead of get in the namespaces that were granted.
+func NewServiceAccountAnnotationGetter(reader client.Reader) ServiceAccountAnnotationGetter {
+	return &kubeServiceAccountAnnotationGetter{reader: reader}
+}
+
+func (k *kubeServiceAccountAnnotationGetter) GetServiceAccountAnnotations(ctx context.Context, namespace, name string) (map[string]string, error) {
+	var serviceAccount corev1.ServiceAccount
+	if err := k.reader.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &serviceAccount); err != nil {
+		return nil, err
+	}
+	return serviceAccount.Annotations, nil
 }

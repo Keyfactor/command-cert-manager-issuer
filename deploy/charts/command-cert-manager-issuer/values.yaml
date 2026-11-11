@@ -51,6 +51,10 @@ workloadIdentity:
   # When true, `namespaces` is ignored.
   useClusterRoleForServiceAccountAccess: false
 
+  # The Azure tenant ID used for a `serviceAccountRef` when neither the Issuer (`azure.tenantId`) nor the referenced
+  # ServiceAccount (`azure.workload.identity/tenant-id` annotation) sets one. Optional.
+  defaultAzureTenantID: ""
+
 crd:
   # Specifies whether CRDs will be created
   create: true

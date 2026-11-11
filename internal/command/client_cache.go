@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"sync"
 
 	commandsdk "github.com/Keyfactor/keyfactor-go-client-sdk/v25"
@@ -79,6 +80,30 @@ func configHash(config *Config) string {
 	h.Write([]byte(config.AmbientCredentialAudience))
 	for _, scope := range config.AmbientCredentialScopes {
 		h.Write([]byte(scope))
+	}
+
+	// A different ServiceAccountRef must never share a client (and therefore an identity). The
+	// fields are only hashed when a ref is set, so existing keys are unchanged. Each value is
+	// length-prefixed so adjacent fields cannot run into each other.
+	if ref := config.ServiceAccountRef; ref != nil {
+		writeField := func(v string) {
+			h.Write([]byte(strconv.Itoa(len(v))))
+			h.Write([]byte{0})
+			h.Write([]byte(v))
+		}
+		writeField("serviceAccountRef")
+		writeField(ref.Namespace)
+		writeField(ref.Name)
+		writeField(ref.Provider)
+		if ref.Azure != nil {
+			writeField("azure")
+			writeField(ref.Azure.ClientID)
+			writeField(ref.Azure.TenantID)
+		}
+		if ref.GCP != nil {
+			writeField("gcp")
+			writeField(ref.GCP.ServiceAccountEmail)
+		}
 	}
 
 	return hex.EncodeToString(h.Sum(nil))

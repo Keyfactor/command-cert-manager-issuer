@@ -72,6 +72,7 @@ func main() {
 	var disableApprovedCheck bool
 	var secretAccessGrantedAtClusterLevel bool
 	var configMapAccessGrantedAtClusterLevel bool
+	var defaultAzureTenantID string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -91,6 +92,8 @@ func main() {
 		"Set this flag to true if the secret access is granted at cluster level. This will allow the controller to access secrets in any namespace. ")
 	flag.BoolVar(&configMapAccessGrantedAtClusterLevel, "configmap-access-granted-at-cluster-level", false,
 		"Set this flag to true if the config map access is granted at cluster level. This will allow the controller to access config maps in any namespace. ")
+	flag.StringVar(&defaultAzureTenantID, "default-azure-tenant-id", "",
+		"The Azure tenant ID used for an Issuer's serviceAccountRef when neither the Issuer nor the referenced ServiceAccount's azure.workload.identity/tenant-id annotation sets one.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -168,7 +171,15 @@ func main() {
 			SecureServing: secureMetrics,
 			TLSOpts:       tlsOpts,
 		},
-		Cache:                  cacheOpts,
+		Cache: cacheOpts,
+		// ServiceAccounts are read directly instead of through an informer cache. A cached Get
+		// would need list and watch on every ServiceAccount in the cluster, while serviceAccountRef
+		// only needs get in the namespaces an administrator granted (see the workloadIdentity chart values).
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{&corev1.ServiceAccount{}},
+			},
+		},
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -214,6 +225,7 @@ func main() {
 		Scheme:                            mgr.GetScheme(),
 		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
 		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
+		DefaultAzureTenantID:              defaultAzureTenantID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Issuer")
 		os.Exit(1)
@@ -226,6 +238,7 @@ func main() {
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
 		HealthCheckerBuilder:              clientCache.GetOrCreateHealthChecker,
 		DefaultHealthCheckInterval:        defaultHealthCheckInterval,
+		DefaultAzureTenantID:              defaultAzureTenantID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIssuer")
 		os.Exit(1)
@@ -237,6 +250,7 @@ func main() {
 		SignerBuilder:                     clientCache.GetOrCreateSigner,
 		CheckApprovedCondition:            !disableApprovedCheck,
 		SecretAccessGrantedAtClusterLevel: secretAccessGrantedAtClusterLevel,
+		DefaultAzureTenantID:              defaultAzureTenantID,
 		Clock:                             clock.RealClock{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertificateRequest")

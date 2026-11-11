@@ -1601,7 +1601,7 @@ func TestCommandConfigFromIssuer(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			config, err := commandConfigFromIssuer(ctx, fakeClient, issuer, tc.secretNamespace)
+			config, err := commandConfigFromIssuer(ctx, fakeClient, issuer, tc.secretNamespace, "")
 
 			if tc.expectedError != nil {
 				require.Error(t, err)
@@ -1827,7 +1827,7 @@ func TestCommandConfigFromIssuerServiceAccountRefNamespace(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 			// secretNamespace differs from the Issuer's namespace, as with SecretAccessGrantedAtClusterLevel=false.
-			config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "kube-system")
+			config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "kube-system", "")
 
 			if tc.expectedErrorMsg == "" {
 				require.NoError(t, err)
@@ -1860,7 +1860,7 @@ func TestCommandConfigFromIssuerServiceAccountRefValidatedBeforeLookups(t *testi
 	}
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "tenant-a")
+	config, err := commandConfigFromIssuer(context.Background(), fakeClient, issuer, "tenant-a", "")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInvalidServiceAccountRef)

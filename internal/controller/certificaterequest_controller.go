@@ -52,6 +52,10 @@ type CertificateRequestReconciler struct {
 	SecretAccessGrantedAtClusterLevel bool
 	Clock                             clock.Clock
 	CheckApprovedCondition            bool
+
+	// DefaultAzureTenantID is used for a serviceAccountRef when neither the Issuer nor the
+	// ServiceAccount's annotations set an Azure tenant ID.
+	DefaultAzureTenantID string
 }
 
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests,verbs=get;list;watch
@@ -208,7 +212,7 @@ func (r *CertificateRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, errIssuerNotReady
 	}
 
-	config, err := commandConfigFromIssuer(ctx, r.Client, issuer, secretNamespace)
+	config, err := commandConfigFromIssuer(ctx, r.Client, issuer, secretNamespace, r.DefaultAzureTenantID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

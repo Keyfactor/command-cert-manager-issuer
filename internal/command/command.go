@@ -32,6 +32,7 @@ import (
 	v1 "github.com/Keyfactor/keyfactor-go-client-sdk/v25/api/keyfactor/v1"
 	cmpki "github.com/cert-manager/cert-manager/pkg/util/pki"
 	"github.com/go-logr/logr"
+	"golang.org/x/oauth2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -87,6 +88,23 @@ type Config struct {
 	OAuth                     *OAuth
 	AmbientCredentialScopes   []string
 	AmbientCredentialAudience string
+
+	// ServiceAccountRef, if set, selects the Workload Identity bound to that ServiceAccount for
+	// ambient credentials instead of the operator's own identity. It is mutually exclusive with
+	// BasicAuth and OAuth.
+	ServiceAccountRef *ServiceAccountRef
+
+	// WorkloadIdentity supplies what is needed to resolve ServiceAccountRef. It is required
+	// when ServiceAccountRef is set and is deliberately not part of the client cache key.
+	WorkloadIdentity *WorkloadIdentityDeps
+}
+
+// WorkloadIdentityDeps are the collaborators and controller-level settings used to turn a
+// ServiceAccountRef into a token source.
+type WorkloadIdentityDeps struct {
+	Requester            TokenRequester
+	Getter               ServiceAccountAnnotationGetter
+	DefaultAzureTenantID string
 }
 
 func (c *Config) validate() error {
@@ -95,6 +113,10 @@ func (c *Config) validate() error {
 	}
 	if c.APIPath == "" {
 		return fmt.Errorf("%w: apiPath is required", errInvalidConfig)
+	}
+
+	if c.ServiceAccountRef != nil && (c.BasicAuth != nil || c.OAuth != nil) {
+		return fmt.Errorf("%w: serviceAccountRef cannot be combined with basic auth or OAuth credentials", errInvalidConfig)
 	}
 
 	// Validate the optional BasicAuth fields if BasicAuth is provided
@@ -207,16 +229,30 @@ func newServerConfig(ctx context.Context, config *Config) (*auth_providers.Serve
 	// If direct basic-auth/OAuth credentials were configured, continue. Otherwise,
 	// we look for ambient credentials configured on the environment where we're running.
 	if !nonAmbientCredentialsConfigured {
-		log.Info("no direct credentials provided; attempting to use ambient credentials. trying Azure DefaultAzureCredential first")
+		var source oauth2.TokenSource
+		var err error
 
-		source, err := newAzureTokenSource(ctx, config.AmbientCredentialScopes)
-		if err != nil {
-			log.Info("couldn't obtain Azure DefaultAzureCredential. trying GCP ApplicationDefaultCredentials", "error", err)
+		if config.ServiceAccountRef != nil {
+			// A referenced ServiceAccount never falls back to the operator's own ambient identity:
+			// DefaultAzureCredential and Application Default Credentials would silently
+			// authenticate as the operator instead of the referenced ServiceAccount.
+			log.Info("using the Workload Identity of the referenced ServiceAccount", "serviceAccount", config.ServiceAccountRef.Namespace+"/"+config.ServiceAccountRef.Name)
+			source, err = newServiceAccountTokenSource(ctx, config)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			log.Info("no direct credentials provided; attempting to use ambient credentials. trying Azure DefaultAzureCredential first")
 
-			var innerErr error
-			source, innerErr = newGCPTokenSource(ctx, config.AmbientCredentialAudience, config.AmbientCredentialScopes)
-			if innerErr != nil {
-				return nil, fmt.Errorf("%w: azure err: %w. gcp err: %w", errAmbientCredentialCreationFailure, err, innerErr)
+			source, err = newDefaultAzureTokenSource(ctx, config.AmbientCredentialScopes)
+			if err != nil {
+				log.Info("couldn't obtain Azure DefaultAzureCredential. trying GCP ApplicationDefaultCredentials", "error", err)
+
+				var innerErr error
+				source, innerErr = newDefaultGCPTokenSource(ctx, config.AmbientCredentialAudience, config.AmbientCredentialScopes)
+				if innerErr != nil {
+					return nil, fmt.Errorf("%w: azure err: %w. gcp err: %w", errAmbientCredentialCreationFailure, err, innerErr)
+				}
 			}
 		}
 
