@@ -47,58 +47,61 @@ Before continuing, ensure that the following requirements are met:
         - [/MetadataFields](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/MetadataFieldsGet.htm)
         - [/EnrollmentPatterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/Enrollment-Patterns-GET.htm) (Keyfactor Command 25.1 and above)
 - Kubernetes >= v1.19
-    - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), etc.
+    - [Kubernetes](https://kubernetes.io/docs/tasks/tools/), [Minikube](https://minikube.sigs.k8s.io/docs/start/), [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/), [Azure AKS](https://azure.microsoft.com/en-us/products/kubernetes-service/), [Google GKE](https://cloud.google.com/kubernetes-engine), etc.
     > You must have permission to create [Custom Resource Definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) in your Kubernetes cluster.
-- [Supported cert-manager release](https://cert-manager.io/docs/releases/) installed in your cluster. Please see the [cert-manager installation](https://cert-manager.io/docs/installation/) for details.
+- [Supported cert-manager release](https://cert-manager.io/docs/releases/) installed in your cluster. Please see the [cert-manager installation guide](https://cert-manager.io/docs/installation/) for details on how to install cert-manager to your Kubernetes cluster.
 - [Supported version of Helm](https://helm.sh/docs/topics/version_skew/) for your Kubernetes version
 
 # Getting Started
 
 ## Configuring Command
 
-Command Issuer enrolls certificates by submitting certificate signing requests to the Keyfactor Command [CSR Enrollment API](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm). Before using Command Issuer, you must have a Certificate Authority and either a Certificate Template or an Enrollment Pattern configured in Keyfactor Command that is suitable for your use case. You must also configure an [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) in Keyfactor Command and map the credentials used by the Issuer or ClusterIssuer to a [security role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm) with the appropriate permissions.
+Command Issuer enrolls certificates by submitting certificate signing requests to the Keyfactor Command [CSR Enrollment API](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm). 
 
-1. **Create or identify a Certificate Authority**
+Before using Command Issuer, you must have a **Certificate Authority** and either a **Certificate Template** or an **Enrollment Pattern** configured in Keyfactor Command that is suitable for your use case. You must also configure an [identity provider](https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/AuthenticateAPI.htm#AuthenticatingtotheKeyfactorAPI) in Keyfactor Command and map the credentials used by the Issuer or ClusterIssuer to a [security role](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm) with the appropriate permissions.
 
-    A certificate authority (CA) is an entity that issues digital certificates. Within Keyfactor Command, a CA may be a Microsoft CA, EJBCA, or a Keyfactor gateway to a cloud-based or remote CA.
+### 1. Create or identify a Certificate Authority
 
-    - If you haven't created a Certificate Authority before, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/CA-Operations.htm) to learn how, or reach out to your Keyfactor support representative.
+A certificate authority (CA) is an entity that issues digital certificates. Within Keyfactor Command, a CA may be a Microsoft CA, EJBCA, or a Keyfactor gateway to a cloud-based or remote CA.
+  - If you haven't created a Certificate Authority before, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/CA-Operations.htm) to learn how, or reach out to your Keyfactor support representative.
 
-    The CA that you choose must be configured to allow CSR Enrollment.
+>[!IMPORTANT]
+> The CA that you choose must be configured to allow CSR Enrollment.
 
-2. **Identify a Certificate Template / Enrollment Pattern**
+### 2. Identify a Certificate Template / Enrollment Pattern
 
-    Keyfactor Command 25.1 introduces support for [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm#Highlights), which allow an easy way to share certificate configuration without requiring multiple certificate templates. Certificate Template configuration has been moved to the Enrollment Patterns screen. Certificate Templates will still be supported in Issuer / ClusterIssuer configuration, but it is recommended to start using Enrollment Patterns for Keyfactor Command versions 25.1 and above.
+Keyfactor Command 25.1 introduces support for [Enrollment Patterns](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReleaseNotes/Release2511.htm#Highlights), which allow an easy way to share certificate configuration without requiring multiple certificate templates. Certificate Template configuration has been moved to the Enrollment Patterns screen. Certificate Templates will still be supported in Issuer / ClusterIssuer configuration, but it is recommended to start using Enrollment Patterns for Keyfactor Command versions 25.1 and above.
+  
+- If you don't have any suitable Enrollment Patterns, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) or reach out to your Keyfactor support representative to learn more.
 
-    - If you don't have any suitable Enrollment Patterns, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Enrollment-Patterns.htm) or reach out to your Keyfactor support representative to learn more.
+Certificate Templates in Command define properties and constraints of the certificates being issued. This includes settings like key usage, extended key usage, validity period, allowed key algorithms, and signature algorithms. They also control the type of information that end entities must provide and how that information is validated before issuing certificates.
 
-    Certificate Templates in Command define properties and constraints of the certificates being issued. This includes settings like key usage, extended key usage, validity period, allowed key algorithms, and signature algorithms. They also control the type of information that end entities must provide and how that information is validated before issuing certificates.
+- If you don't have any suitable Certificate Templates, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm?Highlight=Certificate%20Template) or reach out to your Keyfactor support representative to learn more.
 
-    - If you don't have any suitable Certificate Templates, refer to the [Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Configuring%20Template%20Options.htm?Highlight=Certificate%20Template) or reach out to your Keyfactor support representative to learn more.
+>[!IMPORTANT]
+> The Certificate Template / Enrollment Pattern that you choose must be configured to allow CSR Enrollment.
 
-    The Certificate Template / Enrollment Pattern that you choose must be configured to allow CSR Enrollment.
+You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template / Enrollment Pattern in Command.    
 
-    You should make careful note of the allowed Key Types and Key Sizes on the Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the key `algorithm` and `size` are allowed by your Certificate Template / Enrollment Pattern in Command.    
+The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template / Enrollment Pattern in Command.
 
-    The same goes for **Enrollment RegExes** and **Policies** defined on your Certificate Template / Enrollment Pattern. When creating cert-manager [Certificates](https://cert-manager.io/docs/usage/certificate/), you must make sure that the `subject`, `commonName`, `dnsNames`, etc. are allowed and/or configured correctly by your Certificate Template / Enrollment Pattern in Command.
+### 3. Configure Command Security Roles and Claims
 
-3. **Configure Command Security Roles and Claims**
+In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.
 
-    In Command, Security Roles define groups of users or administrators with specific permissions. Users and subjects are identified by Claims. By adding a Claim to a Security Role, you can define what actions the user or subject can perform and what parts of the system it can interact with.
+The security role will need to be added as an **Allowed Requester Security Role** on the Certificate Authority and Certificate Template / Enrollment Pattern configured in the previous two steps.
 
-    The security role will need to be added as an **Allowed Requester Security Role** on the Certificate Authority and Certificate Template / Enrollment Pattern configured in the previous two steps.
+- If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
 
-    - If you haven't created Roles and Access rules before, [this guide](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityOverview.htm?Highlight=Security%20Roles) provides a primer on these concepts in Command.
+If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules:
 
-    If your security policy requires fine-grain access control, Command Issuer requires the following Access Rules:
+| Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) | Notes
+|-----------------------------------------|---|---|--|
+| Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` | |
+| Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  | |
+| Enrollment Patterns > Read (Optional) | `/enrollment_pattern/read/` | N/A  | Required if using `EnrollmentPatternName` |
 
-    | Global Permissions                    | Permission Model (Version Two) | Permission Model (Version One) | Notes
-    |-----------------------------------------|---|---|--|
-    | Metadata > Types > Read | `/metadata/types/read/` | `CertificateMetadataTypes:Read` | |
-    | Certificates > Enrollment > Csr | `/certificates/enrollment/csr/` | `CertificateEnrollment:EnrollCSR`  | |
-    | Enrollment Patterns > Read (Optional) | `/enrollment_pattern/read/` | N/A  | Required if using `EnrollmentPatternName` |
-
-    > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
+  > Documentation for [Version Two Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionTwoPermissionModel) and [Version One Permission Model](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/SecurityRolePermissions.htm#VersionOnePermissionModel)
 
 ![Permission Metadata Read](./docsource/images/security_permission_metadata_read.png)
 
