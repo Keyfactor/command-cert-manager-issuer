@@ -19,6 +19,24 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  - package-ecosystem: 'gomod'
+    # The e2e suite is a separate Go module, so Dependabot needs its own entry.
+    target-branch: "main"
+    directory: '/e2e'
+    schedule:
+      interval: 'weekly'
+    groups:
+      # These modules must move together, so update them in a single PR.
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+          - "github.com/cert-manager/cert-manager"
+      # Major bumps are intentionally left out so they get their own PR.
+      gomod-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: 'github-actions'
     # Raise pull requests for version updates
     # against the `main` branch
