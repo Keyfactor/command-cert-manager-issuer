@@ -47,14 +47,35 @@ const (
 	certReadyTimeout      = 60 * time.Second
 )
 
-// TestCertificateRequestIsIssued checks the core flow: a Certificate makes
+// TestIssuerHandlesCertificateRequest checks the core flow: a Certificate makes
 // cert-manager create a CertificateRequest, and once that request is approved
 // the issuer has Command sign it and the resulting certificate lands in the
 // Certificate's Secret.
-func TestCertificateRequestIsIssued(t *testing.T) {
+func TestIssuerHandlesCertificateRequest(t *testing.T) {
 	ns := createTestNamespace(t)
 
 	issuer := createIssuer(t, ns)
+	waitForIssuerReady(t, issuer)
+
+	cert := createCertificate(t, ns, issuer)
+
+	cr := waitForCertificateRequest(t, cert)
+	approveCertificateRequest(t, cr)
+
+	waitForCertificateRequestIssued(t, cr)
+	waitForCertificateReady(t, cert)
+
+	verifyCertificateSecret(t, cert)
+}
+
+// TestClusterIssuerHandlesCertificateRequest runs the same flow as the Issuer
+// test, but through a cluster-scoped ClusterIssuer. The Certificate lives in a
+// test namespace while the auth Secret lives in the issuer's cluster resource
+// namespace, so this also covers the ClusterIssuer's Secret lookup.
+func TestClusterIssuerHandlesCertificateRequest(t *testing.T) {
+	ns := createTestNamespace(t)
+
+	issuer := createClusterIssuer(t)
 	waitForIssuerReady(t, issuer)
 
 	cert := createCertificate(t, ns, issuer)
@@ -96,26 +117,72 @@ func createIssuer(t *testing.T, ns string) *commandissuer.Issuer {
 	return issuer
 }
 
-// Waits for the Issuer to reach the Ready condition.
-func waitForIssuerReady(t *testing.T, issuer *commandissuer.Issuer) {
+// Creates a new ClusterIssuer and returns it. It is cluster-scoped, so it gets a
+// unique name and is deleted when the test ends rather than with a namespace.
+// Set E2E_KEEP_RESOURCES=true to leave it for debugging.
+func createClusterIssuer(t *testing.T) *commandissuer.ClusterIssuer {
+	t.Helper()
+	cfg := suite.cfg
+
+	issuer := &commandissuer.ClusterIssuer{
+		ObjectMeta: metav1.ObjectMeta{Name: "e2e-cluster-issuer-" + randomSuffix(t)},
+		Spec: commandissuer.IssuerSpec{
+			Hostname:                        cfg.hostname,
+			APIPath:                         cfg.apiPath,
+			SecretName:                      cfg.authSecretName,
+			CertificateTemplate:             cfg.certificateTemplate,
+			CertificateAuthorityLogicalName: cfg.caLogicalName,
+			CertificateAuthorityHostname:    cfg.caHostname,
+			EnrollmentPatternName:           cfg.enrollmentPatternName,
+			OwnerRoleName:                   cfg.ownerRoleName,
+		},
+	}
+	if suite.caSecretPresent {
+		issuer.Spec.CaSecretName = cfg.caSecretName
+	}
+
+	if err := suite.client.Create(context.Background(), issuer); err != nil {
+		t.Fatalf("creating ClusterIssuer: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if suite.cfg.keepResources {
+			t.Logf("%s=true: leaving ClusterIssuer %s in place", envKeepResources, issuer.Name)
+			return
+		}
+		if err := suite.client.Delete(context.Background(), issuer); err != nil {
+			t.Logf("deleting ClusterIssuer %s: %v", issuer.Name, err)
+		}
+	})
+	return issuer
+}
+
+// Waits for the Issuer or ClusterIssuer to reach the Ready condition.
+func waitForIssuerReady(t *testing.T, issuer commandissuer.IssuerLike) {
 	t.Helper()
 
-	waitFor(t, fmt.Sprintf("Issuer %s/%s to be Ready", issuer.Namespace, issuer.Name), issuerReadyTimeout,
+	waitFor(t, fmt.Sprintf("%T %q to be Ready", issuer, client.ObjectKeyFromObject(issuer).String()), issuerReadyTimeout,
 		func(ctx context.Context) (bool, string, error) {
 			if err := suite.client.Get(ctx, client.ObjectKeyFromObject(issuer), issuer); err != nil {
 				return false, "", err
 			}
-			if issuer.Status.HasCondition(commandissuer.IssuerConditionReady, commandissuer.ConditionTrue) {
+			status := issuer.GetStatus()
+			if status.HasCondition(commandissuer.IssuerConditionReady, commandissuer.ConditionTrue) {
 				return true, "", nil
 			}
-			return false, fmt.Sprintf("conditions: %+v", issuer.Status.Conditions), nil
+			return false, fmt.Sprintf("conditions: %+v", status.Conditions), nil
 		})
 }
 
-// Creates a Certificate resource in the given namespace using the specified Issuer.
+// Creates a Certificate resource in the given namespace using the specified Issuer or ClusterIssuer.
 // cert-manager will take care of generating the corresponding CertificateRequest and managing the certificate lifecycle.
-func createCertificate(t *testing.T, ns string, issuer *commandissuer.Issuer) *cmapi.Certificate {
+func createCertificate(t *testing.T, ns string, issuer commandissuer.IssuerLike) *cmapi.Certificate {
 	t.Helper()
+
+	kind := "Issuer"
+	if issuer.IsClusterScoped() {
+		kind = "ClusterIssuer"
+	}
 
 	cert := &cmapi.Certificate{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-cert", Namespace: ns},
@@ -126,8 +193,8 @@ func createCertificate(t *testing.T, ns string, issuer *commandissuer.Issuer) *c
 			Duration:   &metav1.Duration{Duration: 90 * 24 * time.Hour},
 			PrivateKey: &cmapi.CertificatePrivateKey{Algorithm: cmapi.RSAKeyAlgorithm, Size: 2048},
 			IssuerRef: cmmeta.ObjectReference{
-				Name:  issuer.Name,
-				Kind:  "Issuer",
+				Name:  issuer.GetName(),
+				Kind:  kind,
 				Group: commandissuer.GroupVersion.Group,
 			},
 		},
@@ -263,6 +330,6 @@ func verifyCertificateSecret(t *testing.T, cert *cmapi.Certificate) {
 	if now := time.Now(); now.Before(leaf.NotBefore.Add(-5*time.Minute)) || now.After(leaf.NotAfter) {
 		t.Errorf("issued certificate is not currently valid (valid %s to %s)", leaf.NotBefore, leaf.NotAfter)
 	}
-	t.Logf("issued certificate: CN=%s, issuer=%s, serial=%s, expires %s",
+	t.Logf("issued certificate: CN=%s, issuer=%s, serial=%X, expires %s",
 		leaf.Subject.CommonName, leaf.Issuer.CommonName, leaf.SerialNumber, leaf.NotAfter.Format(time.RFC3339))
 }
