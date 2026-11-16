@@ -1,3 +1,10 @@
+# v2.6.4
+## Features
+- Add a new end-to-end test suite for certificate issuance and validation.
+## Security
+- Updated dependencies to address various security vulnerabilities:
+    - google.golang.org/grpc v1.83.1 -> v1.83.2
+
 # v2.6.3
 ## Security
 - Updated dependencies to address various security vulnerabilities:
