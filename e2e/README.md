@@ -53,7 +53,7 @@ Every `kubectl` and `helm` call is made with an explicit `--context`, so nothing
 
 ## What `teardown` does
 
-After the same context confirmation, it uninstalls the Helm release and deletes the auth and CA trust Secrets. It leaves cert-manager and the namespace in place, since it can't know whether it was the one to install them.
+After the same context confirmation, it uninstalls the Helm release and deletes the auth and CA trust Secrets. For the local chart, the Issuer CRDs are retained to protect their cluster-wide instances. It leaves cert-manager and the namespace in place, since it can't know whether it was the one to install them.
 
 ## Configuration
 
@@ -69,7 +69,7 @@ These are read from environment variables only, never from flags, so they can't 
 | `E2E_OAUTH_AUDIENCE` | no | OAuth audience |
 | `E2E_OAUTH_SCOPES` | no | OAuth scopes |
 
-Either export them yourself, or put them in a file. `e2e/e2e.env` is loaded automatically if it exists (use `--env-file` for another path). The same file configures the tests, so you only maintain one:
+Either export them yourself, or put them in a file. `e2e/e2e.env` is loaded automatically if it exists (use `--env-file` for another path, relative to `e2e/`). The same file configures the tests, so you only maintain one:
 
 ```bash
 cp e2e.env.example e2e.env   # e2e.env is gitignored
@@ -179,7 +179,7 @@ The suite is kept apart from the unit tests in three ways: it is its own Go modu
 
 ### Test configuration
 
-The tests read `e2e.env` (or the file named by `E2E_ENV_FILE`) like setup does. In addition to the shared settings above, they need to know which Command instance the test Issuer should talk to. The credentials for it are in the auth Secret from setup, which the tests never read.
+The tests read `e2e.env` (or the file named by `E2E_ENV_FILE`, relative paths are resolved from `e2e/`) like setup does. In addition to the shared settings above, they need to know which Command instance the test Issuer should talk to. The credentials for it are in the auth Secret from setup, which the tests never read.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|

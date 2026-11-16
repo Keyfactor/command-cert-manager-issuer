@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Keyfactor/command-cert-manager-issuer/e2e/internal/e2econfig"
@@ -74,6 +75,9 @@ type config struct {
 // setup tool if there is one.
 func loadConfig() (config, error) {
 	path := os.Getenv(envEnvFile)
+	if path != "" && !filepath.IsAbs(path) {
+		path = filepath.Join("..", path)
+	}
 	if path == "" {
 		// go test runs in the package directory, which is e2e/tests.
 		if _, err := os.Stat("../" + e2econfig.DefaultEnvFile); err == nil {

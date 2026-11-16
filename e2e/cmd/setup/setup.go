@@ -344,6 +344,7 @@ func deployIssuer(ctx context.Context, c cluster, o options, localChart, localIm
 
 	if localChart {
 		args = append(args, filepath.Join(o.repoRoot, localChartRelPath))
+		args = append(args, "--set", `crd.annotations.helm\.sh/resource-policy=keep`)
 	} else {
 		args = append(args, chartName, "--repo", chartRepoURL, "--version", o.chartVersion)
 		if strings.Contains(o.chartVersion, "-") {

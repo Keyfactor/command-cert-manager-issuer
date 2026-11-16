@@ -58,9 +58,7 @@ func runTeardown(ctx context.Context, args []string) error {
 	}
 
 	step("Uninstalling %s", o.releaseName)
-	if _, err := c.helm(ctx, execOpts{quiet: true}, "status", o.releaseName, "-n", o.namespace); err != nil {
-		fmt.Println("Helm release not found, skipping.")
-	} else if _, err := c.helm(ctx, execOpts{stream: true}, "uninstall", o.releaseName, "-n", o.namespace, "--wait"); err != nil {
+	if _, err := c.helm(ctx, execOpts{stream: true}, "uninstall", o.releaseName, "-n", o.namespace, "--ignore-not-found", "--wait"); err != nil {
 		return err
 	}
 
