@@ -108,11 +108,12 @@ func loadConfig() (config, error) {
 	}
 
 	var missing []string
-	for name, v := range map[string]string{
-		envCommandHostname: c.hostname,
-		envCertTemplate:    c.certificateTemplate,
-		envCALogicalName:   c.caLogicalName,
-	} {
+	required := map[string]string{envCommandHostname: c.hostname}
+	if c.enrollmentPatternName == "" {
+		required[envCertTemplate] = c.certificateTemplate
+		required[envCALogicalName] = c.caLogicalName
+	}
+	for name, v := range required {
 		if v == "" {
 			missing = append(missing, name)
 		}

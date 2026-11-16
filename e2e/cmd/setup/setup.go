@@ -299,12 +299,16 @@ func applyCASecret(ctx context.Context, c cluster, o options, files []string) er
 }
 
 func secretManifest(namespace, name string, stringData map[string]string) map[string]any {
+	data := make(map[string][]byte, len(stringData))
+	for key, value := range stringData {
+		data[key] = []byte(value)
+	}
 	return map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Secret",
 		"metadata":   map[string]any{"name": name, "namespace": namespace},
 		"type":       "Opaque",
-		"stringData": stringData,
+		"data":       data,
 	}
 }
 
@@ -363,7 +367,10 @@ func deployIssuer(ctx context.Context, c cluster, o options, localChart, localIm
 		}
 		args = append(args, "--set", "image.pullPolicy="+policy)
 	}
-	args = append(args, "--wait", "--timeout", "5m")
+	if !localImage {
+		args = append(args, "--wait")
+	}
+	args = append(args, "--timeout", "5m")
 
 	if _, err := c.helm(ctx, execOpts{stream: true}, args...); err != nil {
 		return err
