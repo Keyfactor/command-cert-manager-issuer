@@ -80,7 +80,7 @@ jobs:
       # Setup Helm
       # https://github.com/Azure/setup-helm
       - name: Install Helm
-        uses: azure/setup-helm@v3.5
+        uses: azure/setup-helm@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 

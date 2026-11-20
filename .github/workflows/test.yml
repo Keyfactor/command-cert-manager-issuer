@@ -53,7 +53,7 @@ jobs:
           cache: true
 
       - name: Install Helm
-        uses: azure/setup-helm@v3.5
+        uses: azure/setup-helm@v5
 
       # Run Go linters
       # https://github.com/golangci/golangci-lint-action
